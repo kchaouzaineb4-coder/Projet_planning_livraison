@@ -1,7 +1,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from datetime import datetime
 import os
+from io import BytesIO
 
 # -------------------------------
 # Configuration de la page
@@ -49,15 +51,24 @@ def load_data():
         st.session_state.df_volumes = pd.DataFrame()
 
 # -------------------------------
-# Fonction pour lire Excel (.xls et .xlsx)
+# Fonction pour lire Excel (.xls ou .xlsx)
 # -------------------------------
 def read_excel_auto(file):
     ext = os.path.splitext(file.name)[1].lower()
     try:
-        if ext == ".xls":
-            return pd.read_excel(file, engine='xlrd')  # xlrd==1.2.0
-        elif ext == ".xlsx":
+        if ext == ".xlsx":
             return pd.read_excel(file, engine='openpyxl')
+        elif ext == ".xls":
+            # conversion en xlsx en mémoire
+            from pyexcel_xls import get_data
+            data = get_data(file)
+            # créer un DataFrame pandas pour la première feuille
+            sheet_name = list(data.keys())[0]
+            df = pd.DataFrame(data[sheet_name])
+            # si la première ligne contient les noms de colonnes
+            df.columns = df.iloc[0]
+            df = df[1:]
+            return df
         else:
             raise ValueError(f"Format de fichier non supporté : {ext}")
     except Exception as e:
@@ -91,7 +102,7 @@ def main():
     # ---------------------------
     # 1. Chargement des fichiers
     # ---------------------------
-    st.header("1. Chargement des fichiers (.xls et .xlsx)")
+    st.header("1. Chargement des fichiers (.xls ou .xlsx)")
     col1, col2, col3 = st.columns(3)
 
     with col1:
