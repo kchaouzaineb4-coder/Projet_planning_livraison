@@ -50,11 +50,23 @@ def load_data():
         st.session_state.df_volumes = pd.DataFrame()
 
 # -------------------------------
+# Fonction pour lire Excel automatiquement
+# -------------------------------
+def read_excel_auto(file):
+    ext = os.path.splitext(file.name)[1].lower()
+    if ext == ".xls":
+        return pd.read_excel(file, engine='xlrd')
+    elif ext == ".xlsx":
+        return pd.read_excel(file, engine='openpyxl')
+    else:
+        raise ValueError(f"Format de fichier non supporté : {ext}")
+
+# -------------------------------
 # Traitement des fichiers
 # -------------------------------
 def process_files(liv_file, client_file, volume_file):
     # Fichier de livraisons
-    df_liv = pd.read_excel(liv_file)
+    df_liv = read_excel_auto(liv_file)
     df_liv = df_liv[df_liv["Type livraison"] != "SDC"]
 
     # Suppression de certains clients
@@ -65,10 +77,10 @@ def process_files(liv_file, client_file, volume_file):
     df_liv = df_liv[~df_liv["Client commande"].isin(clients_a_supprimer)]
 
     # Fichier des volumes
-    df_vol = pd.read_excel(volume_file)
+    df_vol = read_excel_auto(volume_file)
 
     # Fichier des clients
-    df_client = pd.read_excel(client_file)
+    df_client = read_excel_auto(client_file)
 
     return df_liv, df_client, df_vol
 
