@@ -65,21 +65,16 @@ def read_excel_auto(file):
 # Traitement des fichiers
 # -------------------------------
 def process_files(liv_file, client_file, volume_file):
-    # Fichier de livraisons
     df_liv = read_excel_auto(liv_file)
     df_liv = df_liv[df_liv["Type livraison"] != "SDC"]
 
-    # Suppression de certains clients
     clients_a_supprimer = [
         "AMECAP", "SANA", "SOPAL", "SOPALGAZ",
         "SOPALALG", "AQUA", "WINOX", "QUIVEM", "SANISTONE"
     ]
     df_liv = df_liv[~df_liv["Client commande"].isin(clients_a_supprimer)]
 
-    # Fichier des volumes
     df_vol = read_excel_auto(volume_file)
-
-    # Fichier des clients
     df_client = read_excel_auto(client_file)
 
     return df_liv, df_client, df_vol
@@ -105,66 +100,70 @@ def main():
         volume_file = st.file_uploader("Fichier des volumes", type=['xls', 'xlsx'])
 
     if liv_file and client_file and volume_file:
-        df_liv, df_client, df_vol = process_files(liv_file, client_file, volume_file)
-        st.session_state.df_livraisons = df_liv
-        st.session_state.df_clients = df_client
-        st.session_state.df_volumes = df_vol
-        st.success("Fichiers chargés avec succès!")
+        try:
+            df_liv, df_client, df_vol = process_files(liv_file, client_file, volume_file)
+            st.session_state.df_livraisons = df_liv
+            st.session_state.df_clients = df_client
+            st.session_state.df_volumes = df_vol
+            st.success("Fichiers chargés avec succès!")
 
-        # ---------------------------
-        # 2. Affichage des données
-        # ---------------------------
-        st.header("2. Données traitées")
-        tab1, tab2, tab3 = st.tabs(["Livraisons", "Clients", "Volumes"])
+            # ---------------------------
+            # 2. Affichage des données
+            # ---------------------------
+            st.header("2. Données traitées")
+            tab1, tab2, tab3 = st.tabs(["Livraisons", "Clients", "Volumes"])
 
-        with tab1:
-            st.dataframe(df_liv)
-        with tab2:
-            st.dataframe(df_client)
-        with tab3:
-            st.dataframe(df_vol)
+            with tab1:
+                st.dataframe(df_liv)
+            with tab2:
+                st.dataframe(df_client)
+            with tab3:
+                st.dataframe(df_vol)
 
-        # ---------------------------
-        # 3. Statistiques
-        # ---------------------------
-        st.header("3. Statistiques")
-        col1, col2 = st.columns(2)
+            # ---------------------------
+            # 3. Statistiques
+            # ---------------------------
+            st.header("3. Statistiques")
+            col1, col2 = st.columns(2)
 
-        with col1:
-            st.metric("Nombre total de livraisons", len(df_liv))
-            st.metric("Poids total", f"{df_liv['Poids de l\'US'].sum():.2f} kg")
-        with col2:
-            st.metric("Nombre de clients", len(df_liv['Client commande'].unique()))
-            st.metric("Volume total", f"{df_vol['Volume de l\'US'].sum():.2f} m³")
+            with col1:
+                st.metric("Nombre total de livraisons", len(df_liv))
+                st.metric("Poids total", f"{df_liv['Poids de l\'US'].sum():.2f} kg")
+            with col2:
+                st.metric("Nombre de clients", len(df_liv['Client commande'].unique()))
+                st.metric("Volume total", f"{df_vol['Volume de l\'US'].sum():.2f} m³")
 
-        # ---------------------------
-        # 4. Planning des livraisons
-        # ---------------------------
-        st.header("4. Planning des livraisons")
-        zones = sorted(df_liv['Zone'].unique().tolist())
-        selected_zone = st.selectbox("Sélectionner une zone", zones)
+            # ---------------------------
+            # 4. Planning des livraisons
+            # ---------------------------
+            st.header("4. Planning des livraisons")
+            zones = sorted(df_liv['Zone'].unique().tolist())
+            selected_zone = st.selectbox("Sélectionner une zone", zones)
 
-        if selected_zone:
-            df_zone = df_liv[df_liv['Zone'] == selected_zone]
-            st.subheader(f"Livraisons pour la zone {selected_zone}")
-            st.dataframe(df_zone)
+            if selected_zone:
+                df_zone = df_liv[df_liv['Zone'] == selected_zone]
+                st.subheader(f"Livraisons pour la zone {selected_zone}")
+                st.dataframe(df_zone)
 
-        # ---------------------------
-        # Attribution des véhicules
-        # ---------------------------
-        st.subheader("Attribution des véhicules")
-        col1, col2 = st.columns(2)
+            # ---------------------------
+            # Attribution des véhicules
+            # ---------------------------
+            st.subheader("Attribution des véhicules")
+            col1, col2 = st.columns(2)
 
-        with col1:
-            selected_vehicle = st.selectbox("Sélectionner un véhicule", VEHICULES_DISPONIBLES)
-        with col2:
-            selected_driver = st.selectbox(
-                "Sélectionner un chauffeur",
-                [f"{mat} - {name}" for mat, name in CHAUFFEURS_DETAILS.items()]
-            )
+            with col1:
+                selected_vehicle = st.selectbox("Sélectionner un véhicule", VEHICULES_DISPONIBLES)
+            with col2:
+                selected_driver = st.selectbox(
+                    "Sélectionner un chauffeur",
+                    [f"{mat} - {name}" for mat, name in CHAUFFEURS_DETAILS.items()]
+                )
 
-        if st.button("Attribuer"):
-            st.success(f"Véhicule {selected_vehicle} attribué à {selected_driver} avec succès!")
+            if st.button("Attribuer"):
+                st.success(f"Véhicule {selected_vehicle} attribué à {selected_driver} avec succès!")
+
+        except Exception as e:
+            st.error(f"Erreur lors du traitement des fichiers : {e}")
 
 # -------------------------------
 # Lancement de l'application
