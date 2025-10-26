@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from datetime import datetime
 import os
 from io import BytesIO
 
@@ -59,15 +58,14 @@ def read_excel_auto(file):
         if ext == ".xlsx":
             return pd.read_excel(file, engine='openpyxl')
         elif ext == ".xls":
-            # conversion en xlsx en mémoire
+            # Utiliser pyexcel-xls pour lire les anciens .xls
             from pyexcel_xls import get_data
             data = get_data(file)
-            # créer un DataFrame pandas pour la première feuille
             sheet_name = list(data.keys())[0]
             df = pd.DataFrame(data[sheet_name])
-            # si la première ligne contient les noms de colonnes
+            # Si la première ligne contient les noms de colonnes
             df.columns = df.iloc[0]
-            df = df[1:]
+            df = df[1:].reset_index(drop=True)
             return df
         else:
             raise ValueError(f"Format de fichier non supporté : {ext}")
