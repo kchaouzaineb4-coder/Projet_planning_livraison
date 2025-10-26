@@ -50,22 +50,19 @@ def load_data():
         st.session_state.df_volumes = pd.DataFrame()
 
 # -------------------------------
-# Fonction pour lire Excel automatiquement
+# Fonction pour lire Excel (xlsx uniquement)
 # -------------------------------
-def read_excel_auto(file):
-    ext = os.path.splitext(file.name)[1].lower()
-    if ext == ".xls":
-        return pd.read_excel(file, engine='xlrd')
-    elif ext == ".xlsx":
+def read_excel_xlsx(file):
+    try:
         return pd.read_excel(file, engine='openpyxl')
-    else:
-        raise ValueError(f"Format de fichier non supporté : {ext}")
+    except Exception as e:
+        raise ValueError(f"Erreur lors de la lecture du fichier Excel : {e}")
 
 # -------------------------------
 # Traitement des fichiers
 # -------------------------------
 def process_files(liv_file, client_file, volume_file):
-    df_liv = read_excel_auto(liv_file)
+    df_liv = read_excel_xlsx(liv_file)
     df_liv = df_liv[df_liv["Type livraison"] != "SDC"]
 
     clients_a_supprimer = [
@@ -74,8 +71,8 @@ def process_files(liv_file, client_file, volume_file):
     ]
     df_liv = df_liv[~df_liv["Client commande"].isin(clients_a_supprimer)]
 
-    df_vol = read_excel_auto(volume_file)
-    df_client = read_excel_auto(client_file)
+    df_vol = read_excel_xlsx(volume_file)
+    df_client = read_excel_xlsx(client_file)
 
     return df_liv, df_client, df_vol
 
@@ -89,15 +86,15 @@ def main():
     # ---------------------------
     # 1. Chargement des fichiers
     # ---------------------------
-    st.header("1. Chargement des fichiers")
+    st.header("1. Chargement des fichiers (xlsx uniquement)")
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        liv_file = st.file_uploader("Fichier des livraisons", type=['xls', 'xlsx'])
+        liv_file = st.file_uploader("Fichier des livraisons", type=['xlsx'])
     with col2:
-        client_file = st.file_uploader("Fichier des clients", type=['xls', 'xlsx'])
+        client_file = st.file_uploader("Fichier des clients", type=['xlsx'])
     with col3:
-        volume_file = st.file_uploader("Fichier des volumes", type=['xls', 'xlsx'])
+        volume_file = st.file_uploader("Fichier des volumes", type=['xlsx'])
 
     if liv_file and client_file and volume_file:
         try:

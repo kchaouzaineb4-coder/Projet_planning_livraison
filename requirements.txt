@@ -1,5 +1,4 @@
-pandas
-streamlit
-xlrd
-openpyxl
-numpy
+streamlit==1.29.0
+pandas==2.1.1
+numpy==1.27.0
+openpyxl==3.1.2
