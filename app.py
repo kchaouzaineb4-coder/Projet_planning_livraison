@@ -49,14 +49,17 @@ def load_data():
         st.session_state.df_volumes = pd.DataFrame()
 
 # -------------------------------
-# Fonction pour lire Excel (.xls uniquement)
+# Fonction pour lire Excel (.xls et .xlsx)
 # -------------------------------
-def read_excel_xls(file):
+def read_excel_auto(file):
     ext = os.path.splitext(file.name)[1].lower()
-    if ext != ".xls":
-        raise ValueError(f"Format non supporté : {ext}. Seuls les fichiers .xls sont acceptés.")
     try:
-        return pd.read_excel(file, engine='xlrd')
+        if ext == ".xls":
+            return pd.read_excel(file, engine='xlrd')  # xlrd==1.2.0
+        elif ext == ".xlsx":
+            return pd.read_excel(file, engine='openpyxl')
+        else:
+            raise ValueError(f"Format de fichier non supporté : {ext}")
     except Exception as e:
         raise ValueError(f"Erreur lors de la lecture du fichier Excel : {e}")
 
@@ -64,7 +67,7 @@ def read_excel_xls(file):
 # Traitement des fichiers
 # -------------------------------
 def process_files(liv_file, client_file, volume_file):
-    df_liv = read_excel_xls(liv_file)
+    df_liv = read_excel_auto(liv_file)
     df_liv = df_liv[df_liv["Type livraison"] != "SDC"]
 
     clients_a_supprimer = [
@@ -73,8 +76,8 @@ def process_files(liv_file, client_file, volume_file):
     ]
     df_liv = df_liv[~df_liv["Client commande"].isin(clients_a_supprimer)]
 
-    df_vol = read_excel_xls(volume_file)
-    df_client = read_excel_xls(client_file)
+    df_vol = read_excel_auto(volume_file)
+    df_client = read_excel_auto(client_file)
 
     return df_liv, df_client, df_vol
 
@@ -85,15 +88,18 @@ def main():
     load_data()
     st.title("🚚 Planification des Livraisons")
 
-    st.header("1. Chargement des fichiers (.xls uniquement)")
+    # ---------------------------
+    # 1. Chargement des fichiers
+    # ---------------------------
+    st.header("1. Chargement des fichiers (.xls et .xlsx)")
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        liv_file = st.file_uploader("Fichier des livraisons", type=['xls'])
+        liv_file = st.file_uploader("Fichier des livraisons", type=['xls', 'xlsx'])
     with col2:
-        client_file = st.file_uploader("Fichier des clients", type=['xls'])
+        client_file = st.file_uploader("Fichier des clients", type=['xls', 'xlsx'])
     with col3:
-        volume_file = st.file_uploader("Fichier des volumes", type=['xls'])
+        volume_file = st.file_uploader("Fichier des volumes", type=['xls', 'xlsx'])
 
     if liv_file and client_file and volume_file:
         try:
@@ -108,6 +114,7 @@ def main():
             # ---------------------------
             st.header("2. Données traitées")
             tab1, tab2, tab3 = st.tabs(["Livraisons", "Clients", "Volumes"])
+
             with tab1:
                 st.dataframe(df_liv)
             with tab2:
@@ -120,6 +127,7 @@ def main():
             # ---------------------------
             st.header("3. Statistiques")
             col1, col2 = st.columns(2)
+
             with col1:
                 st.metric("Nombre total de livraisons", len(df_liv))
                 st.metric("Poids total", f"{df_liv['Poids de l\'US'].sum():.2f} kg")
@@ -133,6 +141,7 @@ def main():
             st.header("4. Planning des livraisons")
             zones = sorted(df_liv['Zone'].unique().tolist())
             selected_zone = st.selectbox("Sélectionner une zone", zones)
+
             if selected_zone:
                 df_zone = df_liv[df_liv['Zone'] == selected_zone]
                 st.subheader(f"Livraisons pour la zone {selected_zone}")
@@ -143,6 +152,7 @@ def main():
             # ---------------------------
             st.subheader("Attribution des véhicules")
             col1, col2 = st.columns(2)
+
             with col1:
                 selected_vehicle = st.selectbox("Sélectionner un véhicule", VEHICULES_DISPONIBLES)
             with col2:
@@ -150,6 +160,7 @@ def main():
                     "Sélectionner un chauffeur",
                     [f"{mat} - {name}" for mat, name in CHAUFFEURS_DETAILS.items()]
                 )
+
             if st.button("Attribuer"):
                 st.success(f"Véhicule {selected_vehicle} attribué à {selected_driver} avec succès!")
 
