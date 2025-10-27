@@ -1,121 +1,156 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import os
+import math
+import re
 
-st.set_page_config(page_title="Planification des Livraisons", page_icon="🚚", layout="wide")
+st.title("Optimisation des voyages par estafette")
 
-MAX_POIDS = 1550.0  
-MAX_VOLUME = 4.608  
+st.markdown("""
+**Instructions :**  
+1. Uploadez vos 3 fichiers :  
+   - Fichier des livraisons (`F1758623552711_LIV.xlsx`)  
+   - Fichier des clients (`F1758721675866_WCLIEGPS.xlsx`)  
+   - Fichier des volumes (`F1758008320774_YDLOGIST.xlsx`)  
+2. Cliquez sur *Lancer le traitement* pour générer le fichier final.
+""")
 
-VEHICULES_DISPONIBLES = [
-    'SLG-VEH11', 'SLG-VEH14', 'SLG-VEH22', 'SLG-VEH19',
-    'SLG-VEH10', 'SLG-VEH16', 'SLG-VEH23', 'SLG-VEH08', 'SLG-VEH20'
-]
+# ====== Upload des fichiers ======
+livraisons_file = st.file_uploader("Fichier des livraisons", type=["xlsx"])
+clients_file = st.file_uploader("Fichier des clients", type=["xlsx"])
+volumes_file = st.file_uploader("Fichier des volumes", type=["xlsx"])
 
-CHAUFFEURS_DETAILS = {
-    '09254': 'DAMMAK Karim',
-    '06002': 'MAAZOUN Bassem',
-    '11063': 'SASSI Ramzi',
-    '10334': 'BOUJELBENE Mohamed',
-    '15144': 'GADDOUR Rami',
-    '08278': 'DAMMAK Wissem',
-    '18339': 'REKIK Ahmed',
-    '07250': 'BARKIA Mustapha',
-    '13321': 'BADRI Moez'
-}
+# ====== Lancer le traitement ======
+if st.button("Lancer le traitement"):
 
-def read_excel_auto(file):
-    ext = os.path.splitext(file.name)[1].lower()
-    try:
-        if ext == ".xlsx":
-            df = pd.read_excel(file, engine="openpyxl")
-        elif ext == ".xls":
-            from pyexcel_xls import get_data
-            data = get_data(file)
-            sheet = list(data.keys())[0]
-            df = pd.DataFrame(data[sheet])
-            df.columns = df.iloc[0]
-            df = df[1:].reset_index(drop=True)
+    if not livraisons_file or not clients_file or not volumes_file:
+        st.error("Merci d'uploader les 3 fichiers.")
+    else:
+        st.info("Traitement en cours... ⏳")
+
+        # ====== Lire les fichiers ======
+        df_livraison = pd.read_excel(livraisons_file)
+        df_clients = pd.read_excel(clients_file)
+        df_volume = pd.read_excel(volumes_file)
+
+        # ====== Nettoyage des colonnes numériques ======
+        for col in ["Quantité livrée US", "Poids de l'US"]:
+            if col in df_livraison.columns:
+                df_livraison[col] = (
+                    df_livraison[col].astype(str).str.replace(",", ".")
+                ).astype(float).fillna(0)
+        for col in ["Quantité livrée US", "Volume de l'US"]:
+            if col in df_volume.columns:
+                df_volume[col] = (
+                    df_volume[col].astype(str).str.replace(",", ".")
+                ).astype(float).fillna(0)
+
+        # ====== Calcul poids total par BL ======
+        df_livraison["Poids calculé"] = df_livraison["Quantité livrée US"] * df_livraison["Poids de l'US"]
+        df_poids = df_livraison.groupby(["No livraison", "Client commande"], as_index=False).agg({"Poids calculé":"sum"})
+        df_articles = df_livraison.groupby("No livraison")["Article"].apply(lambda x: ", ".join(x.unique())).reset_index()
+        df_poids = pd.merge(df_poids, df_articles, on="No livraison")
+        df_poids.rename(columns={"Poids calculé":"Poids total"}, inplace=True)
+
+        # ====== Calcul volume total par BL ======
+        df_volume["Volume calculé"] = df_volume["Quantité livrée US"] * df_volume["Volume de l'US"]
+        df_volume_total = df_volume.groupby("No livraison", as_index=False).agg({"Volume calculé":"sum"})
+        df_volume_total["Volume calculé"] = df_volume_total["Volume calculé"] / 1_000_000  # cm3 -> m3
+        df_articles_vol = df_volume.groupby("No livraison")["Article"].apply(lambda x: ", ".join(x.unique())).reset_index()
+        df_volume_total = pd.merge(df_volume_total, df_articles_vol, on="No livraison")
+        df_volume_total.rename(columns={"Volume calculé":"Volume total (m³)"}, inplace=True)
+
+        # ====== Fusion poids + volume ======
+        df_merge = pd.merge(df_poids, df_volume_total, on="No livraison", how="outer")
+        # Fusion articles
+        def fusion_articles(row):
+            articles = [str(row["Article_x"]), str(row["Article_y"])]
+            articles = [a for a in articles if a != "nan" and a.strip() != ""]
+            return ", ".join(sorted(set(articles)))
+        df_merge["Article"] = df_merge.apply(fusion_articles, axis=1)
+        df_merge = df_merge.drop(columns=["Article_x","Article_y"])
+        df_merge = df_merge[["No livraison","Article","Client commande","Poids total","Volume total (m³)"]]
+
+        # ====== Optimisation voyages par estafette ======
+        MAX_POIDS = 1550
+        MAX_VOLUME = 4.608
+
+        # Ajouter une colonne région par ville (exemple simplifié)
+        zones = {
+            "Zone 1":["TUNIS","ARIANA","MANOUBA","BEN AROUS","BIZERTE","MATEUR","MENZEL BOURGUIBA","UTIQUE"],
+            "Zone 2":["NABEUL","HAMMAMET","KORBA","MENZEL TEMIME","KELIBIA","SOLIMAN"],
+            "Zone 3":["SOUSSE","MONASTIR","MAHDIA","KAIROUAN"],
+            "Zone 4":["GABÈS","MEDENINE","ZARZIS","DJERBA"],
+            "Zone 5":["GAFSA","KASSERINE","TOZEUR","NEFTA","DOUZ"],
+            "Zone 6":["JENDOUBA","BEJA","LE KEF","TABARKA","SILIANA"],
+            "Zone 7":["SFAX"]
+        }
+        def trouver_zone(ville):
+            ville_upper = str(ville).strip().upper()
+            for zone, villes in zones.items():
+                if ville_upper in [v.upper() for v in villes]:
+                    return zone
+            return "Zone inconnue"
+        if "Ville" in df_livraison.columns:
+            df_merge["région"] = df_livraison["Ville"].apply(trouver_zone)
         else:
-            raise ValueError(f"Format non supporté : {ext}")
+            df_merge["région"] = "Zone inconnue"
 
-        df = df.loc[:, ~df.columns.duplicated()].copy()
+        # Boucle pour créer les estafettes
+        resultats = []
+        estafette_num = 1
+        for zone, group in df_merge.groupby("région"):
+            group_sorted = group.sort_values(by="Poids total", ascending=False)
+            estafettes = []
+            for idx, row in group_sorted.iterrows():
+                bl = row["No livraison"]
+                poids = row["Poids total"]
+                volume = row["Volume total (m³)"]
+                placed = False
+                for e in estafettes:
+                    if e["poids"]+poids<=MAX_POIDS and e["volume"]+volume<=MAX_VOLUME:
+                        e["poids"] += poids
+                        e["volume"] += volume
+                        e["bls"].append(bl)
+                        placed = True
+                        break
+                if not placed:
+                    estafettes.append({"poids":poids,"volume":volume,"bls":[bl]})
+            for e in estafettes:
+                resultats.append([zone, estafette_num, e["poids"], e["volume"], ";".join(e["bls"])])
+                estafette_num += 1
 
-        return df
-    except Exception as e:
-        raise ValueError(f"Impossible de lire le fichier : {e}")
+        df_estafettes = pd.DataFrame(resultats, columns=["Zone","Estafette N°","Poids total","Volume total","BL inclus"])
 
-def process_files(liv_file, client_file, volume_file):
-    df_liv = read_excel_auto(liv_file)
-    df_liv = df_liv[df_liv["Type livraison"] != "SDC"]
+        # ====== Calcul taux d'occupation ======
+        df_estafettes["taux d'occupation (%)"] = df_estafettes.apply(
+            lambda row: max(row['Poids total']/MAX_POIDS, row['Volume total']/MAX_VOLUME)*100, axis=1
+        ).round(2)
 
-    clients_exclus = ["AMECAP", "SANA", "SOPAL", "SOPALGAZ", "SOPALALG", 
-                      "AQUA", "WINOX", "QUIVEM", "SANISTONE"]
-    df_liv = df_liv[~df_liv["Client commande"].isin(clients_exclus)]
+        # ====== Ajout clients ======
+        mapping_client = dict(zip(df_livraison["No livraison"], df_livraison["Client commande"]))
+        def extraire_clients(bls):
+            bl_list = [b.strip() for b in str(bls).split(";")]
+            clients = [mapping_client.get(b,"??") for b in bl_list]
+            return "; ".join(clients)
+        df_estafettes["Client commande"] = df_estafettes["BL inclus"].apply(extraire_clients)
 
-    df_vol = read_excel_auto(volume_file)
-    df_client = read_excel_auto(client_file)
+        # ====== Ajout représentant ======
+        mapping_rep = dict(zip(df_clients["Client"], df_clients.iloc[:,16]))
+        def extraire_reps(clients_str):
+            clients = [c.strip() for c in str(clients_str).split(";")]
+            reps = [mapping_rep.get(c,"Client inconnu") for c in clients]
+            return "; ".join(list(dict.fromkeys(reps)))
+        df_estafettes["Représentant"] = df_estafettes["Client commande"].apply(extraire_reps)
 
-    return df_liv, df_client, df_vol
+        # ====== Affichage du résultat final ======
+        st.success("✅ Traitement terminé ! Voici un aperçu du fichier final :")
+        st.dataframe(df_estafettes)
 
-
-def main():
-    st.title("🚚 Planification des Livraisons")
-
-    st.header("1️⃣ Téléverser les fichiers (.xls ou .xlsx)")
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        liv_file = st.file_uploader("📦 Fichier des livraisons", type=["xls", "xlsx"])
-    with col2:
-        client_file = st.file_uploader("👥 Fichier des clients", type=["xls", "xlsx"])
-    with col3:
-        volume_file = st.file_uploader("📏 Fichier des volumes", type=["xls", "xlsx"])
-
-    if liv_file and client_file and volume_file:
-        try:
-            df_liv, df_client, df_vol = process_files(liv_file, client_file, volume_file)
-
-            st.success("✅ Fichiers importés avec succès")
-
-            st.header("📊 2️⃣ Aperçu des données")
-            tab1, tab2, tab3 = st.tabs(["Livraisons", "Clients", "Volumes"])
-
-            with tab1:
-                st.dataframe(df_liv)
-            with tab2:
-                st.dataframe(df_client)
-            with tab3:
-                st.dataframe(df_vol)
-
-            st.header("📈 3️⃣ Statistiques")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Livraisons", len(df_liv))
-                st.metric("Poids total (kg)", f"{df_liv['Poids de l\'US'].astype(float).sum():.2f}")
-            with col2:
-                st.metric("Clients uniques", df_liv["Client commande"].nunique())
-                st.metric("Volume total (m³)", f"{df_vol['Volume de l\'US'].astype(float).sum():.2f}")
-
-            st.header("🚦 4️⃣ Planning par zone")
-            zones = sorted(df_liv['Zone'].dropna().unique().tolist())
-            selected_zone = st.selectbox("Sélectionner une zone :", zones)
-
-            if selected_zone:
-                st.dataframe(df_liv[df_liv['Zone'] == selected_zone])
-
-            st.subheader("🚚 Attribution des véhicules")
-            col1, col2 = st.columns(2)
-            veh = col1.selectbox("Véhicule", VEHICULES_DISPONIBLES)
-            chauffeur = col2.selectbox("Chauffeur", 
-                                       [f"{mat} - {n}" for mat, n in CHAUFFEURS_DETAILS.items()])
-
-            if st.button("✅ Attribuer"):
-                st.success(f"✔ {veh} attribué à {chauffeur}")
-
-        except Exception as e:
-            st.error(f"⚠️ Erreur : {e}")
-
-if __name__ == "__main__":
-    main()
+        # Option de téléchargement
+        st.download_button(
+            label="Télécharger le fichier final",
+            data=df_estafettes.to_excel(index=False, engine='openpyxl'),
+            file_name="Voyages_par_estafette_final.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
