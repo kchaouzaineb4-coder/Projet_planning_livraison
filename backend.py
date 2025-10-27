@@ -2,13 +2,9 @@ import pandas as pd
 import numpy as np
 
 class DeliveryProcessor:
-    def __init__(self):
-        self.MAX_POIDS = 1550.0  # kg
-        self.MAX_VOLUME = 4.608  # m3
-
     def process_delivery_data(self, liv_file, ydlogist_file, wcliegps_file):
         try:
-            # Charger et renommer les colonnes critiques
+            # Charger le fichier Livraisons et renommer la colonne critique
             df_liv = pd.read_excel(liv_file)
             df_liv.rename(columns={df_liv.columns[4]: "Quantité livrée US"}, inplace=True)
 
@@ -23,7 +19,7 @@ class DeliveryProcessor:
             df_poids = self._calculate_weights(df_liv)
 
             # Fusion volume/poids
-            df_merged = pd.merge(df_poids, df_vol, on=["No livraison", "Article"], how="left")
+            df_merged = pd.merge(df_poids, df_vol, on=["No livraison", "Article", "Client commande"], how="left")
 
             # Ajouter info client/ville
             df_final = self._add_city_client_info(df_merged, wcliegps_file)
@@ -35,7 +31,7 @@ class DeliveryProcessor:
             # Calcul Volume total = Volume de l'US * Quantité livrée US
             df_final["Volume total"] = df_final["Volume de l'US"] * df_final["Quantité livrée US"]
 
-            # Supprimer les colonnes individuelles
+            # Supprimer colonnes individuelles
             df_final = df_final.drop(columns=["Volume de l'US", "Quantité livrée US"], errors='ignore')
 
             # Regrouper par No livraison
@@ -75,7 +71,7 @@ class DeliveryProcessor:
         return df.rename(columns=renommage)
 
     def _calculate_volumes(self, df_liv, df_art):
-        df_liv_sel = df_liv[["No livraison", "Article","Quantité livrée US"]]
+        df_liv_sel = df_liv[["No livraison", "Article", "Quantité livrée US", "Client commande"]]
         df_art_sel = df_art[["Article", "Volume de l'US", "Unité Volume"]]
         df_art_sel["Volume de l'US"] = pd.to_numeric(
             df_art_sel["Volume de l'US"].astype(str).str.replace(",", "."),
@@ -90,19 +86,19 @@ class DeliveryProcessor:
         ).fillna(0)
         df["Quantité livrée US"] = pd.to_numeric(df["Quantité livrée US"], errors="coerce").fillna(0)
         df["Poids total"] = df["Quantité livrée US"] * df["Poids de l'US"]
-        return df[["No livraison", "Article", "Poids total"]]
+        return df[["No livraison", "Article", "Poids total", "Client commande"]]
 
     def _add_city_client_info(self, df, wcliegps_file):
         df_clients = pd.read_excel(wcliegps_file)
         df = pd.merge(
             df,
             df_clients[["Client", "Ville"]],
-            left_on="Client",
+            left_on="Client commande",
             right_on="Client",
             how="left"
         )
         df = df[~df["Ville"].isin(["TRIPOLI"])]
-        df = df[df["Client"] != "PERSOGSO"]
+        df = df[df["Client commande"] != "PERSOGSO"]
         return df
 
     def export_results(self, df, output_path):

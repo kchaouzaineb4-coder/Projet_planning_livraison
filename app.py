@@ -1,5 +1,4 @@
 import streamlit as st
-import pandas as pd
 from backend import DeliveryProcessor
 
 st.set_page_config(page_title="Planning Livraisons", layout="wide")
@@ -15,11 +14,11 @@ if st.button("Exécuter le traitement complet"):
         processor = DeliveryProcessor()
         try:
             df_result = processor.process_delivery_data(liv_file, ydlogist_file, wcliegps_file)
-
+            
             # Affichage du tableau
             st.subheader("Aperçu des résultats")
             st.dataframe(df_result)
-
+            
             # Bouton pour télécharger
             output_path = "Livraison_finale_avec_ville_et_client.xlsx"
             processor.export_results(df_result, output_path)
