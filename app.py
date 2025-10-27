@@ -1,4 +1,6 @@
 import streamlit as st
+import pandas as pd
+import plotly.express as px
 from backend import DeliveryProcessor
 
 st.set_page_config(page_title="Planning Livraisons", layout="wide")
@@ -14,33 +16,59 @@ if st.button("Exécuter le traitement complet"):
         processor = DeliveryProcessor()
         try:
             df_grouped, df_city = processor.process_delivery_data(liv_file, ydlogist_file, wcliegps_file)
-            
+
+            # --------------------------
             # Affichage du tableau détaillé
-            st.subheader("Aperçu des livraisons détaillées")
+            # --------------------------
+            st.subheader("Résultat : Livraisons par Client & Ville")
             st.dataframe(df_grouped)
 
-            # Affichage du besoin en estafette par ville
-            st.subheader("Besoin en estafette par ville")
-            st.dataframe(df_city)
+            # Exporter les résultats Excel
+            path_grouped = "Livraison_finale_avec_ville_et_client.xlsx"
+            path_city = "Livraison_Besoin_Estafette.xlsx"
 
-            # Bouton pour télécharger
-            output_path_grouped = "Livraison_finale_avec_ville_et_client.xlsx"
-            output_path_city = "Livraison_Besoin_Estafette.xlsx"
-            processor.export_results(df_grouped, df_city, output_path_grouped, output_path_city)
-            with open(output_path_grouped, "rb") as f:
+            processor.export_results(df_grouped, df_city, path_grouped, path_city)
+
+            # Boutons de téléchargement
+            with open(path_grouped, "rb") as f1:
                 st.download_button(
-                    label="Télécharger livraisons détaillées",
-                    data=f,
-                    file_name=output_path_grouped,
+                    label="Télécharger Tableau Détails Livraisons",
+                    data=f1,
+                    file_name=path_grouped,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-            with open(output_path_city, "rb") as f:
+
+            with open(path_city, "rb") as f2:
                 st.download_button(
-                    label="Télécharger besoin en estafette",
-                    data=f,
-                    file_name=output_path_city,
+                    label="Télécharger Besoin Estafette par Ville",
+                    data=f2,
+                    file_name=path_city,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
+
+            # --------------------------
+            # Graphiques statistiques par ville
+            # --------------------------
+            st.subheader("Statistiques par Ville")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                fig1 = px.bar(
+                    df_city,
+                    x="Ville", y="Poids total",
+                    title="Poids total livré par ville"
+                )
+                st.plotly_chart(fig1, use_container_width=True)
+
+            with col2:
+                fig2 = px.bar(
+                    df_city,
+                    x="Ville", y="Besoin estafette réel",
+                    title="Nombre d'estafettes nécessaires par ville"
+                )
+                st.plotly_chart(fig2, use_container_width=True)
+
         except Exception as e:
             st.error(f"Erreur : {str(e)}")
     else:
