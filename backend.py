@@ -18,26 +18,25 @@ class DeliveryProcessor:
             # Traitement YDLOGIST
             df_yd = self._process_ydlogist(ydlogist_file)
 
-            # Fusion Livraisons + YDLOGIST pour volume et poids
+            # Calcul volumes et poids
             df_vol = self._calculate_volumes(df_liv, df_yd)
-            df_vol["Poids de l'US"] = pd.to_numeric(
-                df_vol["Poids de l'US"].astype(str).str.replace(",", ".").str.replace(r"[^\d.]", "", regex=True),
-                errors="coerce"
-            ).fillna(0)
-            df_vol["Quantité livrée US"] = pd.to_numeric(df_vol["Quantité livrée US"], errors="coerce").fillna(0)
-            df_vol["Poids total"] = df_vol["Quantité livrée US"] * df_vol["Poids de l'US"]
+            df_poids = self._calculate_weights(df_liv)
 
-            # Supprimer colonnes inutiles et convertir volume en m³
-            df_vol = df_vol.drop(columns=["Unité Volume"], errors='ignore')
-            df_vol["Volume de l'US"] = pd.to_numeric(df_vol["Volume de l'US"], errors="coerce").fillna(0)
-            df_vol["Volume de l'US"] = df_vol["Volume de l'US"] / 1_000_000  # cm3 -> m3
-            df_vol["Volume total"] = df_vol["Volume de l'US"] * df_vol["Quantité livrée US"]
+            # Fusion volume/poids
+            df_final = self._merge_volume_weight(df_vol, df_poids)
 
             # Ajouter info client/ville
-            df_final = self._add_city_client_info(df_vol, wcliegps_file)
+            df_final = self._add_city_client_info(df_final, wcliegps_file)
+
+            # Supprimer colonnes inutiles et convertir volume en m³
+            df_final = df_final.drop(columns=["Client commande", "Unité Volume"], errors='ignore')
+            df_final["Volume de l'US"] = df_final["Volume de l'US"] / 1_000_000  # cm3 -> m3
+
+            # Calcul Volume total = Volume de l'US * Quantité livrée US
+            df_final["Volume total"] = df_final["Volume de l'US"] * df_final["Quantité livrée US"]
 
             # Supprimer les colonnes individuelles
-            df_final = df_final.drop(columns=["Quantité livrée US", "Volume de l'US"], errors='ignore')
+            df_final = df_final.drop(columns=["Volume de l'US", "Quantité livrée US"], errors='ignore')
 
             # Regrouper par No livraison pour combiner les articles
             df_grouped = df_final.groupby(["No livraison", "Client", "Ville"]).agg({
@@ -69,20 +68,30 @@ class DeliveryProcessor:
             df.columns[8]: "Unité Stock",
             df.columns[9]: "Date création",
             df.columns[13]: "Unité Poids",
-            df.columns[16]: "Unité Volume",
-            df.columns[11] if len(df.columns) > 11 else 'Poids de l\'US': "Poids de l'US",
-            df.columns[12] if len(df.columns) > 12 else 'Volume de l\'US': "Volume de l'US"
+            df.columns[16]: "Unité Volume"
         }
         return df.rename(columns=renommage)
 
     def _calculate_volumes(self, df_liv, df_art):
-        df_liv_sel = df_liv[["No livraison", "Article", "Quantité livrée US", "Client commande"]]
-        df_art_sel = df_art[["Article", "Volume de l'US", "Poids de l'US"]]
+        df_liv_sel = df_liv[["No livraison", "Article","Quantité livrée US"]]
+        df_art_sel = df_art[["Article", "Volume de l'US", "Unité Volume"]]
         df_art_sel["Volume de l'US"] = pd.to_numeric(
             df_art_sel["Volume de l'US"].astype(str).str.replace(",", "."),
             errors="coerce"
         )
         return pd.merge(df_liv_sel, df_art_sel, on="Article", how="left")
+
+    def _calculate_weights(self, df):
+        df["Poids de l'US"] = pd.to_numeric(
+            df["Poids de l'US"].astype(str).str.replace(",", ".").str.replace(r"[^\d.]", "", regex=True),
+            errors="coerce"
+        ).fillna(0)
+        df["Quantité livrée US"] = pd.to_numeric(df["Quantité livrée US"], errors="coerce").fillna(0)
+        df["Poids total"] = df["Quantité livrée US"] * df["Poids de l'US"]
+        return df.groupby(["No livraison", "Client commande"], as_index=False)["Poids total"].sum()
+
+    def _merge_volume_weight(self, df_vol, df_poids):
+        return pd.merge(df_poids, df_vol, on="No livraison", how="left")
 
     def _add_city_client_info(self, df, wcliegps_file):
         df_clients = pd.read_excel(wcliegps_file)
@@ -95,7 +104,6 @@ class DeliveryProcessor:
         )
         df = df[~df["Ville"].isin(["TRIPOLI"])]
         df = df[df["Client commande"] != "PERSOGSO"]
-        df = df.rename(columns={"Client commande": "Client"})
         return df
 
     def export_results(self, df, output_path):
