@@ -2,24 +2,11 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import os
-from io import BytesIO
 
-# -------------------------------
-# Configuration de la page
-# -------------------------------
-st.set_page_config(
-    page_title="Planification des Livraisons",
-    page_icon="🚚",
-    layout="wide"
-)
+st.set_page_config(page_title="Planification des Livraisons", page_icon="🚚", layout="wide")
 
-# -------------------------------
-# Constantes
-# -------------------------------
-MAX_POIDS = 1550.0  # kg
-MAX_VOLUME = 4.608  # m3
-SEUIL_CAMION_POIDS = 3000.0  # kg
-SEUIL_CAMION_VOLUME = 9.216  # m3
+MAX_POIDS = 1550.0  
+MAX_VOLUME = 4.608  
 
 VEHICULES_DISPONIBLES = [
     'SLG-VEH11', 'SLG-VEH14', 'SLG-VEH22', 'SLG-VEH19',
@@ -38,90 +25,61 @@ CHAUFFEURS_DETAILS = {
     '13321': 'BADRI Moez'
 }
 
-# -------------------------------
-# Initialisation des données
-# -------------------------------
-def load_data():
-    if 'df_livraisons' not in st.session_state:
-        st.session_state.df_livraisons = pd.DataFrame()
-    if 'df_clients' not in st.session_state:
-        st.session_state.df_clients = pd.DataFrame()
-    if 'df_volumes' not in st.session_state:
-        st.session_state.df_volumes = pd.DataFrame()
-
-# -------------------------------
-# Fonction pour lire Excel (.xls ou .xlsx)
-# -------------------------------
 def read_excel_auto(file):
     ext = os.path.splitext(file.name)[1].lower()
     try:
         if ext == ".xlsx":
-            return pd.read_excel(file, engine='openpyxl')
+            df = pd.read_excel(file, engine="openpyxl")
         elif ext == ".xls":
-            # Utiliser pyexcel-xls pour lire les anciens .xls
             from pyexcel_xls import get_data
             data = get_data(file)
-            sheet_name = list(data.keys())[0]
-            df = pd.DataFrame(data[sheet_name])
-            # Si la première ligne contient les noms de colonnes
+            sheet = list(data.keys())[0]
+            df = pd.DataFrame(data[sheet])
             df.columns = df.iloc[0]
             df = df[1:].reset_index(drop=True)
-            return df
         else:
-            raise ValueError(f"Format de fichier non supporté : {ext}")
-    except Exception as e:
-        raise ValueError(f"Erreur lors de la lecture du fichier Excel : {e}")
+            raise ValueError(f"Format non supporté : {ext}")
 
-# -------------------------------
-# Traitement des fichiers
-# -------------------------------
+        df = df.loc[:, ~df.columns.duplicated()].copy()
+
+        return df
+    except Exception as e:
+        raise ValueError(f"Impossible de lire le fichier : {e}")
+
 def process_files(liv_file, client_file, volume_file):
     df_liv = read_excel_auto(liv_file)
     df_liv = df_liv[df_liv["Type livraison"] != "SDC"]
 
-    clients_a_supprimer = [
-        "AMECAP", "SANA", "SOPAL", "SOPALGAZ",
-        "SOPALALG", "AQUA", "WINOX", "QUIVEM", "SANISTONE"
-    ]
-    df_liv = df_liv[~df_liv["Client commande"].isin(clients_a_supprimer)]
+    clients_exclus = ["AMECAP", "SANA", "SOPAL", "SOPALGAZ", "SOPALALG", 
+                      "AQUA", "WINOX", "QUIVEM", "SANISTONE"]
+    df_liv = df_liv[~df_liv["Client commande"].isin(clients_exclus)]
 
     df_vol = read_excel_auto(volume_file)
     df_client = read_excel_auto(client_file)
 
     return df_liv, df_client, df_vol
 
-# -------------------------------
-# Interface principale
-# -------------------------------
+
 def main():
-    load_data()
     st.title("🚚 Planification des Livraisons")
 
-    # ---------------------------
-    # 1. Chargement des fichiers
-    # ---------------------------
-    st.header("1. Chargement des fichiers (.xls ou .xlsx)")
+    st.header("1️⃣ Téléverser les fichiers (.xls ou .xlsx)")
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        liv_file = st.file_uploader("Fichier des livraisons", type=['xls', 'xlsx'])
+        liv_file = st.file_uploader("📦 Fichier des livraisons", type=["xls", "xlsx"])
     with col2:
-        client_file = st.file_uploader("Fichier des clients", type=['xls', 'xlsx'])
+        client_file = st.file_uploader("👥 Fichier des clients", type=["xls", "xlsx"])
     with col3:
-        volume_file = st.file_uploader("Fichier des volumes", type=['xls', 'xlsx'])
+        volume_file = st.file_uploader("📏 Fichier des volumes", type=["xls", "xlsx"])
 
     if liv_file and client_file and volume_file:
         try:
             df_liv, df_client, df_vol = process_files(liv_file, client_file, volume_file)
-            st.session_state.df_livraisons = df_liv
-            st.session_state.df_clients = df_client
-            st.session_state.df_volumes = df_vol
-            st.success("Fichiers chargés avec succès!")
 
-            # ---------------------------
-            # 2. Affichage des données
-            # ---------------------------
-            st.header("2. Données traitées")
+            st.success("✅ Fichiers importés avec succès")
+
+            st.header("📊 2️⃣ Aperçu des données")
             tab1, tab2, tab3 = st.tabs(["Livraisons", "Clients", "Volumes"])
 
             with tab1:
@@ -131,53 +89,33 @@ def main():
             with tab3:
                 st.dataframe(df_vol)
 
-            # ---------------------------
-            # 3. Statistiques
-            # ---------------------------
-            st.header("3. Statistiques")
+            st.header("📈 3️⃣ Statistiques")
             col1, col2 = st.columns(2)
-
             with col1:
-                st.metric("Nombre total de livraisons", len(df_liv))
-                st.metric("Poids total", f"{df_liv['Poids de l\'US'].sum():.2f} kg")
+                st.metric("Livraisons", len(df_liv))
+                st.metric("Poids total (kg)", f"{df_liv['Poids de l\'US'].astype(float).sum():.2f}")
             with col2:
-                st.metric("Nombre de clients", len(df_liv['Client commande'].unique()))
-                st.metric("Volume total", f"{df_vol['Volume de l\'US'].sum():.2f} m³")
+                st.metric("Clients uniques", df_liv["Client commande"].nunique())
+                st.metric("Volume total (m³)", f"{df_vol['Volume de l\'US'].astype(float).sum():.2f}")
 
-            # ---------------------------
-            # 4. Planning des livraisons
-            # ---------------------------
-            st.header("4. Planning des livraisons")
-            zones = sorted(df_liv['Zone'].unique().tolist())
-            selected_zone = st.selectbox("Sélectionner une zone", zones)
+            st.header("🚦 4️⃣ Planning par zone")
+            zones = sorted(df_liv['Zone'].dropna().unique().tolist())
+            selected_zone = st.selectbox("Sélectionner une zone :", zones)
 
             if selected_zone:
-                df_zone = df_liv[df_liv['Zone'] == selected_zone]
-                st.subheader(f"Livraisons pour la zone {selected_zone}")
-                st.dataframe(df_zone)
+                st.dataframe(df_liv[df_liv['Zone'] == selected_zone])
 
-            # ---------------------------
-            # Attribution des véhicules
-            # ---------------------------
-            st.subheader("Attribution des véhicules")
+            st.subheader("🚚 Attribution des véhicules")
             col1, col2 = st.columns(2)
+            veh = col1.selectbox("Véhicule", VEHICULES_DISPONIBLES)
+            chauffeur = col2.selectbox("Chauffeur", 
+                                       [f"{mat} - {n}" for mat, n in CHAUFFEURS_DETAILS.items()])
 
-            with col1:
-                selected_vehicle = st.selectbox("Sélectionner un véhicule", VEHICULES_DISPONIBLES)
-            with col2:
-                selected_driver = st.selectbox(
-                    "Sélectionner un chauffeur",
-                    [f"{mat} - {name}" for mat, name in CHAUFFEURS_DETAILS.items()]
-                )
-
-            if st.button("Attribuer"):
-                st.success(f"Véhicule {selected_vehicle} attribué à {selected_driver} avec succès!")
+            if st.button("✅ Attribuer"):
+                st.success(f"✔ {veh} attribué à {chauffeur}")
 
         except Exception as e:
-            st.error(f"Erreur lors du traitement des fichiers : {e}")
+            st.error(f"⚠️ Erreur : {e}")
 
-# -------------------------------
-# Lancement de l'application
-# -------------------------------
 if __name__ == "__main__":
     main()
