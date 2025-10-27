@@ -6,7 +6,7 @@ class DeliveryProcessor:
         self.MAX_POIDS = 1550.0  # kg
         self.MAX_VOLUME = 4.608  # m3
 
-        # Zones par ville (facultatif pour visualisation)
+        # Zones par ville (facultatif)
         self.zones = {
             "Zone 1": ["TUNIS","ARIANA","MANOUBA","BEN AROUS","BIZERTE","MATEUR","MENZEL BOURGUIBA","UTIQUE"],
             "Zone 2": ["NABEUL","HAMMAMET","KORBA","MENZEL TEMIME","KELIBIA","SOLIMAN"],
@@ -39,8 +39,9 @@ class DeliveryProcessor:
             # Ajouter info client/ville
             df_final = self._add_city_client_info(df_final, wcliegps_file)
 
-            # Calcul taux occupation
-            df_final = self._calculate_occupation_rate(df_final)
+            # Supprimer colonnes inutiles et convertir volume en m³
+            df_final = df_final.drop(columns=["Client commande", "Unité Volume"], errors='ignore')
+            df_final["Volume de l'US"] = df_final["Volume de l'US"] / 1_000_000  # cm3 -> m3
 
             return df_final
 
@@ -102,17 +103,6 @@ class DeliveryProcessor:
         df = df[~df["Ville"].isin(["TRIPOLI"])]
         df = df[df["Client commande"] != "PERSOGSO"]
         return df
-
-    def _calculate_occupation_rate(self, df):
-        # Pour l'instant on calcule juste sur poids, volume restant à adapter si besoin
-        df["taux d'occupation (%)"] = df.apply(
-            lambda row: max(
-                row["Poids total"]/self.MAX_POIDS,
-                row.get("Volume de l'US", 0)/self.MAX_VOLUME
-            )*100,
-            axis=1
-        )
-        return df.round(2)
 
     def export_results(self, df, output_path):
         df.to_excel(output_path, index=False)

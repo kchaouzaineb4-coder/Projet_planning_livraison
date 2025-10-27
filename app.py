@@ -28,7 +28,7 @@ if st.button("Exécuter le traitement complet"):
 
             # Visualisation simple
             st.subheader("Aperçu des résultats")
-            st.dataframe(results)
+            st.dataframe(results)  # La colonne Client commande est supprimée dans backend
 
             st.subheader("Nombre de livraisons par ville")
             st.bar_chart(results.groupby("Ville")["No livraison"].count())
