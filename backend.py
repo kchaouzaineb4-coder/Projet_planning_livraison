@@ -3,97 +3,102 @@ import numpy as np
 
 class DeliveryProcessor:
     def __init__(self):
-        # Constantes
-        self.MAX_POIDS = 1550.0  # kg (Capacité estafette standard)
-        self.MAX_VOLUME = 4.608  # m3 (Capacité estafette standard)
-        
+        self.MAX_POIDS = 1550.0  # kg
+        self.MAX_VOLUME = 4.608  # m3
+
     def process_delivery_data(self, liv_file, ydlogist_file, wcliegps_file):
-        """
-        Traitement principal des données de livraison
-        """
         try:
-            # 1. Charger et filtrer les données initiales
+            # Charger et renommer les colonnes critiques
             df_liv = pd.read_excel(liv_file)
-            df_liv = self._rename_columns_liv(df_liv)
-            
-            # 2. Traiter les données YDLOGIST
-            df_ydlogist = self._process_ydlogist(ydlogist_file)
-            
-            # 3. Fusionner livraisons et YDLOGIST
-            df = pd.merge(df_liv, df_ydlogist, on="Article", how="left")
-            
-            # 4. Calculer Poids total et Volume total par article
-            df["Poids total"] = df["Quantité livrée US"] * df["Poids de l'US"]
-            df["Volume total"] = df["Quantité livrée US"] * df["Volume de l'US"]
-            
-            # 5. Ajouter informations Ville et Client
-            df = self._add_city_client_info(df, wcliegps_file)
-            
-            # 6. Supprimer colonnes inutiles
-            df = df.drop(columns=["Client commande", "Unité Volume", "Poids de l'US", "Volume de l'US"])
-            
-            # 7. Agréger par No livraison
-            df_final = df.groupby("No livraison", as_index=False).agg({
-                "Article": lambda x: ", ".join(x.astype(str)),  # concaténation articles
-                "Poids total": "sum",
-                "Volume total": "sum",
-                "Client": "first",
-                "Ville": "first"
-            })
-            
+            df_liv.rename(columns={df_liv.columns[4]: "Quantité livrée US"}, inplace=True)
+
+            # Filtrage initial
+            df_liv = self._filter_initial_data(df_liv)
+
+            # Traitement YDLOGIST
+            df_yd = self._process_ydlogist(ydlogist_file)
+
+            # Calcul volumes et poids
+            df_vol = self._calculate_volumes(df_liv, df_yd)
+            df_poids = self._calculate_weights(df_liv)
+
+            # Fusion volume/poids
+            df_final = self._merge_volume_weight(df_vol, df_poids)
+
+            # Ajouter info client/ville
+            df_final = self._add_city_client_info(df_final, wcliegps_file)
+
+            # Supprimer colonnes inutiles et convertir volume en m³
+            df_final = df_final.drop(columns=["Client commande", "Unité Volume"], errors='ignore')
+            df_final["Volume de l'US"] = df_final["Volume de l'US"] / 1_000_000  # cm3 -> m3
+
+            # Calcul Volume total = Volume de l'US * Quantité livrée US
+            df_final["Volume total"] = df_final["Volume de l'US"] * df_final["Quantité livrée US"]
+
+            # Supprimer les colonnes individuelles
+            df_final = df_final.drop(columns=["Volume de l'US", "Quantité livrée US"], errors='ignore')
+
             return df_final
-        
+
         except Exception as e:
             raise Exception(f"Erreur lors du traitement des données: {str(e)}")
-    
-    def _rename_columns_liv(self, df):
-        """Renommer les colonnes du fichier livraisons"""
-        df = df.rename(columns={
-            df.columns[0]: "No livraison",
-            df.columns[1]: "Client commande",
-            df.columns[2]: "Article",
-            df.columns[4]: "Quantité livrée US"  # Colonne E
-        })
-        return df
-    
+
+    def _filter_initial_data(self, df):
+        df = df[df["Type livraison"] != "SDC"]
+        clients_a_supprimer = [
+            "AMECAP", "SANA", "SOPAL", "SOPALGAZ", "SOPALSERV", "SOPALTEC",
+            "SOPALALG", "AQUA", "WINOX", "QUIVEM", "SANISTONE", "SOPAMAR",
+            "SOPALAFR", "SOPALINTER"
+        ]
+        return df[~df["Client commande"].isin(clients_a_supprimer)]
+
     def _process_ydlogist(self, file_path):
-        """Traiter le fichier YDLOGIST"""
         df = pd.read_excel(file_path)
-        
-        # Renommage colonnes importantes
-        df = df.rename(columns={
+        renommage = {
             df.columns[2]: "Catégorie",
             df.columns[5]: "Acheté",
             df.columns[6]: "Fabriqué",
             df.columns[8]: "Unité Stock",
             df.columns[9]: "Date création",
-            df.columns[13]: "Poids de l'US",
-            df.columns[16]: "Volume de l'US"
-        })
-        
-        # Conversion en float
-        df["Poids de l'US"] = pd.to_numeric(df["Poids de l'US"].astype(str).str.replace(",", "."), errors="coerce").fillna(0)
-        df["Volume de l'US"] = pd.to_numeric(df["Volume de l'US"].astype(str).str.replace(",", "."), errors="coerce").fillna(0)
-        
-        # Convertir Volume en m³ si >100 (supposé cm3)
-        df.loc[df["Volume de l'US"] > 100, "Volume de l'US"] = df["Volume de l'US"] / 1000000
-        
-        return df
-    
+            df.columns[13]: "Unité Poids",
+            df.columns[16]: "Unité Volume"
+        }
+        return df.rename(columns=renommage)
+
+    def _calculate_volumes(self, df_liv, df_art):
+        df_liv_sel = df_liv[["No livraison", "Article","Quantité livrée US"]]
+        df_art_sel = df_art[["Article", "Volume de l'US", "Unité Volume"]]
+        df_art_sel["Volume de l'US"] = pd.to_numeric(
+            df_art_sel["Volume de l'US"].astype(str).str.replace(",", "."),
+            errors="coerce"
+        )
+        return pd.merge(df_liv_sel, df_art_sel, on="Article", how="left")
+
+    def _calculate_weights(self, df):
+        df["Poids de l'US"] = pd.to_numeric(
+            df["Poids de l'US"].astype(str).str.replace(",", ".").str.replace(r"[^\d.]", "", regex=True),
+            errors="coerce"
+        ).fillna(0)
+        df["Quantité livrée US"] = pd.to_numeric(df["Quantité livrée US"], errors="coerce").fillna(0)
+        df["Poids total"] = df["Quantité livrée US"] * df["Poids de l'US"]
+        return df.groupby(["No livraison", "Client commande"], as_index=False)["Poids total"].sum()
+
+    def _merge_volume_weight(self, df_vol, df_poids):
+        return pd.merge(df_poids, df_vol, on="No livraison", how="left")
+
     def _add_city_client_info(self, df, wcliegps_file):
-        """Ajouter les informations de ville et client"""
         df_clients = pd.read_excel(wcliegps_file)
-        df = pd.merge(df, df_clients[["Client", "Ville"]], left_on="Client commande", right_on="Client", how="left")
-        
-        # Supprimer certains clients ou villes spécifiques
-        df = df[df["Ville"] != "TRIPOLI"]
+        df = pd.merge(
+            df,
+            df_clients[["Client", "Ville"]],
+            left_on="Client commande",
+            right_on="Client",
+            how="left"
+        )
+        df = df[~df["Ville"].isin(["TRIPOLI"])]
         df = df[df["Client commande"] != "PERSOGSO"]
         return df
-    
+
     def export_results(self, df, output_path):
-        """Exporter les résultats"""
-        try:
-            df.to_excel(output_path, index=False)
-            return True
-        except Exception as e:
-            raise Exception(f"Erreur lors de l'export: {str(e)}")
+        df.to_excel(output_path, index=False)
+        return True
