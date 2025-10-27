@@ -1,6 +1,4 @@
 import streamlit as st
-import pandas as pd
-import plotly.graph_objects as go
 from backend import DeliveryProcessor
 
 st.set_page_config(page_title="Planning Livraisons", layout="wide")
@@ -28,47 +26,9 @@ if st.button("Exécuter le traitement complet"):
                 st.download_button(
                     label="Télécharger les résultats",
                     data=f,
-                    file_name=output_path,
+                    file_name="Livraison_finale_avec_ville_et_client.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-            
-            # --- Diagramme combiné par ville ---
-            df_ville = df_result.groupby("Ville").agg(
-                Nombre_livraisons=("No livraison", "nunique"),
-                Poids_total=("Poids total", "sum"),
-                Volume_total=("Volume total", "sum")
-            ).reset_index()
-
-            fig = go.Figure()
-            fig.add_trace(go.Bar(
-                x=df_ville["Ville"],
-                y=df_ville["Nombre_livraisons"],
-                name="Nombre de livraisons",
-                marker_color='steelblue'
-            ))
-            fig.add_trace(go.Bar(
-                x=df_ville["Ville"],
-                y=df_ville["Poids_total"],
-                name="Poids total (kg)",
-                marker_color='darkorange'
-            ))
-            fig.add_trace(go.Bar(
-                x=df_ville["Ville"],
-                y=df_ville["Volume_total"],
-                name="Volume total (m³)",
-                marker_color='green'
-            ))
-
-            fig.update_layout(
-                title="Statistiques des livraisons par ville",
-                xaxis=dict(title="Ville"),
-                yaxis=dict(title="Quantité"),
-                barmode='group',
-                legend=dict(x=1.05, y=1)
-            )
-
-            st.plotly_chart(fig, use_container_width=True)
-
         except Exception as e:
             st.error(f"Erreur : {str(e)}")
     else:
