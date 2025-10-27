@@ -23,10 +23,10 @@ class DeliveryProcessor:
             df_poids = self._calculate_weights(df_liv)
 
             # Fusion volume/poids
-            df_final = self._merge_volume_weight(df_vol, df_poids)
+            df_merged = pd.merge(df_poids, df_vol, on=["No livraison", "Article"], how="left")
 
             # Ajouter info client/ville
-            df_final = self._add_city_client_info(df_final, wcliegps_file)
+            df_final = self._add_city_client_info(df_merged, wcliegps_file)
 
             # Supprimer colonnes inutiles et convertir volume en m³
             df_final = df_final.drop(columns=["Client commande", "Unité Volume"], errors='ignore')
@@ -38,7 +38,16 @@ class DeliveryProcessor:
             # Supprimer les colonnes individuelles
             df_final = df_final.drop(columns=["Volume de l'US", "Quantité livrée US"], errors='ignore')
 
-            return df_final
+            # Regrouper par No livraison
+            df_grouped = df_final.groupby(
+                ["No livraison", "Client", "Ville"], as_index=False
+            ).agg({
+                "Article": lambda x: ", ".join(x.astype(str)),
+                "Poids total": "sum",
+                "Volume total": "sum"
+            })
+
+            return df_grouped
 
         except Exception as e:
             raise Exception(f"Erreur lors du traitement des données: {str(e)}")
@@ -81,22 +90,19 @@ class DeliveryProcessor:
         ).fillna(0)
         df["Quantité livrée US"] = pd.to_numeric(df["Quantité livrée US"], errors="coerce").fillna(0)
         df["Poids total"] = df["Quantité livrée US"] * df["Poids de l'US"]
-        return df.groupby(["No livraison", "Client commande"], as_index=False)["Poids total"].sum()
-
-    def _merge_volume_weight(self, df_vol, df_poids):
-        return pd.merge(df_poids, df_vol, on="No livraison", how="left")
+        return df[["No livraison", "Article", "Poids total"]]
 
     def _add_city_client_info(self, df, wcliegps_file):
         df_clients = pd.read_excel(wcliegps_file)
         df = pd.merge(
             df,
             df_clients[["Client", "Ville"]],
-            left_on="Client commande",
+            left_on="Client",
             right_on="Client",
             how="left"
         )
         df = df[~df["Ville"].isin(["TRIPOLI"])]
-        df = df[df["Client commande"] != "PERSOGSO"]
+        df = df[df["Client"] != "PERSOGSO"]
         return df
 
     def export_results(self, df, output_path):
