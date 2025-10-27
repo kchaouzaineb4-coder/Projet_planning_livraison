@@ -21,18 +21,18 @@ if st.button("Exécuter le traitement complet"):
             st.subheader("Aperçu des résultats")
             st.dataframe(df_result)
             
-            # Bouton pour télécharger
+            # Bouton pour télécharger le fichier final
             output_path = "Livraison_finale_avec_ville_et_client.xlsx"
             processor.export_results(df_result, output_path)
             with open(output_path, "rb") as f:
                 st.download_button(
                     label="Télécharger les résultats",
                     data=f,
-                    file_name=output_path,
+                    file_name="Livraison_finale_avec_ville_et_client.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
             
-            # --- Diagramme combiné par ville ---
+            # --- Graphique combiné par ville ---
             df_ville = df_result.groupby("Ville").agg(
                 Nombre_livraisons=("No livraison", "nunique"),
                 Poids_total=("Poids total", "sum"),
