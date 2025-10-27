@@ -28,10 +28,13 @@ if st.button("Exécuter le traitement complet"):
 
             # Visualisation simple
             st.subheader("Aperçu des résultats")
-            st.dataframe(results)  # La colonne Client commande est supprimée dans backend
+            st.dataframe(results)
 
             st.subheader("Nombre de livraisons par ville")
             st.bar_chart(results.groupby("Ville")["No livraison"].count())
+
+            st.subheader("Volume total par ville")
+            st.bar_chart(results.groupby("Ville")["Volume total"].sum())
 
         except Exception as e:
             st.error(f"Erreur: {e}")

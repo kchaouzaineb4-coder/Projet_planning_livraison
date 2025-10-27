@@ -6,17 +6,6 @@ class DeliveryProcessor:
         self.MAX_POIDS = 1550.0  # kg
         self.MAX_VOLUME = 4.608  # m3
 
-        # Zones par ville (facultatif)
-        self.zones = {
-            "Zone 1": ["TUNIS","ARIANA","MANOUBA","BEN AROUS","BIZERTE","MATEUR","MENZEL BOURGUIBA","UTIQUE"],
-            "Zone 2": ["NABEUL","HAMMAMET","KORBA","MENZEL TEMIME","KELIBIA","SOLIMAN"],
-            "Zone 3": ["SOUSSE","MONASTIR","MAHDIA","KAIROUAN"],
-            "Zone 4": ["GABÈS","MÉDENINE","ZARZIS","DJERBA"],
-            "Zone 5": ["GAFSA","KASSERINE","TOZEUR","NEFTA","DOUZ"],
-            "Zone 6": ["JENDOUBA","BÉJA","LE KEF","TABARKA","SILIANA"],
-            "Zone 7": ["SFAX"]
-        }
-
     def process_delivery_data(self, liv_file, ydlogist_file, wcliegps_file):
         try:
             # Charger et renommer les colonnes critiques
@@ -42,6 +31,12 @@ class DeliveryProcessor:
             # Supprimer colonnes inutiles et convertir volume en m³
             df_final = df_final.drop(columns=["Client commande", "Unité Volume"], errors='ignore')
             df_final["Volume de l'US"] = df_final["Volume de l'US"] / 1_000_000  # cm3 -> m3
+
+            # Calcul Volume total = Volume de l'US * Quantité livrée US
+            df_final["Volume total"] = df_final["Volume de l'US"] * df_final["Quantité livrée US"]
+
+            # Supprimer les colonnes individuelles
+            df_final = df_final.drop(columns=["Volume de l'US", "Quantité livrée US"], errors='ignore')
 
             return df_final
 
