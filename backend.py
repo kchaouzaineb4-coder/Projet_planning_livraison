@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import math
 
 class DeliveryProcessor:
     def process_delivery_data(self, liv_file, ydlogist_file, wcliegps_file):
@@ -34,7 +35,7 @@ class DeliveryProcessor:
             # Supprimer colonnes individuelles
             df_final = df_final.drop(columns=["Volume de l'US", "Quantité livrée US"], errors='ignore')
 
-            # Regrouper par No livraison
+            # Regrouper par No livraison / Client / Ville
             df_grouped = df_final.groupby(
                 ["No livraison", "Client", "Ville"], as_index=False
             ).agg({
@@ -104,3 +105,15 @@ class DeliveryProcessor:
     def export_results(self, df, output_path):
         df.to_excel(output_path, index=False)
         return True
+
+    # -----------------------------
+    # Calcul estafettes
+    # -----------------------------
+    def calculate_estafette(self, df):
+        poids_estafette = 1550  # kg
+        volume_estafette = 1.2 * 1.2 * 0.8 * 4  # m3
+
+        df["Besoin estafette (poids)"] = df["Poids total"].apply(lambda x: math.ceil(x / poids_estafette))
+        df["Besoin estafette (volume)"] = df["Volume total"].apply(lambda x: math.ceil(x / volume_estafette))
+        df["Besoin estafette réel"] = df[["Besoin estafette (poids)", "Besoin estafette (volume)"]].max(axis=1)
+        return df
