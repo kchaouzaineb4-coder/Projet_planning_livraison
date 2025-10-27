@@ -1,14 +1,11 @@
 import pandas as pd
 import numpy as np
+import math
 
 class DeliveryProcessor:
-    def __init__(self):
-        self.MAX_POIDS = 1550.0  # kg
-        self.MAX_VOLUME = 4.608  # m3
-
     def process_delivery_data(self, liv_file, ydlogist_file, wcliegps_file):
         try:
-            # Charger et renommer les colonnes critiques
+            # Charger le fichier Livraisons et renommer la colonne critique
             df_liv = pd.read_excel(liv_file)
             df_liv.rename(columns={df_liv.columns[4]: "Quantité livrée US"}, inplace=True)
 
@@ -23,29 +20,44 @@ class DeliveryProcessor:
             df_poids = self._calculate_weights(df_liv)
 
             # Fusion volume/poids
-            df_final = self._merge_volume_weight(df_vol, df_poids)
+            df_merged = pd.merge(df_poids, df_vol, on=["No livraison", "Article", "Client commande"], how="left")
 
             # Ajouter info client/ville
-            df_final = self._add_city_client_info(df_final, wcliegps_file)
+            df_final = self._add_city_client_info(df_merged, wcliegps_file)
 
             # Supprimer colonnes inutiles et convertir volume en m³
             df_final = df_final.drop(columns=["Client commande", "Unité Volume"], errors='ignore')
-            df_final["Volume de l'US"] = df_final["Volume de l'US"] / 1_000_000  # cm3 -> m3
+            df_final.loc[:, "Volume de l'US"] = df_final["Volume de l'US"] / 1_000_000  # cm3 -> m3
 
             # Calcul Volume total = Volume de l'US * Quantité livrée US
-            df_final["Volume total"] = df_final["Volume de l'US"] * df_final["Quantité livrée US"]
+            df_final.loc[:, "Volume total"] = df_final["Volume de l'US"] * df_final["Quantité livrée US"]
 
-            # Supprimer les colonnes individuelles
+            # Supprimer colonnes individuelles
             df_final = df_final.drop(columns=["Volume de l'US", "Quantité livrée US"], errors='ignore')
 
-            # Regrouper par No livraison pour combiner les articles
-            df_grouped = df_final.groupby(["No livraison", "Client", "Ville"]).agg({
+            # Regrouper par No livraison
+            df_grouped = df_final.groupby(
+                ["No livraison", "Client", "Ville"], as_index=False
+            ).agg({
                 "Article": lambda x: ", ".join(x.astype(str)),
                 "Poids total": "sum",
                 "Volume total": "sum"
-            }).reset_index()
+            })
 
-            return df_grouped
+            # Calcul du besoin en estafette par ville
+            df_city = df_grouped.groupby("Ville", as_index=False).agg({
+                "Poids total": "sum",
+                "Volume total": "sum"
+            })
+
+            poids_estafette = 1550  # kg
+            volume_estafette = 1.2 * 1.2 * 0.8 * 4  # m3
+
+            df_city.loc[:, "Besoin estafette (poids)"] = df_city["Poids total"].apply(lambda x: math.ceil(x / poids_estafette))
+            df_city.loc[:, "Besoin estafette (volume)"] = df_city["Volume total"].apply(lambda x: math.ceil(x / volume_estafette))
+            df_city.loc[:, "Besoin estafette réel"] = df_city[["Besoin estafette (poids)", "Besoin estafette (volume)"]].max(axis=1)
+
+            return df_grouped, df_city
 
         except Exception as e:
             raise Exception(f"Erreur lors du traitement des données: {str(e)}")
@@ -73,25 +85,23 @@ class DeliveryProcessor:
         return df.rename(columns=renommage)
 
     def _calculate_volumes(self, df_liv, df_art):
-        df_liv_sel = df_liv[["No livraison", "Article","Quantité livrée US"]]
-        df_art_sel = df_art[["Article", "Volume de l'US", "Unité Volume"]]
-        df_art_sel["Volume de l'US"] = pd.to_numeric(
+        df_liv_sel = df_liv[["No livraison", "Article", "Quantité livrée US", "Client commande"]]
+        df_art_sel = df_art[["Article", "Volume de l'US", "Unité Volume"]].copy()
+        df_art_sel.loc[:, "Volume de l'US"] = pd.to_numeric(
             df_art_sel["Volume de l'US"].astype(str).str.replace(",", "."),
             errors="coerce"
         )
         return pd.merge(df_liv_sel, df_art_sel, on="Article", how="left")
 
     def _calculate_weights(self, df):
-        df["Poids de l'US"] = pd.to_numeric(
+        df = df.copy()
+        df.loc[:, "Poids de l'US"] = pd.to_numeric(
             df["Poids de l'US"].astype(str).str.replace(",", ".").str.replace(r"[^\d.]", "", regex=True),
             errors="coerce"
         ).fillna(0)
-        df["Quantité livrée US"] = pd.to_numeric(df["Quantité livrée US"], errors="coerce").fillna(0)
-        df["Poids total"] = df["Quantité livrée US"] * df["Poids de l'US"]
-        return df.groupby(["No livraison", "Client commande"], as_index=False)["Poids total"].sum()
-
-    def _merge_volume_weight(self, df_vol, df_poids):
-        return pd.merge(df_poids, df_vol, on="No livraison", how="left")
+        df.loc[:, "Quantité livrée US"] = pd.to_numeric(df["Quantité livrée US"], errors="coerce").fillna(0)
+        df.loc[:, "Poids total"] = df["Quantité livrée US"] * df["Poids de l'US"]
+        return df[["No livraison", "Article", "Poids total", "Client commande"]]
 
     def _add_city_client_info(self, df, wcliegps_file):
         df_clients = pd.read_excel(wcliegps_file)
@@ -106,6 +116,8 @@ class DeliveryProcessor:
         df = df[df["Client commande"] != "PERSOGSO"]
         return df
 
-    def export_results(self, df, output_path):
-        df.to_excel(output_path, index=False)
+    def export_results(self, df_grouped, df_city, output_path_grouped, output_path_city):
+        with pd.ExcelWriter(output_path_grouped, engine="openpyxl") as writer:
+            df_grouped.to_excel(writer, index=False, sheet_name="Livraisons détaillées")
+            df_city.to_excel(writer, index=False, sheet_name="Besoin Estafette")
         return True
