@@ -1,75 +1,105 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 from backend import DeliveryProcessor
+import plotly.graph_objects as go
 
 st.set_page_config(page_title="Planning Livraisons", layout="wide")
-st.title("Planning de Livraisons - Streamlit")
+st.title("📦 Planning de Livraisons - Dashboard")
 
 # Upload fichiers
-liv_file = st.file_uploader("Fichier Livraisons", type=["xlsx"])
-ydlogist_file = st.file_uploader("Fichier YDLOGIST", type=["xlsx"])
-wcliegps_file = st.file_uploader("Fichier WCLIEGPS", type=["xlsx"])
+liv_file = st.file_uploader("📄 Fichier Livraisons", type=["xlsx"])
 
-if st.button("Exécuter le traitement complet"):
-    if liv_file and ydlogist_file and wcliegps_file:
-        processor = DeliveryProcessor()
-        try:
-            df_grouped, df_city = processor.process_delivery_data(liv_file, ydlogist_file, wcliegps_file)
+if liv_file:
+    try:
+        processor = DeliveryProcessor(liv_file)
+        df_liv = processor.process_data()
 
-            # --------------------------
-            # Affichage du tableau détaillé
-            # --------------------------
-            st.subheader("Résultat : Livraisons par Client & Ville")
-            st.dataframe(df_grouped)
+        # ✅ Affichage des données brutes
+        st.subheader("🔍 Données Chargées")
+        st.dataframe(df_liv, use_container_width=True)
 
-            # Exporter les résultats Excel
-            path_grouped = "Livraison_finale_avec_ville_et_client.xlsx"
-            path_city = "Livraison_Besoin_Estafette.xlsx"
+        st.divider()
 
-            processor.export_results(df_grouped, df_city, path_grouped, path_city)
+        # ==============================================================
+        # 📊 DIAGRAMME 1 : Volume total par semaine
+        # ==============================================================
+        weekly_volume = df_liv.groupby("Semaine")["Volume de l'US"].sum().reset_index()
+        fig1 = go.Figure(data=[
+            go.Bar(
+                x=weekly_volume["Semaine"],
+                y=weekly_volume["Volume de l'US"],
+                text=round(weekly_volume["Volume de l'US"], 2),
+                textposition="outside"
+            )
+        ])
+        fig1.update_layout(
+            title="📊 Volume Total par Semaine (m³)",
+            xaxis_title="Semaine",
+            yaxis_title="Volume (m³)"
+        )
+        st.plotly_chart(fig1, use_container_width=True)
 
-            # Boutons de téléchargement
-            with open(path_grouped, "rb") as f1:
-                st.download_button(
-                    label="Télécharger Tableau Détails Livraisons",
-                    data=f1,
-                    file_name=path_grouped,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+        # ==============================================================
+        # 📊 DIAGRAMME 2 : Nombre de livraisons par semaine
+        # ==============================================================
+        weekly_count = df_liv.groupby("Semaine")["N° bon"].nunique().reset_index()
+        fig2 = go.Figure(data=[
+            go.Bar(
+                x=weekly_count["Semaine"],
+                y=weekly_count["N° bon"],
+                text=weekly_count["N° bon"],
+                textposition="outside"
+            )
+        ])
+        fig2.update_layout(
+            title="🚚 Nombre Total de Livraisons par Semaine",
+            xaxis_title="Semaine",
+            yaxis_title="Nombre de livraisons"
+        )
+        st.plotly_chart(fig2, use_container_width=True)
 
-            with open(path_city, "rb") as f2:
-                st.download_button(
-                    label="Télécharger Besoin Estafette par Ville",
-                    data=f2,
-                    file_name=path_city,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+        st.divider()
 
-            # --------------------------
-            # Graphiques statistiques par ville
-            # --------------------------
-            st.subheader("Statistiques par Ville")
+        # ==============================================================
+        # 📊 DIAGRAMME 3 : Nombre de livraisons par ville
+        # ==============================================================
+        livraisons_par_ville = df_liv.groupby("Ville")["N° bon"].nunique().reset_index()
+        fig3 = go.Figure(data=[
+            go.Bar(
+                x=livraisons_par_ville["Ville"],
+                y=livraisons_par_ville["N° bon"],
+                text=livraisons_par_ville["N° bon"],
+                textposition="outside"
+            )
+        ])
+        fig3.update_layout(
+            title="🏙️ Nombre Total de Livraisons par Ville",
+            xaxis_title="Ville",
+            yaxis_title="Nombre de livraisons"
+        )
+        st.plotly_chart(fig3, use_container_width=True)
 
-            col1, col2 = st.columns(2)
+        # ==============================================================
+        # 📊 DIAGRAMME 4 : Volume total livré par ville
+        # ==============================================================
+        volume_ville = df_liv.groupby("Ville")["Volume de l'US"].sum().reset_index()
+        fig4 = go.Figure(data=[
+            go.Bar(
+                x=volume_ville["Ville"],
+                y=volume_ville["Volume de l'US"],
+                text=round(volume_ville["Volume de l'US"], 2),
+                textposition="outside"
+            )
+        ])
+        fig4.update_layout(
+            title="📦 Volume Total Livré par Ville (m³)",
+            xaxis_title="Ville",
+            yaxis_title="Volume (m³)"
+        )
+        st.plotly_chart(fig4, use_container_width=True)
 
-            with col1:
-                fig1 = px.bar(
-                    df_city,
-                    x="Ville", y="Poids total",
-                    title="Poids total livré par ville"
-                )
-                st.plotly_chart(fig1, use_container_width=True)
+    except Exception as e:
+        st.error(f"🚫 Erreur : {e}")
 
-            with col2:
-                fig2 = px.bar(
-                    df_city,
-                    x="Ville", y="Besoin estafette réel",
-                    title="Nombre d'estafettes nécessaires par ville"
-                )
-                st.plotly_chart(fig2, use_container_width=True)
-
-        except Exception as e:
-            st.error(f"Erreur : {str(e)}")
-    else:
-        st.warning("Veuillez uploader tous les fichiers nécessaires.")
+else:
+    st.info("Veuillez importer le fichier de livraisons 📄")
