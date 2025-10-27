@@ -1,31 +1,39 @@
 import streamlit as st
 from backend import DeliveryProcessor
-import os
 
-st.set_page_config(page_title="Planning Livraisons", layout="wide")
-st.title("Automatisation Planning Livraisons")
+st.set_page_config(page_title="Planning Livraison", layout="wide")
+st.title("Planning Livraison - Traitement et Visualisation")
 
 # Upload fichiers
-liv_file = st.file_uploader("Fichier Livraisons", type=["xlsx"])
-ydlogist_file = st.file_uploader("Fichier YDLOGIST", type=["xlsx"])
-wcliegps_file = st.file_uploader("Fichier WCLIEGPS", type=["xlsx"])
+liv_file = st.file_uploader("Choisir le fichier Livraisons", type=["xlsx"])
+ydlogist_file = st.file_uploader("Choisir le fichier YDLOGIST", type=["xlsx"])
+wcliegps_file = st.file_uploader("Choisir le fichier WCLIEGPS", type=["xlsx"])
 
 if st.button("Exécuter le traitement complet"):
     if liv_file and ydlogist_file and wcliegps_file:
         try:
             processor = DeliveryProcessor()
-            df_result = processor.process_delivery_data(liv_file, ydlogist_file, wcliegps_file)
+            results = processor.process_delivery_data(liv_file, ydlogist_file, wcliegps_file)
+            st.success("Traitement terminé avec succès !")
 
-            # Exporter fichier
-            output_dir = "output"
-            os.makedirs(output_dir, exist_ok=True)
-            output_path = os.path.join(output_dir, "Planning_Livraisons_Resultats.xlsx")
-            processor.export_results(df_result, output_path)
+            # Export
+            output_path = "Voyages_par_estafette.xlsx"
+            processor.export_results(results, output_path)
+            st.download_button(
+                "Télécharger le résultat",
+                data=open(output_path, "rb"),
+                file_name="Voyages_par_estafette.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
-            st.success(f"Traitement terminé ! Fichier exporté : {output_path}")
-            st.dataframe(df_result)  # Visualisation des résultats
+            # Visualisation simple
+            st.subheader("Aperçu des résultats")
+            st.dataframe(results)
+
+            st.subheader("Nombre de livraisons par ville")
+            st.bar_chart(results.groupby("Ville")["No livraison"].count())
 
         except Exception as e:
-            st.error(f"Erreur : {str(e)}")
+            st.error(f"Erreur: {e}")
     else:
-        st.warning("Merci de charger tous les fichiers requis !")
+        st.warning("Veuillez uploader tous les fichiers requis.")
