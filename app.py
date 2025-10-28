@@ -32,7 +32,6 @@ if st.button("Exécuter le traitement complet"):
         try:
             with st.spinner("Traitement des données en cours..."):
                 # Traitement complet (récupère les 5 DataFrames)
-                # Assurez-vous que la méthode process_delivery_data dans backend.py retourne 5 DataFrames
                 df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes = processor.process_delivery_data(
                     liv_file, ydlogist_file, wcliegps_file
                 )
@@ -66,7 +65,6 @@ if st.session_state.data_processed:
     # Tableau 1 - Livraisons par Client & Ville (SANS ZONE)
     # =====================================================
     df_grouped_display = df_grouped.copy()
-    # Si la colonne 'Zone' existe, on la retire pour ce tableau
     if "Zone" in df_grouped_display.columns:
         df_grouped_display = df_grouped_display.drop(columns=["Zone"])
 
@@ -161,11 +159,20 @@ if st.session_state.data_processed:
     # Tableau 5 - Voyages par Estafette Optimisé
     # =====================================================
     st.subheader("Voyages par Estafette Optimisé")
+    st.markdown("""
+        *Le taux d'occupation (%) est calculé comme le maximum de l'utilisation en poids par rapport à **1550 kg** et de l'utilisation en volume par rapport à **$4.608 \text{ m}^3$**.*
+        """)
     
-    # Affichage du DataFrame qui contient maintenant la colonne 'Taux d\'occupation (%)'
-    st.dataframe(df_optimized_estafettes)
+    # Affichage du DataFrame avec formatage de la colonne 'Taux d\'occupation (%)'
+    st.dataframe(df_optimized_estafettes.style.format({
+        "Poids total chargé": "{:.2f} kg",
+        "Volume total chargé": "{:.3f} m³",
+        "Taux d'occupation (%)": "{:.2f}%"
+    }))
+
 
     path_optimized = "Voyages_Estafette_Optimises.xlsx"
+    # Note: On utilise le DataFrame non formaté en string pour l'export Excel
     df_optimized_estafettes.to_excel(path_optimized, index=False)
     with open(path_optimized, "rb") as f:
         st.download_button(
