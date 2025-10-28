@@ -2,11 +2,9 @@ import streamlit as st
 from backend import DeliveryProcessor
 import plotly.express as px
 
-# Configuration de la page
 st.set_page_config(page_title="Planning Livraisons", layout="wide")
 st.title("Planning de Livraisons - Streamlit")
 
-# Upload fichiers
 liv_file = st.file_uploader("Fichier Livraisons", type=["xlsx"])
 ydlogist_file = st.file_uploader("Fichier YDLOGIST", type=["xlsx"])
 wcliegps_file = st.file_uploader("Fichier WCLIEGPS", type=["xlsx"])
@@ -15,26 +13,21 @@ if st.button("Exécuter le traitement complet"):
     if liv_file and ydlogist_file and wcliegps_file:
         processor = DeliveryProcessor()
         try:
-            # Traitement complet
             df_grouped, df_city, df_grouped_zone = processor.process_delivery_data(
                 liv_file, ydlogist_file, wcliegps_file
             )
 
             # --------------------------
-            # Tableau original par Client & Ville
             st.subheader("Résultat : Livraisons par Client & Ville")
             st.dataframe(df_grouped)
 
-            # Tableau Besoin estafette par Ville
             st.subheader("Besoin estafette par Ville")
             st.dataframe(df_city)
 
-            # Tableau par Client & Ville + Zone
             st.subheader("Livraisons par Client & Ville + Zone")
             st.dataframe(df_grouped_zone)
 
             # --------------------------
-            # Boutons de téléchargement
             processor.export_results(
                 df_grouped, df_city, df_grouped_zone,
                 "Livraison_finale_avec_ville_et_client.xlsx",
@@ -58,7 +51,6 @@ if st.button("Exécuter le traitement complet"):
                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
             # --------------------------
-            # Graphiques statistiques par Ville
             st.subheader("Statistiques par Ville")
             col1, col2 = st.columns(2)
             with col1:
