@@ -62,7 +62,7 @@ if st.button("Exécuter le traitement complet"):
                 st.plotly_chart(fig2, use_container_width=True)
 
             # ⭐⭐⭐ Nouveaux Graphes ⭐⭐⭐
-            st.subheader("Nouveaux Graphiques")
+            
 
             col3, col4 = st.columns(2)
             with col3:
