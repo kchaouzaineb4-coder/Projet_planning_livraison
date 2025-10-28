@@ -3,88 +3,155 @@ import pandas as pd
 from backend import DeliveryProcessor
 import plotly.express as px
 
+# Configuration page
 st.set_page_config(page_title="Planning Livraisons", layout="wide")
-st.title("🚚 Planning des Livraisons – Optimisé par Zones")
+st.title("Planning de Livraisons - Streamlit")
 
-# Initialisation session_state
-for key in ["data_processed", "df_grouped", "df_city", "df_grouped_zone", "df_zone", "df_estafettes"]:
-    if key not in st.session_state:
-        st.session_state[key] = None
+# =====================================================
+# INITIALISATION DE L'ÉTAT DE SESSION
+# =====================================================
+if 'data_processed' not in st.session_state:
+    st.session_state.data_processed = False
+    st.session_state.df_grouped = None
+    st.session_state.df_city = None
+    st.session_state.df_grouped_zone = None
+    st.session_state.df_zone = None # Ajout pour df_zone
 
 # Upload fichiers
-liv_file = st.file_uploader("📦 Fichier Livraisons", type=["xlsx"])
-ydlogist_file = st.file_uploader("📏 Fichier Volumes", type=["xlsx"])
-wcliegps_file = st.file_uploader("🏢 Fichier Clients", type=["xlsx"])
+liv_file = st.file_uploader("Fichier Livraisons", type=["xlsx"])
+ydlogist_file = st.file_uploader("Fichier Volumes", type=["xlsx"])
+wcliegps_file = st.file_uploader("Fichier Clients", type=["xlsx"])
 
-# Traitement
-if st.button("🚀 Exécuter le traitement complet"):
+# =====================================================
+# Logique de Traitement (Se déclenche et stocke les résultats)
+# =====================================================
+if st.button("Exécuter le traitement complet"):
     if liv_file and ydlogist_file and wcliegps_file:
         processor = DeliveryProcessor()
-        with st.spinner("⏳ Traitement des données en cours..."):
-            df_grouped, df_city, df_grouped_zone, df_zone, df_estafettes = processor.process_delivery_data(
-                liv_file, ydlogist_file, wcliegps_file
-            )
-        st.session_state.update({
-            "data_processed": True,
-            "df_grouped": df_grouped,
-            "df_city": df_city,
-            "df_grouped_zone": df_grouped_zone,
-            "df_zone": df_zone,
-            "df_estafettes": df_estafettes
-        })
-        st.success("✅ Traitement terminé !")
+        try:
+            with st.spinner("Traitement des données en cours..."):
+                # Traitement complet (récupère df_zone)
+                df_grouped, df_city, df_grouped_zone, df_zone = processor.process_delivery_data(
+                    liv_file, ydlogist_file, wcliegps_file
+                )
+            
+            # Stockage des résultats dans l'état de session
+            st.session_state.df_grouped = df_grouped
+            st.session_state.df_city = df_city
+            st.session_state.df_grouped_zone = df_grouped_zone
+            st.session_state.df_zone = df_zone # Stockage de df_zone
+            st.session_state.data_processed = True
+            st.success("Traitement terminé avec succès !")
+
+        except Exception as e:
+            st.error(f"❌ Erreur lors du traitement : {str(e)}")
+            st.session_state.data_processed = False
     else:
-        st.warning("⚠️ Veuillez importer tous les fichiers nécessaires.")
+        st.warning("Veuillez uploader tous les fichiers nécessaires.")
 
-# Affichages
-if st.session_state["data_processed"]:
-
+# =====================================================
+# Logique d'Affichage (Se déclenche si les données sont dans l'état de session)
+# =====================================================
+if st.session_state.data_processed:
     df_grouped = st.session_state.df_grouped
     df_city = st.session_state.df_city
     df_grouped_zone = st.session_state.df_grouped_zone
-    df_zone = st.session_state.df_zone
-    df_estafettes = st.session_state.df_estafettes
+    df_zone = st.session_state.df_zone # Récupération de df_zone
 
-    # 1️⃣ Client & Ville (sans Zone)
-    st.subheader("📍 Livraisons par Client & Ville")
-    df1 = df_grouped.drop(columns=["Zone"], errors="ignore")
-    st.dataframe(df1)
-    df1.to_excel("Client_Ville.xlsx", index=False)
-    st.download_button("⬇️ Télécharger", open("Client_Ville.xlsx","rb"), file_name="Client_Ville.xlsx")
+    # =====================================================
+    # Tableau 1 - Livraisons par Client & Ville (SANS ZONE)
+    # =====================================================
+    df_grouped_display = df_grouped.copy()
+    if "Zone" in df_grouped_display.columns:
+        df_grouped_display = df_grouped_display.drop(columns=["Zone"])
 
-    # 2️⃣ Besoin Estafette par Ville
-    st.subheader("🚐 Besoin Estafette par Ville")
+    st.subheader("Livraisons par Client & Ville")
+    st.dataframe(df_grouped_display)
+
+    path_grouped = "Livraison_par_Client_Ville.xlsx"
+    # Création du fichier pour le téléchargement
+    df_grouped_display.to_excel(path_grouped, index=False) 
+
+    with open(path_grouped, "rb") as f:
+        st.download_button(
+            label="Télécharger Tableau Client & Ville",
+            data=f,
+            file_name=path_grouped,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    # =====================================================
+    # Tableau 2 - Besoin Estafette par Ville
+    # =====================================================
+    st.subheader("Besoin Estafette par Ville")
     st.dataframe(df_city)
-    df_city.to_excel("Besoin_Ville.xlsx", index=False)
-    st.download_button("⬇️ Télécharger", open("Besoin_Ville.xlsx","rb"), file_name="Besoin_Ville.xlsx")
 
-    # Graphiques
-    st.subheader("📊 Statistiques par Ville")
-    st.plotly_chart(px.bar(df_city, x="Ville", y="Besoin estafette réel",
-                           title="Besoin total d’Estafettes par Ville"),
-                    use_container_width=True)
+    path_city = "Besoin_estafette_par_Ville.xlsx"
+    # Création du fichier pour le téléchargement
+    df_city.to_excel(path_city, index=False)
+    with open(path_city, "rb") as f:
+        st.download_button(
+            label="Télécharger Besoin Estafette par Ville",
+            data=f,
+            file_name=path_city,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
-    # 3️⃣ Client & Ville + Zone
-    st.subheader("🗺️ Livraisons par Client & Ville + Zone")
+    # =====================================================
+    # Graphiques Statistiques par Ville
+    # =====================================================
+    st.subheader("Statistiques par Ville")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.plotly_chart(px.bar(df_city, x="Ville", y="Poids total",
+                               title="Poids total livré par ville"),
+                        use_container_width=True)
+    with col2:
+        st.plotly_chart(px.bar(df_city, x="Ville", y="Volume total",
+                               title="Volume total livré par ville (m³)"),
+                        use_container_width=True)
+
+    col3, col4 = st.columns(2)
+    with col3:
+        st.plotly_chart(px.bar(df_city, x="Ville", y="Nombre livraisons",
+                               title="Nombre de livraisons par ville"),
+                        use_container_width=True)
+    with col4:
+        st.plotly_chart(px.bar(df_city, x="Ville", y="Besoin estafette réel",
+                               title="Besoin en Estafettes par ville"),
+                        use_container_width=True)
+
+    # =====================================================
+    # Tableau 3 - Client & Ville + Zone
+    # =====================================================
+    st.subheader("Livraisons par Client & Ville + Zone")
     st.dataframe(df_grouped_zone)
-    df_grouped_zone.to_excel("Client_Ville_Zone.xlsx", index=False)
-    st.download_button("⬇️ Télécharger", open("Client_Ville_Zone.xlsx","rb"),
-                       file_name="Client_Ville_Zone.xlsx")
 
-    # 4️⃣ Besoin Estafette par Zone
-    st.subheader("📦 Besoin Estafette par Zone")
+    path_zone = "Livraison_Client_Ville_Zone.xlsx"
+    # Création du fichier pour le téléchargement
+    df_grouped_zone.to_excel(path_zone, index=False)
+    with open(path_zone, "rb") as f:
+        st.download_button(
+            label="Télécharger Tableau Client & Ville + Zone",
+            data=f,
+            file_name=path_zone,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        
+    # =====================================================
+    # Tableau 4 - Besoin Estafette par Zone
+    # =====================================================
+    st.subheader("Besoin Estafette par Zone")
     st.dataframe(df_zone)
-    df_zone.to_excel("Besoin_Zone.xlsx", index=False)
-    st.download_button("⬇️ Télécharger", open("Besoin_Zone.xlsx","rb"),
-                       file_name="Besoin_Zone.xlsx")
 
-    # 🆕 5️⃣ Voyages Estafette Optimisés par Zone
-    st.header("✅ Voyages Estafette Optimisés par Zone")
-    st.dataframe(df_estafettes)
-
-    df_estafettes.to_excel("Voyages_Optimises_Zone.xlsx", index=False)
-    st.download_button(
-        "⬇️ Télécharger Voyages Optimisés",
-        open("Voyages_Optimises_Zone.xlsx","rb"),
-        file_name="Voyages_Optimises_Zone.xlsx"
-    )
+    path_zone_summary = "Besoin_estafette_par_Zone.xlsx"
+    # Création du fichier pour le téléchargement
+    df_zone.to_excel(path_zone_summary, index=False)
+    with open(path_zone_summary, "rb") as f:
+        st.download_button(
+            label="Télécharger Besoin Estafette par Zone",
+            data=f,
+            file_name=path_zone_summary,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
