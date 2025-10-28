@@ -56,14 +56,13 @@ if st.button("Exécuter le traitement complet"):
                               title="Poids total livré par ville")
                 st.plotly_chart(fig1, use_container_width=True)
 
+            
             with col2:
-                fig2 = px.bar(df_city, x="Ville", y="Besoin estafette réel",
-                              title="Nombre d'estafettes nécessaires par ville")
-                st.plotly_chart(fig2, use_container_width=True)
-
-            # ⭐⭐⭐ Nouveaux Graphes ⭐⭐⭐
-            st.subheader("Nouveaux Graphiques")
-
+                fig4 = px.bar(df_city, x="Ville", y="Volume total",
+                              title="Volume total par ville (m³)")
+                st.plotly_chart(fig4, use_container_width=True)
+            
+        
             col3, col4 = st.columns(2)
             with col3:
                 fig3 = px.bar(df_city, x="Ville", y="Nombre livraisons",
@@ -71,9 +70,9 @@ if st.button("Exécuter le traitement complet"):
                 st.plotly_chart(fig3, use_container_width=True)
 
             with col4:
-                fig4 = px.bar(df_city, x="Ville", y="Volume total",
-                              title="Volume total par ville (m³)")
-                st.plotly_chart(fig4, use_container_width=True)
+                fig2 = px.bar(df_city, x="Ville", y="Besoin estafette réel",
+                              title="Nombre d'estafettes nécessaires par ville")
+                st.plotly_chart(fig2, use_container_width=True)
 
         except Exception as e:
             st.error(f"Erreur : {str(e)}")
