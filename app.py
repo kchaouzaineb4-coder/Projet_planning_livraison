@@ -1,63 +1,51 @@
 import streamlit as st
 import pandas as pd
-from backend import DeliveryProcessor
 import plotly.express as px
+from backend import DeliveryProcessor
 
 st.set_page_config(page_title="Planning Livraisons", layout="wide")
+st.title("Planning de Livraisons - Streamlit")
 
-st.title("📦 Planning de Livraisons - Dashboard")
+liv_file = st.file_uploader("Fichier Livraisons", type=["xlsx"])
+ydlogist_file = st.file_uploader("Fichier YDLOGIST", type=["xlsx"])
+wcliegps_file = st.file_uploader("Fichier WCLIEGPS", type=["xlsx"])
 
-# Upload fichier
-uploaded_file = st.file_uploader("📄 Fichier Livraisons", type=["xlsx"])
+if st.button("Exécuter le traitement complet"):
 
-if uploaded_file:
-    try:
-        df_liv = pd.read_excel(uploaded_file)
-        processor = DeliveryProcessor(df_liv)
+    if liv_file and ydlogist_file and wcliegps_file:
 
-        st.success("✅ Fichier chargé avec succès !")
-        st.write("### Aperçu des données")
-        st.dataframe(df_liv.head())
+        processor = DeliveryProcessor()
 
-        # ========== ANALYSE ========== #
-        st.write("---")
+        try:
+            df_grouped, df_city = processor.process_delivery_data(
+                liv_file, ydlogist_file, wcliegps_file
+            )
 
-        col1, col2 = st.columns(2)
+            st.subheader("📌 Résultat : Livraisons par Client & Ville")
+            st.dataframe(df_grouped)
 
-        # ✅ Graphique : Nb livraisons par jour
-        with col1:
-            df_count_day = processor.count_by_day()
-            fig1 = px.bar(df_count_day, x="Date", y="Nb Livraisons",
-                          title="📅 Nombre de Livraisons par Jour")
-            st.plotly_chart(fig1, use_container_width=True)
+            # Export Excel
+            processor.export_results(df_grouped, df_city,
+                                     "Livraison_finale_avec_ville_et_client.xlsx",
+                                     "Livraison_Besoin_Estafette.xlsx")
 
-        # ✅ Graphique : Volume total par jour
-        with col2:
-            df_vol_day = processor.volume_by_day()
-            fig2 = px.line(df_vol_day, x="Date", y="Volume Total (m3)",
-                           title="📦 Volume Total par Jour (m3)")
-            st.plotly_chart(fig2, use_container_width=True)
+            # ✅ Graphiques
+            st.subheader("📊 Statistiques par Ville")
 
-        st.write("---")
+            col1, col2 = st.columns(2)
 
-        col3, col4 = st.columns(2)
+            with col1:
+                fig1 = px.bar(df_city, x="Ville", y="Nombre livraisons",
+                              title="Nombre de livraisons par ville")
+                st.plotly_chart(fig1, use_container_width=True)
 
-        # ✅ Nouveau : Nb livraisons par ville
-        with col3:
-            df_count_city = processor.count_by_city()
-            fig3 = px.bar(df_count_city, x="ADR_LIV_VILLE", y="Nb Livraisons",
-                          title="🏙️ Nombre de Livraisons par Ville")
-            st.plotly_chart(fig3, use_container_width=True)
+            with col2:
+                fig2 = px.bar(df_city, x="Ville", y="Volume total",
+                              title="Volume total (m³) par ville")
+                st.plotly_chart(fig2, use_container_width=True)
 
-        # ✅ Nouveau : Volume total par ville
-        with col4:
-            df_vol_city = processor.volume_by_city()
-            fig4 = px.bar(df_vol_city, x="ADR_LIV_VILLE", y="Volume Total (m3)",
-                          title="🏗️ Volume Total par Ville (m3)")
-            st.plotly_chart(fig4, use_container_width=True)
+        except Exception as e:
+            st.error(f"❌ Erreur : {str(e)}")
 
-    except Exception as e:
-        st.error(f"❌ Erreur lors du traitement : {e}")
-
-else:
-    st.info("📌 Veuillez importer votre fichier Excel pour commencer.")
+    else:
+        st.warning("⚠ Veuillez uploader tous les fichiers nécessaires.")

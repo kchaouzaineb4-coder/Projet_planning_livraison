@@ -1,63 +1,103 @@
 import pandas as pd
+import numpy as np
+import math
 
 class DeliveryProcessor:
-    def __init__(self, df_livraisons):
-        self.df = df_livraisons.copy()
-        self.clean_data()
 
-    def clean_data(self):
-        # Vérification de la colonne Ville
-        if "ADR_LIV_VILLE" in self.df.columns:
-            self.df["ADR_LIV_VILLE"] = (
-                self.df["ADR_LIV_VILLE"]
-                .astype(str)
-                .str.strip()
-                .str.upper()
+    def process_delivery_data(self, liv_file, ydlogist_file, wcliegps_file):
+        try:
+            df_liv = pd.read_excel(liv_file)
+
+            # Correction colonne quantité US
+            df_liv.rename(columns={df_liv.columns[4]: "Quantité livrée US"}, inplace=True)
+
+            df_liv = self._filter_initial_data(df_liv)
+            df_yd = self._process_ydlogist(ydlogist_file)
+
+            df_vol = self._calculate_volumes(df_liv, df_yd)
+            df_poids = self._calculate_weights(df_liv)
+
+            df_merged = pd.merge(
+                df_poids, df_vol,
+                on=["No livraison", "Article", "Client commande"],
+                how="left"
             )
 
-        # Convertir volume si existe
-        if "Volume_de_l_US" in self.df.columns:
-            self.df["Volume_de_l_US"] = (
-                pd.to_numeric(
-                    self.df["Volume_de_l_US"],
-                    errors="coerce"
-                ).fillna(0)
-            )
+            df_final = self._add_city_client_info(df_merged, wcliegps_file)
 
-    def count_by_day(self):
-        if "Date" in self.df.columns:
-            self.df["Date"] = pd.to_datetime(self.df["Date"], errors="coerce")
-            return (
-                self.df.groupby(self.df["Date"].dt.date)["N° BL"]
-                .count()
-                .reset_index(name="Nb Livraisons")
-            )
-        return pd.DataFrame(columns=["Date", "Nb Livraisons"])
+            # Conversion volume en m3
+            df_final["Volume de l'US"] = df_final["Volume de l'US"] / 1_000_000
+            df_final["Volume total"] = df_final["Volume de l'US"] * df_final["Quantité livrée US"]
 
-    def volume_by_day(self):
-        if "Date" in self.df.columns and "Volume_de_l_US" in self.df.columns:
-            self.df["Date"] = pd.to_datetime(self.df["Date"], errors="coerce")
-            return (
-                self.df.groupby(self.df["Date"].dt.date)["Volume_de_l_US"]
-                .sum()
-                .reset_index(name="Volume Total (m3)")
-            )
-        return pd.DataFrame(columns=["Date", "Volume Total (m3)"])
+            # Résultat par livraison + ville
+            df_grouped = df_final.groupby(
+                ["No livraison", "Client", "Ville"], as_index=False
+            ).agg({
+                "Article": lambda x: ", ".join(x.astype(str)),
+                "Poids total": "sum",
+                "Volume total": "sum"
+            })
 
-    def count_by_city(self):
-        if "ADR_LIV_VILLE" in self.df.columns:
-            return (
-                self.df.groupby("ADR_LIV_VILLE")["N° BL"]
-                .count()
-                .reset_index(name="Nb Livraisons")
-            )
-        return pd.DataFrame(columns=["ADR_LIV_VILLE", "Nb Livraisons"])
+            # Regroupement par ville
+            df_city = df_grouped.groupby("Ville", as_index=False).agg({
+                "Poids total": "sum",
+                "Volume total": "sum",
+                "No livraison": "count"
+            }).rename(columns={"No livraison": "Nombre livraisons"})
 
-    def volume_by_city(self):
-        if "ADR_LIV_VILLE" in self.df.columns and "Volume_de_l_US" in self.df.columns:
-            return (
-                self.df.groupby("ADR_LIV_VILLE")["Volume_de_l_US"]
-                .sum()
-                .reset_index(name="Volume Total (m3)")
-            )
-        return pd.DataFrame(columns=["ADR_LIV_VILLE", "Volume Total (m3)"])
+            return df_grouped, df_city
+
+        except Exception as e:
+            raise Exception(f"Erreur lors du traitement des données: {str(e)}")
+
+
+    def _filter_initial_data(self, df):
+        clients_a_supprimer = [
+            "AMECAP", "SANA", "SOPAL", "SOPALGAZ", "SOPALSERV", "SOPALTEC",
+            "SOPALALG", "AQUA", "WINOX", "QUIVEM", "SANISTONE", "SOPAMAR",
+            "SOPALAFR", "SOPALINTER"
+        ]
+        return df[(df["Type livraison"] != "SDC") & (~df["Client commande"].isin(clients_a_supprimer))]
+
+
+    def _process_ydlogist(self, file_path):
+        df = pd.read_excel(file_path)
+        df.rename(columns={
+            df.columns[16]: "Unité Volume",
+            df.columns[13]: "Poids de l'US"
+        }, inplace=True)
+        return df
+
+
+    def _calculate_volumes(self, df_liv, df_art):
+        df_liv_sel = df_liv[["No livraison", "Article", "Quantité livrée US", "Client commande"]]
+        df_art_sel = df_art[["Article", "Volume de l'US"]].copy()
+        df_art_sel["Volume de l'US"] = pd.to_numeric(
+            df_art_sel["Volume de l'US"], errors="coerce"
+        )
+        return pd.merge(df_liv_sel, df_art_sel, on="Article", how="left")
+
+
+    def _calculate_weights(self, df):
+        df["Quantité livrée US"] = pd.to_numeric(df["Quantité livrée US"], errors="coerce").fillna(0)
+        df["Poids total"] = df["Quantité livrée US"] * pd.to_numeric(
+            df[df.columns[13]], errors="coerce"
+        ).fillna(0)
+        return df[["No livraison", "Article", "Poids total", "Client commande"]]
+
+
+    def _add_city_client_info(self, df, wcliegps_file):
+        df_clients = pd.read_excel(wcliegps_file)
+        df = pd.merge(
+            df, df_clients[["Client", "Ville"]],
+            left_on="Client commande",
+            right_on="Client",
+            how="left"
+        )
+        return df
+
+
+    def export_results(self, df_grouped, df_city, path_grouped, path_city):
+        df_grouped.to_excel(path_grouped, index=False)
+        df_city.to_excel(path_city, index=False)
+        return True
