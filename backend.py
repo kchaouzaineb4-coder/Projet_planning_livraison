@@ -37,7 +37,10 @@ class DeliveryProcessor:
             # Calcul du besoin en estafette
             df_city = self._calculate_estafette_need(df_city)
 
-            return df_grouped, df_city
+            # Ajouter la colonne Zone pour le nouveau tableau
+            df_grouped_zone = self._assign_zone(df_grouped)
+
+            return df_grouped, df_grouped_zone, df_city
 
         except Exception as e:
             raise Exception(f"❌ Erreur lors du traitement des données : {str(e)}")
@@ -51,13 +54,12 @@ class DeliveryProcessor:
 
         # Normaliser nom colonne quantité
         df.rename(columns={df.columns[4]: "Quantité livrée US"}, inplace=True)
-
         return df
 
     def _load_ydlogist(self, file_path):
         df = pd.read_excel(file_path)
         df.rename(columns={
-            df.columns[16]: "Unité Volume",
+            df.columns[16]: "Volume de l'US",
             df.columns[13]: "Poids de l'US"
         }, inplace=True)
         return df
@@ -72,7 +74,6 @@ class DeliveryProcessor:
             "SOPALALG", "AQUA", "WINOX", "QUIVEM", "SANISTONE",
             "SOPAMAR", "SOPALAFR", "SOPALINTER"
         ]
-
         return df[
             (df["Type livraison"] != "SDC") &
             (~df["Client commande"].isin(clients_exclus))
@@ -84,7 +85,6 @@ class DeliveryProcessor:
     # =====================================================
     def _calculate_weights(self, df):
         df = df.copy()
-
         df["Poids de l'US"] = pd.to_numeric(
             df["Poids de l'US"].astype(str)
             .str.replace(",", ".")
@@ -93,21 +93,17 @@ class DeliveryProcessor:
         ).fillna(0)
 
         df["Quantité livrée US"] = pd.to_numeric(df["Quantité livrée US"], errors="coerce").fillna(0)
-
         df["Poids total"] = df["Quantité livrée US"] * df["Poids de l'US"]
-
         return df[["No livraison", "Article", "Client commande", "Poids total"]]
 
 
     def _calculate_volumes(self, df_liv, df_art):
         df_liv_sel = df_liv[["No livraison", "Article", "Quantité livrée US", "Client commande"]]
-
         df_art_sel = df_art[["Article", "Volume de l'US", "Unité Volume"]].copy()
         df_art_sel["Volume de l'US"] = pd.to_numeric(
             df_art_sel["Volume de l'US"].astype(str).str.replace(",", "."),
             errors="coerce"
         )
-
         return pd.merge(df_liv_sel, df_art_sel, on="Article", how="left")
 
 
@@ -125,7 +121,6 @@ class DeliveryProcessor:
     # =====================================================
     def _add_city_client_info(self, df, wcliegps_file):
         df_clients = pd.read_excel(wcliegps_file)
-
         df = pd.merge(
             df,
             df_clients[["Client", "Ville"]],
@@ -133,7 +128,6 @@ class DeliveryProcessor:
             right_on="Client",
             how="left"
         )
-
         return df
 
 
@@ -164,26 +158,42 @@ class DeliveryProcessor:
     def _calculate_estafette_need(self, df_city):
         poids_max = 1550
         volume_max = 1.2 * 1.2 * 0.8 * 4  # volume véhicule
-
-        df_city["Besoin estafette (poids)"] = df_city["Poids total"].apply(
-            lambda p: math.ceil(p / poids_max)
-        )
-
-        df_city["Besoin estafette (volume)"] = df_city["Volume total"].apply(
-            lambda v: math.ceil(v / volume_max)
-        )
-
-        df_city["Besoin estafette réel"] = df_city[
-            ["Besoin estafette (poids)", "Besoin estafette (volume)"]
-        ].max(axis=1)
-
+        df_city["Besoin estafette (poids)"] = df_city["Poids total"].apply(lambda p: math.ceil(p / poids_max))
+        df_city["Besoin estafette (volume)"] = df_city["Volume total"].apply(lambda v: math.ceil(v / volume_max))
+        df_city["Besoin estafette réel"] = df_city[["Besoin estafette (poids)", "Besoin estafette (volume)"]].max(axis=1)
         return df_city
+
+
+    # =====================================================
+    # 🔹 Ajouter la colonne Zone
+    # =====================================================
+    def _assign_zone(self, df):
+        zones = {
+            "Zone 1": ["TUNIS","ARIANA","MANOUBA","BEN AROUS","BIZERTE","MATEUR","MENZEL BOURGUIBA","UTIQUE"],
+            "Zone 2": ["NABEUL","HAMMAMET","KORBA","MENZEL TEMIME","KELIBIA","SOLIMAN"],
+            "Zone 3": ["SOUSSE","MONASTIR","MAHDIA","KAIROUAN"],
+            "Zone 4": ["GABÈS","MEDENINE","ZARZIS","DJERBA"],
+            "Zone 5": ["GAFSA","KASSERINE","TOZEUR","NEFTA","DOUZ"],
+            "Zone 6": ["JENDOUBA","BÉJA","LE KEF","TABARKA","SILIANA"],
+            "Zone 7": ["SFAX"]
+        }
+
+        def get_zone(ville):
+            ville = str(ville).upper().strip()
+            for zone, villes in zones.items():
+                if ville in villes:
+                    return zone
+            return "Zone inconnue"
+
+        df["Zone"] = df["Ville"].apply(get_zone)
+        return df
 
 
     # =====================================================
     # ✅ Export des fichiers Excel
     # =====================================================
-    def export_results(self, df_grouped, df_city, path_grouped, path_city):
+    def export_results(self, df_grouped, df_grouped_zone, df_city, path_grouped, path_grouped_zone, path_city):
         df_grouped.to_excel(path_grouped, index=False)
+        df_grouped_zone.to_excel(path_grouped_zone, index=False)
         df_city.to_excel(path_city, index=False)
         return True
