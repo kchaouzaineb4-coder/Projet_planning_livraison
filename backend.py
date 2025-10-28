@@ -38,6 +38,13 @@ class DeliveryProcessor:
             # Nouveau tableau : ajout Zone
             df_grouped_zone = self._add_zone(df_grouped)
 
+            # =====================================================
+            # 🆕 MODIFICATION: Filtrer les livraisons avec "Zone inconnue"
+            # Ceci exclut les livraisons non zonées de l'affichage et de l'export
+            # du tableau "Livraisons par Client & Ville + Zone".
+            # =====================================================
+            df_grouped_zone = df_grouped_zone[df_grouped_zone["Zone"] != "Zone inconnue"].copy()
+
             return df_grouped, df_city, df_grouped_zone
 
         except Exception as e:
@@ -72,7 +79,7 @@ class DeliveryProcessor:
     # =====================================================
     def _calculate_weights(self, df):
         df["Poids de l'US"] = pd.to_numeric(df["Poids de l'US"].astype(str).str.replace(",", ".")
-                                           .str.replace(r"[^\d.]", "", regex=True), errors="coerce").fillna(0)
+                                             .str.replace(r"[^\d.]", "", regex=True), errors="coerce").fillna(0)
         df["Quantité livrée US"] = pd.to_numeric(df["Quantité livrée US"], errors="coerce").fillna(0)
         df["Poids total"] = df["Quantité livrée US"] * df["Poids de l'US"]
         return df[["No livraison", "Article", "Client commande", "Poids total"]]
@@ -99,7 +106,7 @@ class DeliveryProcessor:
     def _add_city_client_info(self, df, wcliegps_file):
         df_clients = pd.read_excel(wcliegps_file)
         return pd.merge(df, df_clients[["Client", "Ville"]],
-                        left_on="Client commande", right_on="Client", how="left")
+                         left_on="Client commande", right_on="Client", how="left")
 
     # =====================================================
     # 🔹 Groupement
@@ -157,7 +164,7 @@ class DeliveryProcessor:
     # ✅ Export fichiers Excel
     # =====================================================
     def export_results(self, df_grouped, df_city, df_grouped_zone,
-                       path_grouped, path_city, path_zone):
+                         path_grouped, path_city, path_zone):
         df_grouped.to_excel(path_grouped, index=False)
         df_city.to_excel(path_city, index=False)
         df_grouped_zone.to_excel(path_zone, index=False)
