@@ -52,11 +52,13 @@ class DeliveryProcessor:
 
     def _load_ydlogist(self, file_path):
         df = pd.read_excel(file_path)
-        # Prendre uniquement Volume de l'US
-        col_volume = [c for c in df.columns if "Volume de l'US" in c]
+        # Sécuriser les colonnes : convertir en str avant recherche
+        col_volume = [str(c) for c in df.columns if "Volume de l'US" in str(c)]
         if col_volume:
             df = df[["Article", col_volume[0]]].rename(columns={col_volume[0]: "Volume de l'US"})
-            df["Volume de l'US"] = pd.to_numeric(df["Volume de l'US"].astype(str).str.replace(",", "."), errors="coerce").fillna(0)
+            df["Volume de l'US"] = pd.to_numeric(
+                df["Volume de l'US"].astype(str).str.replace(",", "."), errors="coerce"
+            ).fillna(0)
         else:
             df["Volume de l'US"] = 0
         return df
@@ -83,8 +85,10 @@ class DeliveryProcessor:
     # Calcul volumes
     # -------------------
     def _calculate_volumes(self, df_liv, df_yd):
-        df = pd.merge(df_liv[["No livraison", "Article", "Client commande", "Quantité livrée US"]],
-                      df_yd, on="Article", how="left")
+        df = pd.merge(
+            df_liv[["No livraison", "Article", "Client commande", "Quantité livrée US"]],
+            df_yd, on="Article", how="left"
+        )
         if "Volume de l'US" not in df.columns:
             df["Volume de l'US"] = 0
         return df

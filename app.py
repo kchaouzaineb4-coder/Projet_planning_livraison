@@ -17,7 +17,6 @@ if st.button("Exécuter le traitement complet"):
                 liv_file, ydlogist_file, wcliegps_file
             )
 
-            # --------------------------
             st.subheader("Résultat : Livraisons par Client & Ville")
             st.dataframe(df_grouped)
 
@@ -27,7 +26,6 @@ if st.button("Exécuter le traitement complet"):
             st.subheader("Livraisons par Client & Ville + Zone")
             st.dataframe(df_grouped_zone)
 
-            # --------------------------
             processor.export_results(
                 df_grouped, df_city, df_grouped_zone,
                 "Livraison_finale_avec_ville_et_client.xlsx",
@@ -50,7 +48,7 @@ if st.button("Exécuter le traitement complet"):
                                    "Livraison_avec_zone.xlsx",
                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-            # --------------------------
+            # Graphiques
             st.subheader("Statistiques par Ville")
             col1, col2 = st.columns(2)
             with col1:
