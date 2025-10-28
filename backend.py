@@ -32,20 +32,23 @@ class DeliveryProcessor:
             # Regroupement par ville et client
             df_grouped, df_city = self._group_data(df_final)
 
-            # Calcul du besoin en estafette
+            # Calcul du besoin en estafette par ville
             df_city = self._calculate_estafette_need(df_city)
 
             # Nouveau tableau : ajout Zone
             df_grouped_zone = self._add_zone(df_grouped)
 
-            # =====================================================
-            # 🆕 MODIFICATION: Filtrer les livraisons avec "Zone inconnue"
-            # Ceci exclut les livraisons non zonées de l'affichage et de l'export
-            # du tableau "Livraisons par Client & Ville + Zone".
-            # =====================================================
+            # Filtrer les livraisons avec "Zone inconnue"
             df_grouped_zone = df_grouped_zone[df_grouped_zone["Zone"] != "Zone inconnue"].copy()
 
-            return df_grouped, df_city, df_grouped_zone
+            # 🆕 Groupement par zone
+            df_zone = self._group_by_zone(df_grouped_zone)
+            
+            # 🆕 Calcul du besoin en estafette par zone
+            df_zone = self._calculate_estafette_need(df_zone)
+
+            # 🆕 Retourne le nouveau DataFrame df_zone
+            return df_grouped, df_city, df_grouped_zone, df_zone
 
         except Exception as e:
             raise Exception(f"❌ Erreur lors du traitement des données : {str(e)}")
@@ -109,7 +112,7 @@ class DeliveryProcessor:
                          left_on="Client commande", right_on="Client", how="left")
 
     # =====================================================
-    # 🔹 Groupement
+    # 🔹 Groupement par Livraison/Client/Ville
     # =====================================================
     def _group_data(self, df):
         df_grouped = df.groupby(["No livraison", "Client", "Ville"], as_index=False).agg({
@@ -125,15 +128,20 @@ class DeliveryProcessor:
         return df_grouped, df_city
 
     # =====================================================
-    # 🔹 Calcul besoin estafette
+    # 🔹 Calcul besoin estafette (Applicable à Ville ou Zone)
     # =====================================================
-    def _calculate_estafette_need(self, df_city):
+    def _calculate_estafette_need(self, df):
         poids_max = 1550
         volume_max = 1.2 * 1.2 * 0.8 * 4
-        df_city["Besoin estafette (poids)"] = df_city["Poids total"].apply(lambda p: math.ceil(p / poids_max))
-        df_city["Besoin estafette (volume)"] = df_city["Volume total"].apply(lambda v: math.ceil(v / volume_max))
-        df_city["Besoin estafette réel"] = df_city[["Besoin estafette (poids)", "Besoin estafette (volume)"]].max(axis=1)
-        return df_city
+        # Assurez-vous que les colonnes existent avant l'application
+        if "Poids total" in df.columns and "Volume total" in df.columns:
+            df["Besoin estafette (poids)"] = df["Poids total"].apply(lambda p: math.ceil(p / poids_max))
+            df["Besoin estafette (volume)"] = df["Volume total"].apply(lambda v: math.ceil(v / volume_max))
+            df["Besoin estafette réel"] = df[["Besoin estafette (poids)", "Besoin estafette (volume)"]].max(axis=1)
+        else:
+            # Cette erreur est improbable si les étapes précédentes ont été suivies correctement
+            print("Colonnes Poids total ou Volume total manquantes pour le calcul estafette.")
+        return df
 
     # =====================================================
     # 🔹 Ajout Zone
@@ -161,11 +169,24 @@ class DeliveryProcessor:
         return df
 
     # =====================================================
-    # ✅ Export fichiers Excel
+    # 🆕 Groupement par Zone
     # =====================================================
-    def export_results(self, df_grouped, df_city, df_grouped_zone,
-                         path_grouped, path_city, path_zone):
+    def _group_by_zone(self, df_grouped_zone):
+        # Utilise les données regroupées par livraison (qui contiennent déjà Poids total et Volume total)
+        df_zone = df_grouped_zone.groupby("Zone", as_index=False).agg({
+            "Poids total": "sum",
+            "Volume total": "sum",
+            "No livraison": "count"
+        }).rename(columns={"No livraison": "Nombre livraisons"})
+        return df_zone
+
+    # =====================================================
+    # ✅ Export fichiers Excel (cette fonction n'est pas utilisée dans app.py, mais est complète)
+    # =====================================================
+    def export_results(self, df_grouped, df_city, df_grouped_zone, df_zone,
+                         path_grouped, path_city, path_zone, path_zone_summary):
         df_grouped.to_excel(path_grouped, index=False)
         df_city.to_excel(path_city, index=False)
         df_grouped_zone.to_excel(path_zone, index=False)
+        df_zone.to_excel(path_zone_summary, index=False)
         return True
