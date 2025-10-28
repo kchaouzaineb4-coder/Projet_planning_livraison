@@ -15,7 +15,7 @@ if 'data_processed' not in st.session_state:
     st.session_state.df_grouped = None
     st.session_state.df_city = None
     st.session_state.df_grouped_zone = None
-    st.session_state.df_zone = None 
+    st.session_state.df_zone = None
     st.session_state.df_optimized_estafettes = None # Ajout pour les voyages optimisés
 
 # Upload fichiers
@@ -66,7 +66,11 @@ if st.session_state.data_processed:
     # =====================================================
     df_grouped_display = df_grouped.copy()
     if "Zone" in df_grouped_display.columns:
-        df_grouped_display = df_grouped_display.drop(columns=["Zone"])
+        # La colonne "Client de l'estafette" est le nouveau nom de "Client" dans df_grouped_zone
+        df_grouped_display = df_grouped_display.drop(columns=["Zone"]) 
+    if "Client de l'estafette" in df_grouped_display.columns:
+        df_grouped_display.rename(columns={"Client de l'estafette": "Client"}, inplace=True)
+
 
     st.subheader("Livraisons par Client & Ville")
     st.dataframe(df_grouped_display)
@@ -127,10 +131,16 @@ if st.session_state.data_processed:
     # Tableau 3 - Client & Ville + Zone
     # =====================================================
     st.subheader("Livraisons par Client & Ville + Zone")
-    st.dataframe(df_grouped_zone)
+    st.markdown("Ce tableau contient le détail de la livraison par BL et Client, avec l'affectation à une Zone (Exclut les 'Zone inconnue').")
+    
+    # Affichage du tableau intermédiaire (df_grouped_zone)
+    # Renommer temporairement pour l'affichage si le nom a été changé pour l'optimisation
+    df_grouped_zone_display = df_grouped_zone.rename(columns={"Client de l'estafette": "Client"})
+    st.dataframe(df_grouped_zone_display)
 
     path_zone = "Livraison_Client_Ville_Zone.xlsx"
-    df_grouped_zone.to_excel(path_zone, index=False)
+    # Note: On utilise le DataFrame avant renommage si nécessaire, mais ici on exporte l'affichage
+    df_grouped_zone_display.to_excel(path_zone, index=False)
     with open(path_zone, "rb") as f:
         st.download_button(
             label="Télécharger Tableau Client & Ville + Zone",
@@ -156,9 +166,13 @@ if st.session_state.data_processed:
         )
 
     # =====================================================
-    # Tableau 5 - Voyages par Estafette Optimisé
+    # Tableau 5 - Voyages par Estafette Optimisé (AVEC CLIENTS)
     # =====================================================
     st.subheader("Voyages par Estafette Optimisé")
+    st.markdown("""
+        *Le taux d'occupation (%) est calculé comme le maximum de l'utilisation en poids par rapport à **1550 kg** et de l'utilisation en volume par rapport à **$4.608 \text{ m}^3$**.
+        La colonne **Client(s) inclus** liste les clients dont les commandes sont regroupées dans ce voyage.*
+        """)
     
     # Affichage du DataFrame avec formatage de la colonne 'Taux d\'occupation (%)'
     st.dataframe(df_optimized_estafettes.style.format({
