@@ -95,7 +95,7 @@ class DeliveryProcessor:
 
     def _calculate_volumes(self, df_liv, df_art):
         df_liv_sel = df_liv[["No livraison", "Article", "Quantité livrée US", "Client commande"]]
-        df_art_sel = df_art[["Article", "Volume de l'US", "Unité Volume"]].copy()
+        df_art_sel = df_art[["Article", "Volume de l'US"]].copy()
         df_art_sel["Volume de l'US"] = pd.to_numeric(
             df_art_sel["Volume de l'US"].astype(str).str.replace(",", "."),
             errors="coerce"
