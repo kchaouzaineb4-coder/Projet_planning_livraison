@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 from backend import DeliveryProcessor
 
+# Configuration de la page
 st.set_page_config(page_title="Planning Livraisons", layout="wide")
 st.title("Planning de Livraisons - Streamlit")
 
@@ -16,6 +17,7 @@ if st.button("Exécuter le traitement complet"):
 
         processor = DeliveryProcessor()
         try:
+            # Traitement complet
             df_grouped, df_city = processor.process_delivery_data(liv_file, ydlogist_file, wcliegps_file)
 
             # --------------------------
@@ -24,11 +26,16 @@ if st.button("Exécuter le traitement complet"):
             st.subheader("Résultat : Livraisons par Client & Ville")
             st.dataframe(df_grouped)
 
+            # Affichage du tableau "Besoin estafette par Ville"
+            st.subheader("Besoin estafette par Ville")
+            st.dataframe(df_city)
+
             # Export Excel
             path_grouped = "Livraison_finale_avec_ville_et_client.xlsx"
             path_city = "Livraison_Besoin_Estafette.xlsx"
             processor.export_results(df_grouped, df_city, path_grouped, path_city)
 
+            # Boutons de téléchargement
             with open(path_grouped, "rb") as f1:
                 st.download_button(
                     label="Télécharger Tableau Détails Livraisons",
@@ -56,13 +63,11 @@ if st.button("Exécuter le traitement complet"):
                               title="Poids total livré par ville")
                 st.plotly_chart(fig1, use_container_width=True)
 
-            
             with col2:
                 fig4 = px.bar(df_city, x="Ville", y="Volume total",
                               title="Volume total par ville (m³)")
                 st.plotly_chart(fig4, use_container_width=True)
-            
-        
+
             col3, col4 = st.columns(2)
             with col3:
                 fig3 = px.bar(df_city, x="Ville", y="Nombre livraisons",
