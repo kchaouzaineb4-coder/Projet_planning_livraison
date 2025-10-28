@@ -27,7 +27,13 @@ class DeliveryProcessor:
             df_final = self._add_city_client_info(df_merged, wcliegps_file)
 
             # Calcul Volume total en m3
-            df_final["Volume de l'US"] = df_final["Volume de l'US"] / 1_000_000
+            if "Volume de l'US" in df_final.columns:
+                df_final["Volume de l'US"] = pd.to_numeric(df_final["Volume de l'US"], errors="coerce").fillna(0)
+                df_final["Volume de l'US"] = df_final["Volume de l'US"] / 1_000_000
+            else:
+                df_final["Volume de l'US"] = 0
+
+            df_final["Quantité livrée US"] = pd.to_numeric(df_final["Quantité livrée US"], errors="coerce").fillna(0)
             df_final["Volume total"] = df_final["Volume de l'US"] * df_final["Quantité livrée US"]
 
             # Regroupement par ville et client
@@ -46,7 +52,7 @@ class DeliveryProcessor:
 
 
     # =====================================================
-    # 🔹 Chargement des fichiers
+    # 🔹 Chargement fichiers
     # =====================================================
     def _load_livraisons(self, liv_file):
         df = pd.read_excel(liv_file)
@@ -55,10 +61,10 @@ class DeliveryProcessor:
 
     def _load_ydlogist(self, file_path):
         df = pd.read_excel(file_path)
-        df.rename(columns={
-            df.columns[16]: "Volume de l'US",
-            df.columns[13]: "Poids de l'US"
-        }, inplace=True)
+        if df.columns.size > 16:
+            df.rename(columns={df.columns[16]: "Volume de l'US"}, inplace=True)
+        if df.columns.size > 13:
+            df.rename(columns={df.columns[13]: "Poids de l'US"}, inplace=True)
         return df
 
 
@@ -82,24 +88,29 @@ class DeliveryProcessor:
     # =====================================================
     def _calculate_weights(self, df):
         df = df.copy()
-        df["Poids de l'US"] = pd.to_numeric(
-            df["Poids de l'US"].astype(str)
-            .str.replace(",", ".")
-            .str.replace(r"[^\d.]", "", regex=True),
-            errors="coerce"
-        ).fillna(0)
+        if "Poids de l'US" in df.columns:
+            df["Poids de l'US"] = pd.to_numeric(
+                df["Poids de l'US"].astype(str).str.replace(",", ".").str.replace(r"[^\d.]", "", regex=True),
+                errors="coerce"
+            ).fillna(0)
+        else:
+            df["Poids de l'US"] = 0
 
         df["Quantité livrée US"] = pd.to_numeric(df["Quantité livrée US"], errors="coerce").fillna(0)
         df["Poids total"] = df["Quantité livrée US"] * df["Poids de l'US"]
+
         return df[["No livraison", "Article", "Client commande", "Poids total"]]
 
     def _calculate_volumes(self, df_liv, df_art):
         df_liv_sel = df_liv[["No livraison", "Article", "Quantité livrée US", "Client commande"]]
         df_art_sel = df_art[["Article", "Volume de l'US"]].copy()
-        df_art_sel["Volume de l'US"] = pd.to_numeric(
-            df_art_sel["Volume de l'US"].astype(str).str.replace(",", "."),
-            errors="coerce"
-        )
+        if "Volume de l'US" in df_art_sel.columns:
+            df_art_sel["Volume de l'US"] = pd.to_numeric(
+                df_art_sel["Volume de l'US"].astype(str).str.replace(",", "."),
+                errors="coerce"
+            )
+        else:
+            df_art_sel["Volume de l'US"] = 0
         return pd.merge(df_liv_sel, df_art_sel, on="Article", how="left")
 
 
@@ -153,7 +164,7 @@ class DeliveryProcessor:
     # =====================================================
     def _calculate_estafette_need(self, df_city):
         poids_max = 1550
-        volume_max = 1.2 * 1.2 * 0.8 * 4  # volume véhicule
+        volume_max = 1.2 * 1.2 * 0.8 * 4
         df_city["Besoin estafette (poids)"] = df_city["Poids total"].apply(lambda p: math.ceil(p / poids_max))
         df_city["Besoin estafette (volume)"] = df_city["Volume total"].apply(lambda v: math.ceil(v / volume_max))
         df_city["Besoin estafette réel"] = df_city[["Besoin estafette (poids)", "Besoin estafette (volume)"]].max(axis=1)

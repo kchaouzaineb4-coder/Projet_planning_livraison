@@ -2,7 +2,6 @@ import streamlit as st
 from backend import DeliveryProcessor
 import plotly.express as px
 
-# Configuration
 st.set_page_config(page_title="Planning Livraisons", layout="wide")
 st.title("Planning de Livraisons - Streamlit")
 
@@ -13,29 +12,19 @@ wcliegps_file = st.file_uploader("Fichier WCLIEGPS", type=["xlsx"])
 
 if st.button("Exécuter le traitement complet"):
     if liv_file and ydlogist_file and wcliegps_file:
-
         processor = DeliveryProcessor()
         try:
-            # Traitement complet
             df_grouped, df_city, df_grouped_zone = processor.process_delivery_data(
                 liv_file, ydlogist_file, wcliegps_file
             )
 
             # --------------------------
-            # Tableau original par Client & Ville
-            # --------------------------
             st.subheader("Résultat : Livraisons par Client & Ville")
             st.dataframe(df_grouped)
 
-            # --------------------------
-            # Besoin estafette par Ville
-            # --------------------------
             st.subheader("Besoin estafette par Ville")
             st.dataframe(df_city)
 
-            # --------------------------
-            # Tableau par Client & Ville + Zone
-            # --------------------------
             st.subheader("Résultat : Livraisons par Client & Ville + Zone")
             st.dataframe(df_grouped_zone)
 
@@ -64,8 +53,6 @@ if st.button("Exécuter le traitement complet"):
                                    "Livraison_avec_zone.xlsx",
                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-            # --------------------------
-            # Graphiques statistiques par ville
             # --------------------------
             st.subheader("Statistiques par Ville")
             col1, col2 = st.columns(2)
