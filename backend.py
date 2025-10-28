@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 import math
 
 
@@ -40,19 +39,17 @@ class DeliveryProcessor:
             # Ajouter la colonne Zone pour le nouveau tableau
             df_grouped_zone = self._assign_zone(df_grouped)
 
-            return df_grouped, df_grouped_zone, df_city
+            return df_grouped, df_city, df_grouped_zone
 
         except Exception as e:
             raise Exception(f"❌ Erreur lors du traitement des données : {str(e)}")
 
 
     # =====================================================
-    # 🔹 Chargement des données
+    # 🔹 Chargement des fichiers
     # =====================================================
     def _load_livraisons(self, liv_file):
         df = pd.read_excel(liv_file)
-
-        # Normaliser nom colonne quantité
         df.rename(columns={df.columns[4]: "Quantité livrée US"}, inplace=True)
         return df
 
@@ -66,7 +63,7 @@ class DeliveryProcessor:
 
 
     # =====================================================
-    # 🔹 Pré-traitement : filtrage
+    # 🔹 Pré-traitement
     # =====================================================
     def _filter_initial_data(self, df):
         clients_exclus = [
@@ -81,7 +78,7 @@ class DeliveryProcessor:
 
 
     # =====================================================
-    # 🔹 Calculs poids / volume
+    # 🔹 Calcul poids / volume
     # =====================================================
     def _calculate_weights(self, df):
         df = df.copy()
@@ -95,7 +92,6 @@ class DeliveryProcessor:
         df["Quantité livrée US"] = pd.to_numeric(df["Quantité livrée US"], errors="coerce").fillna(0)
         df["Poids total"] = df["Quantité livrée US"] * df["Poids de l'US"]
         return df[["No livraison", "Article", "Client commande", "Poids total"]]
-
 
     def _calculate_volumes(self, df_liv, df_art):
         df_liv_sel = df_liv[["No livraison", "Article", "Quantité livrée US", "Client commande"]]
@@ -132,7 +128,7 @@ class DeliveryProcessor:
 
 
     # =====================================================
-    # 🔹 Groupement par client et par ville
+    # 🔹 Groupement
     # =====================================================
     def _group_data(self, df):
         df_grouped = df.groupby(
@@ -153,7 +149,7 @@ class DeliveryProcessor:
 
 
     # =====================================================
-    # 🔹 Calcul besoin estafette par ville
+    # 🔹 Calcul besoin estafette
     # =====================================================
     def _calculate_estafette_need(self, df_city):
         poids_max = 1550
@@ -165,7 +161,7 @@ class DeliveryProcessor:
 
 
     # =====================================================
-    # 🔹 Ajouter la colonne Zone
+    # 🔹 Ajout Zone
     # =====================================================
     def _assign_zone(self, df):
         zones = {
@@ -190,10 +186,10 @@ class DeliveryProcessor:
 
 
     # =====================================================
-    # ✅ Export des fichiers Excel
+    # ✅ Export fichiers Excel
     # =====================================================
-    def export_results(self, df_grouped, df_grouped_zone, df_city, path_grouped, path_grouped_zone, path_city):
+    def export_results(self, df_grouped, df_city, df_grouped_zone, path_grouped, path_city, path_zone):
         df_grouped.to_excel(path_grouped, index=False)
-        df_grouped_zone.to_excel(path_grouped_zone, index=False)
         df_city.to_excel(path_city, index=False)
+        df_grouped_zone.to_excel(path_zone, index=False)
         return True

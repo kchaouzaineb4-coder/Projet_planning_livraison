@@ -1,9 +1,8 @@
 import streamlit as st
-import pandas as pd
 from backend import DeliveryProcessor
 import plotly.express as px
 
-# Configuration de la page
+# Configuration
 st.set_page_config(page_title="Planning Livraisons", layout="wide")
 st.title("Planning de Livraisons - Streamlit")
 
@@ -18,51 +17,51 @@ if st.button("Exécuter le traitement complet"):
         processor = DeliveryProcessor()
         try:
             # Traitement complet
-            df_grouped, df_grouped_zone, df_city = processor.process_delivery_data(liv_file, ydlogist_file, wcliegps_file)
+            df_grouped, df_city, df_grouped_zone = processor.process_delivery_data(
+                liv_file, ydlogist_file, wcliegps_file
+            )
 
             # --------------------------
-            # Tableau détaillé par Client & Ville
+            # Tableau original par Client & Ville
             # --------------------------
             st.subheader("Résultat : Livraisons par Client & Ville")
             st.dataframe(df_grouped)
 
             # --------------------------
-            # Tableau détaillé par Client & Ville + Zone
-            # --------------------------
-            st.subheader("Résultat : Livraisons par Client & Ville + Zone")
-            st.dataframe(df_grouped_zone)
-
-            # --------------------------
-            # Tableau Besoin estafette par Ville
+            # Besoin estafette par Ville
             # --------------------------
             st.subheader("Besoin estafette par Ville")
             st.dataframe(df_city)
 
             # --------------------------
-            # Boutons de téléchargement
+            # Tableau par Client & Ville + Zone
+            # --------------------------
+            st.subheader("Résultat : Livraisons par Client & Ville + Zone")
+            st.dataframe(df_grouped_zone)
+
+            # --------------------------
+            # Boutons téléchargement
             # --------------------------
             processor.export_results(
-                df_grouped,
-                df_grouped_zone,
-                df_city,
+                df_grouped, df_city, df_grouped_zone,
                 "Livraison_finale_avec_ville_et_client.xlsx",
-                "Livraison_avec_zone.xlsx",
-                "Livraison_Besoin_Estafette.xlsx"
+                "Livraison_Besoin_Estafette.xlsx",
+                "Livraison_avec_zone.xlsx"
             )
 
             with open("Livraison_finale_avec_ville_et_client.xlsx", "rb") as f1:
-                st.download_button("Télécharger Tableau Détails Livraisons",
-                                   f1, "Livraison_finale_avec_ville_et_client.xlsx",
+                st.download_button("Télécharger Tableau Détails Livraisons", f1,
+                                   "Livraison_finale_avec_ville_et_client.xlsx",
                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-            with open("Livraison_avec_zone.xlsx", "rb") as f2:
-                st.download_button("Télécharger Tableau Détails Livraisons + Zone",
-                                   f2, "Livraison_avec_zone.xlsx",
+            with open("Livraison_Besoin_Estafette.xlsx", "rb") as f2:
+                st.download_button("Télécharger Besoin Estafette par Ville", f2,
+                                   "Livraison_Besoin_Estafette.xlsx",
                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-            with open("Livraison_Besoin_Estafette.xlsx", "rb") as f3:
-                st.download_button("Télécharger Besoin Estafette par Ville",
-                                   f3, "Livraison_Besoin_Estafette.xlsx",
+            with open("Livraison_avec_zone.xlsx", "rb") as f3:
+                st.download_button("Télécharger Tableau Détails Livraisons + Zone", f3,
+                                   "Livraison_avec_zone.xlsx",
                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
             # --------------------------
@@ -86,6 +85,5 @@ if st.button("Exécuter le traitement complet"):
 
         except Exception as e:
             st.error(f"Erreur : {str(e)}")
-
     else:
         st.warning("Veuillez uploader tous les fichiers nécessaires.")
