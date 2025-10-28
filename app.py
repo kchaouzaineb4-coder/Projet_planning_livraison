@@ -21,21 +21,14 @@ if st.button("Exécuter le traitement complet"):
             df_grouped, df_city = processor.process_delivery_data(liv_file, ydlogist_file, wcliegps_file)
 
             # --------------------------
-            # Tableau détaillé
+            # Tableau détaillé par Client & Ville
             # --------------------------
             st.subheader("Résultat : Livraisons par Client & Ville")
             st.dataframe(df_grouped)
 
-            # Affichage du tableau "Besoin estafette par Ville"
-            st.subheader("Besoin estafette par Ville")
-            st.dataframe(df_city)
-
-            # Export Excel
+            # Bouton téléchargement tableau détaillé
             path_grouped = "Livraison_finale_avec_ville_et_client.xlsx"
-            path_city = "Livraison_Besoin_Estafette.xlsx"
-            processor.export_results(df_grouped, df_city, path_grouped, path_city)
-
-            # Boutons de téléchargement
+            processor.export_results(df_grouped, df_city, path_grouped, "Livraison_Besoin_Estafette.xlsx")
             with open(path_grouped, "rb") as f1:
                 st.download_button(
                     label="Télécharger Tableau Détails Livraisons",
@@ -44,6 +37,14 @@ if st.button("Exécuter le traitement complet"):
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
 
+            # --------------------------
+            # Tableau Besoin estafette par Ville
+            # --------------------------
+            st.subheader("Besoin estafette par Ville")
+            st.dataframe(df_city)
+
+            # Bouton téléchargement Besoin estafette
+            path_city = "Livraison_Besoin_Estafette.xlsx"
             with open(path_city, "rb") as f2:
                 st.download_button(
                     label="Télécharger Besoin Estafette par Ville",
