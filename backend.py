@@ -47,8 +47,11 @@ class DeliveryProcessor:
             # 🆕 Calcul du besoin en estafette par zone
             df_zone = self._calculate_estafette_need(df_zone)
 
-            # 🆕 Retourne le nouveau DataFrame df_zone
-            return df_grouped, df_city, df_grouped_zone, df_zone
+            # 🆕 Calcul des voyages optimisés
+            df_optimized_estafettes = self._calculate_optimized_estafette(df_grouped_zone)
+
+            # 🆕 Retourne les cinq DataFrames
+            return df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes
 
         except Exception as e:
             raise Exception(f"❌ Erreur lors du traitement des données : {str(e)}")
@@ -179,6 +182,66 @@ class DeliveryProcessor:
             "No livraison": "count"
         }).rename(columns={"No livraison": "Nombre livraisons"})
         return df_zone
+
+    # =====================================================
+    # 🆕 Calcul des voyages optimisés par Estafette (Bin Packing 1D/2D Heuristique)
+    # =====================================================
+    def _calculate_optimized_estafette(self, df_grouped_zone):
+        # === Capacités max ===
+        MAX_POIDS = 1550  # kg
+        # Volume max est 1.2 * 1.2 * 0.8 * 4. J'utilise la valeur constante 4.608
+        MAX_VOLUME = 4.608  # m3
+
+        resultats = []
+        estafette_num = 1  # compteur global unique
+
+        # === Boucle par zone ===
+        # Utilise "df_grouped_zone" qui contient une ligne par "No livraison" avec "Poids total" et "Volume total"
+        for zone, group in df_grouped_zone.groupby("Zone"):
+            # Trier les BL par poids décroissant (heuristique First Fit Decreasing)
+            group_sorted = group.sort_values(by="Poids total", ascending=False).reset_index()
+
+            estafettes = []  # liste des estafettes déjà créées pour la zone
+
+            for idx, row in group_sorted.iterrows():
+                bl = str(row["No livraison"])
+                poids = row["Poids total"]
+                volume = row["Volume total"]
+
+                placed = False
+
+                # Chercher la 1ère estafette où ça rentre
+                for e in estafettes:
+                    if e["poids"] + poids <= MAX_POIDS and e["volume"] + volume <= MAX_VOLUME:
+                        e["poids"] += poids
+                        e["volume"] += volume
+                        e["bls"].append(bl)
+                        placed = True
+                        break
+
+                # Si aucun emplacement trouvé -> créer une nouvelle estafette
+                if not placed:
+                    estafettes.append({
+                        "poids": poids,
+                        "volume": volume,
+                        "bls": [bl]
+                    })
+
+            # Sauvegarder les résultats avec numérotation continue
+            for e in estafettes:
+                resultats.append([
+                    zone,
+                    estafette_num,  # numéro global
+                    e["poids"],
+                    e["volume"],
+                    ";".join(e["bls"])
+                ])
+                estafette_num += 1  # on incrémente à chaque nouvelle estafette
+
+        # === Créer un DataFrame résultat ===
+        df_estafettes = pd.DataFrame(resultats, columns=["Zone", "Estafette N°", "Poids total chargé", "Volume total chargé", "BL inclus"])
+        return df_estafettes
+
 
     # =====================================================
     # ✅ Export fichiers Excel (cette fonction n'est pas utilisée dans app.py, mais est complète)

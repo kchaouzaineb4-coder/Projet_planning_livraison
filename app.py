@@ -15,7 +15,8 @@ if 'data_processed' not in st.session_state:
     st.session_state.df_grouped = None
     st.session_state.df_city = None
     st.session_state.df_grouped_zone = None
-    st.session_state.df_zone = None # Ajout pour df_zone
+    st.session_state.df_zone = None 
+    st.session_state.df_optimized_estafettes = None # Ajout pour les voyages optimisés
 
 # Upload fichiers
 liv_file = st.file_uploader("Fichier Livraisons", type=["xlsx"])
@@ -30,8 +31,9 @@ if st.button("Exécuter le traitement complet"):
         processor = DeliveryProcessor()
         try:
             with st.spinner("Traitement des données en cours..."):
-                # Traitement complet (récupère df_zone)
-                df_grouped, df_city, df_grouped_zone, df_zone = processor.process_delivery_data(
+                # Traitement complet (récupère les 5 DataFrames)
+                # Assurez-vous que la méthode process_delivery_data dans backend.py retourne 5 DataFrames
+                df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes = processor.process_delivery_data(
                     liv_file, ydlogist_file, wcliegps_file
                 )
             
@@ -39,7 +41,8 @@ if st.button("Exécuter le traitement complet"):
             st.session_state.df_grouped = df_grouped
             st.session_state.df_city = df_city
             st.session_state.df_grouped_zone = df_grouped_zone
-            st.session_state.df_zone = df_zone # Stockage de df_zone
+            st.session_state.df_zone = df_zone 
+            st.session_state.df_optimized_estafettes = df_optimized_estafettes # Stockage du résultat optimisé
             st.session_state.data_processed = True
             st.success("Traitement terminé avec succès !")
 
@@ -56,12 +59,14 @@ if st.session_state.data_processed:
     df_grouped = st.session_state.df_grouped
     df_city = st.session_state.df_city
     df_grouped_zone = st.session_state.df_grouped_zone
-    df_zone = st.session_state.df_zone # Récupération de df_zone
+    df_zone = st.session_state.df_zone 
+    df_optimized_estafettes = st.session_state.df_optimized_estafettes # Récupération
 
     # =====================================================
     # Tableau 1 - Livraisons par Client & Ville (SANS ZONE)
     # =====================================================
     df_grouped_display = df_grouped.copy()
+    # Si la colonne 'Zone' existe, on la retire pour ce tableau
     if "Zone" in df_grouped_display.columns:
         df_grouped_display = df_grouped_display.drop(columns=["Zone"])
 
@@ -69,7 +74,6 @@ if st.session_state.data_processed:
     st.dataframe(df_grouped_display)
 
     path_grouped = "Livraison_par_Client_Ville.xlsx"
-    # Création du fichier pour le téléchargement
     df_grouped_display.to_excel(path_grouped, index=False) 
 
     with open(path_grouped, "rb") as f:
@@ -87,7 +91,6 @@ if st.session_state.data_processed:
     st.dataframe(df_city)
 
     path_city = "Besoin_estafette_par_Ville.xlsx"
-    # Création du fichier pour le téléchargement
     df_city.to_excel(path_city, index=False)
     with open(path_city, "rb") as f:
         st.download_button(
@@ -129,7 +132,6 @@ if st.session_state.data_processed:
     st.dataframe(df_grouped_zone)
 
     path_zone = "Livraison_Client_Ville_Zone.xlsx"
-    # Création du fichier pour le téléchargement
     df_grouped_zone.to_excel(path_zone, index=False)
     with open(path_zone, "rb") as f:
         st.download_button(
@@ -146,12 +148,27 @@ if st.session_state.data_processed:
     st.dataframe(df_zone)
 
     path_zone_summary = "Besoin_estafette_par_Zone.xlsx"
-    # Création du fichier pour le téléchargement
     df_zone.to_excel(path_zone_summary, index=False)
     with open(path_zone_summary, "rb") as f:
         st.download_button(
             label="Télécharger Besoin Estafette par Zone",
             data=f,
             file_name=path_zone_summary,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    # =====================================================
+    # Tableau 5 - Voyages par Estafette Optimisé
+    # =====================================================
+    st.subheader("Voyages par Estafette Optimisé")
+    st.dataframe(df_optimized_estafettes)
+
+    path_optimized = "Voyages_Estafette_Optimises.xlsx"
+    df_optimized_estafettes.to_excel(path_optimized, index=False)
+    with open(path_optimized, "rb") as f:
+        st.download_button(
+            label="Télécharger Voyages Estafette Optimisés",
+            data=f,
+            file_name=path_optimized,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
