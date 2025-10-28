@@ -1,6 +1,5 @@
 backend.by 
 
-
 import pandas as pd
 import math
 
@@ -50,8 +49,11 @@ class DeliveryProcessor:
             # 🆕 Calcul du besoin en estafette par zone
             df_zone = self._calculate_estafette_need(df_zone)
 
-            # 🆕 Retourne le nouveau DataFrame df_zone
-            return df_grouped, df_city, df_grouped_zone, df_zone
+            # 🆕 Calcul des voyages optimisés
+            df_optimized_estafettes = self._calculate_optimized_estafette(df_grouped_zone)
+
+            # 🆕 Retourne les cinq DataFrames
+            return df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes
 
         except Exception as e:
             raise Exception(f"❌ Erreur lors du traitement des données : {str(e)}")
@@ -184,6 +186,66 @@ class DeliveryProcessor:
         return df_zone
 
     # =====================================================
+    # 🆕 Calcul des voyages optimisés par Estafette (Bin Packing 1D/2D Heuristique)
+    # =====================================================
+    def _calculate_optimized_estafette(self, df_grouped_zone):
+        # === Capacités max ===
+        MAX_POIDS = 1550  # kg
+        # Volume max est 1.2 * 1.2 * 0.8 * 4. J'utilise la valeur constante 4.608
+        MAX_VOLUME = 4.608  # m3
+
+        resultats = []
+        estafette_num = 1  # compteur global unique
+
+        # === Boucle par zone ===
+        # Utilise "df_grouped_zone" qui contient une ligne par "No livraison" avec "Poids total" et "Volume total"
+        for zone, group in df_grouped_zone.groupby("Zone"):
+            # Trier les BL par poids décroissant (heuristique First Fit Decreasing)
+            group_sorted = group.sort_values(by="Poids total", ascending=False).reset_index()
+
+            estafettes = []  # liste des estafettes déjà créées pour la zone
+
+            for idx, row in group_sorted.iterrows():
+                bl = str(row["No livraison"])
+                poids = row["Poids total"]
+                volume = row["Volume total"]
+
+                placed = False
+
+                # Chercher la 1ère estafette où ça rentre
+                for e in estafettes:
+                    if e["poids"] + poids <= MAX_POIDS and e["volume"] + volume <= MAX_VOLUME:
+                        e["poids"] += poids
+                        e["volume"] += volume
+                        e["bls"].append(bl)
+                        placed = True
+                        break
+
+                # Si aucun emplacement trouvé -> créer une nouvelle estafette
+                if not placed:
+                    estafettes.append({
+                        "poids": poids,
+                        "volume": volume,
+                        "bls": [bl]
+                    })
+
+            # Sauvegarder les résultats avec numérotation continue
+            for e in estafettes:
+                resultats.append([
+                    zone,
+                    estafette_num,  # numéro global
+                    e["poids"],
+                    e["volume"],
+                    ";".join(e["bls"])
+                ])
+                estafette_num += 1  # on incrémente à chaque nouvelle estafette
+
+        # === Créer un DataFrame résultat ===
+        df_estafettes = pd.DataFrame(resultats, columns=["Zone", "Estafette N°", "Poids total chargé", "Volume total chargé", "BL inclus"])
+        return df_estafettes
+
+
+    # =====================================================
     # ✅ Export fichiers Excel (cette fonction n'est pas utilisée dans app.py, mais est complète)
     # =====================================================
     def export_results(self, df_grouped, df_city, df_grouped_zone, df_zone,
@@ -193,7 +255,6 @@ class DeliveryProcessor:
         df_grouped_zone.to_excel(path_zone, index=False)
         df_zone.to_excel(path_zone_summary, index=False)
         return True
-
 
 
 
@@ -218,7 +279,8 @@ if 'data_processed' not in st.session_state:
     st.session_state.df_grouped = None
     st.session_state.df_city = None
     st.session_state.df_grouped_zone = None
-    st.session_state.df_zone = None # Ajout pour df_zone
+    st.session_state.df_zone = None 
+    st.session_state.df_optimized_estafettes = None # Ajout pour les voyages optimisés
 
 # Upload fichiers
 liv_file = st.file_uploader("Fichier Livraisons", type=["xlsx"])
@@ -233,8 +295,9 @@ if st.button("Exécuter le traitement complet"):
         processor = DeliveryProcessor()
         try:
             with st.spinner("Traitement des données en cours..."):
-                # Traitement complet (récupère df_zone)
-                df_grouped, df_city, df_grouped_zone, df_zone = processor.process_delivery_data(
+                # Traitement complet (récupère les 5 DataFrames)
+                # Assurez-vous que la méthode process_delivery_data dans backend.py retourne 5 DataFrames
+                df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes = processor.process_delivery_data(
                     liv_file, ydlogist_file, wcliegps_file
                 )
             
@@ -242,7 +305,8 @@ if st.button("Exécuter le traitement complet"):
             st.session_state.df_grouped = df_grouped
             st.session_state.df_city = df_city
             st.session_state.df_grouped_zone = df_grouped_zone
-            st.session_state.df_zone = df_zone # Stockage de df_zone
+            st.session_state.df_zone = df_zone 
+            st.session_state.df_optimized_estafettes = df_optimized_estafettes # Stockage du résultat optimisé
             st.session_state.data_processed = True
             st.success("Traitement terminé avec succès !")
 
@@ -259,12 +323,14 @@ if st.session_state.data_processed:
     df_grouped = st.session_state.df_grouped
     df_city = st.session_state.df_city
     df_grouped_zone = st.session_state.df_grouped_zone
-    df_zone = st.session_state.df_zone # Récupération de df_zone
+    df_zone = st.session_state.df_zone 
+    df_optimized_estafettes = st.session_state.df_optimized_estafettes # Récupération
 
     # =====================================================
     # Tableau 1 - Livraisons par Client & Ville (SANS ZONE)
     # =====================================================
     df_grouped_display = df_grouped.copy()
+    # Si la colonne 'Zone' existe, on la retire pour ce tableau
     if "Zone" in df_grouped_display.columns:
         df_grouped_display = df_grouped_display.drop(columns=["Zone"])
 
@@ -272,7 +338,6 @@ if st.session_state.data_processed:
     st.dataframe(df_grouped_display)
 
     path_grouped = "Livraison_par_Client_Ville.xlsx"
-    # Création du fichier pour le téléchargement
     df_grouped_display.to_excel(path_grouped, index=False) 
 
     with open(path_grouped, "rb") as f:
@@ -290,7 +355,6 @@ if st.session_state.data_processed:
     st.dataframe(df_city)
 
     path_city = "Besoin_estafette_par_Ville.xlsx"
-    # Création du fichier pour le téléchargement
     df_city.to_excel(path_city, index=False)
     with open(path_city, "rb") as f:
         st.download_button(
@@ -332,7 +396,6 @@ if st.session_state.data_processed:
     st.dataframe(df_grouped_zone)
 
     path_zone = "Livraison_Client_Ville_Zone.xlsx"
-    # Création du fichier pour le téléchargement
     df_grouped_zone.to_excel(path_zone, index=False)
     with open(path_zone, "rb") as f:
         st.download_button(
@@ -349,12 +412,27 @@ if st.session_state.data_processed:
     st.dataframe(df_zone)
 
     path_zone_summary = "Besoin_estafette_par_Zone.xlsx"
-    # Création du fichier pour le téléchargement
     df_zone.to_excel(path_zone_summary, index=False)
     with open(path_zone_summary, "rb") as f:
         st.download_button(
             label="Télécharger Besoin Estafette par Zone",
             data=f,
             file_name=path_zone_summary,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    # =====================================================
+    # Tableau 5 - Voyages par Estafette Optimisé
+    # =====================================================
+    st.subheader("Voyages par Estafette Optimisé")
+    st.dataframe(df_optimized_estafettes)
+
+    path_optimized = "Voyages_Estafette_Optimises.xlsx"
+    df_optimized_estafettes.to_excel(path_optimized, index=False)
+    with open(path_optimized, "rb") as f:
+        st.download_button(
+            label="Télécharger Voyages Estafette Optimisés",
+            data=f,
+            file_name=path_optimized,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )

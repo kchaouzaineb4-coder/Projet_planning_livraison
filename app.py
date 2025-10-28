@@ -161,6 +161,16 @@ if st.session_state.data_processed:
     # Tableau 5 - Voyages par Estafette Optimisé
     # =====================================================
     st.subheader("Voyages par Estafette Optimisé")
+    
+    # 🆕 Calcul du taux d'occupation
+    MAX_POIDS = 1550
+    MAX_VOLUME = 4.608
+
+    df_optimized_estafettes['Taux d\'occupation (%)'] = df_optimized_estafettes.apply(
+        lambda row: max(row['Poids total chargé'] / MAX_POIDS, row['Volume total chargé'] / MAX_VOLUME) * 100,
+        axis=1
+    ).round(2)
+    
     st.dataframe(df_optimized_estafettes)
 
     path_optimized = "Voyages_Estafette_Optimises.xlsx"
