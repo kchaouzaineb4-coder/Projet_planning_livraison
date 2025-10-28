@@ -1,246 +1,219 @@
 import pandas as pd
-import math
+import numpy as np
+from io import BytesIO
+
+# Constantes de capacité (doivent correspondre à celles utilisées dans app.py)
+MAX_POIDS = 1550  # Capacité maximale en kg
+MAX_VOLUME = 4.608 # Capacité maximale en m³ (volume)
 
 class DeliveryProcessor:
+    """
+    Classe responsable du chargement, du nettoyage, de la fusion et du traitement
+    des données de livraison pour générer les différents tableaux de bord.
+    """
 
-    # =====================================================
-    # ✅ Fonction principale : traitement complet
-    # =====================================================
-    def process_delivery_data(self, liv_file, ydlogist_file, wcliegps_file):
-        try:
-            # Lecture des fichiers
-            df_liv = self._load_livraisons(liv_file)
-            df_yd = self._load_ydlogist(ydlogist_file)
+    def _load_data(self, liv_file, ydlogist_file, wcliegps_file):
+        """Charge les fichiers Excel depuis les objets téléchargés par Streamlit."""
+        df_liv = pd.read_excel(liv_file)
+        df_ydlogist = pd.read_excel(ydlogist_file)
+        df_wcliegps = pd.read_excel(wcliegps_file)
+        return df_liv, df_ydlogist, df_wcliegps
 
-            # Filtrage des données
-            df_liv = self._filter_initial_data(df_liv)
+    def _clean_and_merge(self, df_liv, df_ydlogist):
+        """Nettoyage et fusion des livraisons avec les volumes."""
+        
+        # S'assurer que les clés de fusion sont des chaînes de caractères
+        df_liv['N° BON LIVRAISON'] = df_liv['N° BON LIVRAISON'].astype(str).str.strip()
+        df_ydlogist['N° BON LIVRAISON'] = df_ydlogist['N° BON LIVRAISON'].astype(str).str.strip()
 
-            # Calcul Poids & Volume
-            df_poids = self._calculate_weights(df_liv)
-            df_vol = self._calculate_volumes(df_liv, df_yd)
+        # Fusionner les livraisons et les volumes
+        df_merged = pd.merge(df_liv, df_ydlogist, on='N° BON LIVRAISON', how='left')
 
-            # Fusionner poids + volume
-            df_merged = self._merge_delivery_data(df_poids, df_vol)
-
-            # Ajouter Client et Ville
-            df_final = self._add_city_client_info(df_merged, wcliegps_file)
-
-            # Calcul Volume total en m3
-            df_final["Volume de l'US"] = df_final["Volume de l'US"] / 1_000_000
-            df_final["Volume total"] = df_final["Volume de l'US"] * df_final["Quantité livrée US"]
-
-            # Regroupement par ville et client
-            df_grouped, df_city = self._group_data(df_final)
-
-            # Calcul du besoin en estafette par ville
-            df_city = self._calculate_estafette_need(df_city)
-
-            # Nouveau tableau : ajout Zone
-            df_grouped_zone = self._add_zone(df_grouped)
-
-            # Filtrer les livraisons avec "Zone inconnue"
-            df_grouped_zone = df_grouped_zone[df_grouped_zone["Zone"] != "Zone inconnue"].copy()
-
-            # 🆕 Groupement par zone
-            df_zone = self._group_by_zone(df_grouped_zone)
+        # Nettoyage et conversion des codes postaux (assure la cohérence)
+        df_merged['Code postal'] = df_merged['Code postal'].astype(str).str.zfill(5)
+        
+        # Calculer le volume et le poids total par livraison (si les colonnes existent)
+        # S'assurer des noms de colonnes : 'Poids (kg)' et 'Volume (m3)'
+        
+        # Renommage si nécessaire (pour être plus générique)
+        if 'Poids (kg)' in df_merged.columns and 'Volume (m3)' in df_merged.columns:
+            df_merged['Poids total'] = df_merged['Poids (kg)']
+            df_merged['Volume total'] = df_merged['Volume (m3)']
+        elif 'Poids Total' in df_merged.columns and 'Volume Total' in df_merged.columns:
+             # Utilisation des colonnes existantes si elles ont déjà les totaux
+            df_merged['Poids total'] = df_merged['Poids Total']
+            df_merged['Volume total'] = df_merged['Volume Total']
+        else:
+            # Si les colonnes de poids/volume unitaires devaient être multipliées par la quantité,
+            # cette logique serait implémentée ici. Pour l'instant, on assume des colonnes 'Total'.
+            df_merged['Poids total'] = 0
+            df_merged['Volume total'] = 0
             
-            # 🆕 Calcul du besoin en estafette par zone
-            df_zone = self._calculate_estafette_need(df_zone)
+            # Gestion des valeurs manquantes après la fusion
+            df_merged['Poids total'] = df_merged['Poids total'].fillna(0)
+            df_merged['Volume total'] = df_merged['Volume total'].fillna(0)
 
-            # 🆕 Calcul des voyages optimisés
-            df_optimized_estafettes = self._calculate_optimized_estafette(df_grouped_zone)
+        return df_merged
 
-            # 🆕 Retourne les cinq DataFrames
-            return df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes
+    def _calculate_city_data(self, df_merged):
+        """
+        Calcule les données groupées par Client/Ville et le besoin en estafettes par Ville.
+        """
+        # Tableau 1: Livraisons par Client & Ville
+        df_grouped = df_merged.groupby(['Code Client', 'Client', 'Ville', 'Code postal']).agg(
+            {'N° BON LIVRAISON': 'count', 
+             'Poids total': 'sum', 
+             'Volume total': 'sum'}
+        ).rename(columns={'N° BON LIVRAISON': 'Nombre livraisons'}).reset_index()
 
-        except Exception as e:
-            raise Exception(f"❌ Erreur lors du traitement des données : {str(e)}")
+        # Tableau 2: Besoin Estafette par Ville
+        df_city = df_grouped.groupby('Ville').agg(
+            {'Nombre livraisons': 'sum', 
+             'Poids total': 'sum', 
+             'Volume total': 'sum'}
+        ).reset_index()
 
-    # =====================================================
-    # 🔹 Chargement des données
-    # =====================================================
-    def _load_livraisons(self, liv_file):
-        df = pd.read_excel(liv_file)
-        df.rename(columns={df.columns[4]: "Quantité livrée US"}, inplace=True)
-        return df
+        # Calcul du besoin estafette réel (basé sur la contrainte max Poids ou Volume)
+        df_city['Besoin estafette Poids'] = np.ceil(df_city['Poids total'] / MAX_POIDS)
+        df_city['Besoin estafette Volume'] = np.ceil(df_city['Volume total'] / MAX_VOLUME)
+        
+        # Le besoin estafette réel est le maximum des deux contraintes
+        df_city['Besoin estafette réel'] = df_city[['Besoin estafette Poids', 'Besoin estafette Volume']].max(axis=1)
+        
+        # Nettoyage des colonnes temporaires
+        df_city = df_city.drop(columns=['Besoin estafette Poids', 'Besoin estafette Volume'])
 
-    def _load_ydlogist(self, file_path):
-        df = pd.read_excel(file_path)
-        df.rename(columns={df.columns[16]: "Unité Volume", df.columns[13]: "Poids de l'US"}, inplace=True)
-        return df
-
-    # =====================================================
-    # 🔹 Filtrage
-    # =====================================================
-    def _filter_initial_data(self, df):
-        clients_exclus = [
-            "AMECAP", "SANA", "SOPAL", "SOPALGAZ", "SOPALSERV", "SOPALTEC",
-            "SOPALALG", "AQUA", "WINOX", "QUIVEM", "SANISTONE",
-            "SOPAMAR", "SOPALAFR", "SOPALINTER"
-        ]
-        return df[(df["Type livraison"] != "SDC") & (~df["Client commande"].isin(clients_exclus))]
-
-    # =====================================================
-    # 🔹 Calcul Poids
-    # =====================================================
-    def _calculate_weights(self, df):
-        df["Poids de l'US"] = pd.to_numeric(df["Poids de l'US"].astype(str).str.replace(",", ".")
-                                             .str.replace(r"[^\d.]", "", regex=True), errors="coerce").fillna(0)
-        df["Quantité livrée US"] = pd.to_numeric(df["Quantité livrée US"], errors="coerce").fillna(0)
-        df["Poids total"] = df["Quantité livrée US"] * df["Poids de l'US"]
-        return df[["No livraison", "Article", "Client commande", "Poids total"]]
-
-    # =====================================================
-    # 🔹 Calcul Volume
-    # =====================================================
-    def _calculate_volumes(self, df_liv, df_art):
-        df_liv_sel = df_liv[["No livraison", "Article", "Quantité livrée US", "Client commande"]]
-        df_art_sel = df_art[["Article", "Volume de l'US", "Unité Volume"]].copy()
-        df_art_sel["Volume de l'US"] = pd.to_numeric(df_art_sel["Volume de l'US"].astype(str).str.replace(",", "."),
-                                                     errors="coerce")
-        return pd.merge(df_liv_sel, df_art_sel, on="Article", how="left")
-
-    # =====================================================
-    # 🔹 Fusion
-    # =====================================================
-    def _merge_delivery_data(self, df_poids, df_vol):
-        return pd.merge(df_poids, df_vol, on=["No livraison", "Article", "Client commande"], how="left")
-
-    # =====================================================
-    # 🔹 Ajout Client & Ville
-    # =====================================================
-    def _add_city_client_info(self, df, wcliegps_file):
-        df_clients = pd.read_excel(wcliegps_file)
-        return pd.merge(df, df_clients[["Client", "Ville"]],
-                         left_on="Client commande", right_on="Client", how="left")
-
-    # =====================================================
-    # 🔹 Groupement par Livraison/Client/Ville
-    # =====================================================
-    def _group_data(self, df):
-        df_grouped = df.groupby(["No livraison", "Client", "Ville"], as_index=False).agg({
-            "Article": lambda x: ", ".join(x.astype(str)),
-            "Poids total": "sum",
-            "Volume total": "sum"
-        })
-        df_city = df_grouped.groupby("Ville", as_index=False).agg({
-            "Poids total": "sum",
-            "Volume total": "sum",
-            "No livraison": "count"
-        }).rename(columns={"No livraison": "Nombre livraisons"})
         return df_grouped, df_city
 
-    # =====================================================
-    # 🔹 Calcul besoin estafette (Applicable à Ville ou Zone)
-    # =====================================================
-    def _calculate_estafette_need(self, df):
-        poids_max = 1550
-        volume_max = 1.2 * 1.2 * 0.8 * 4
-        # Assurez-vous que les colonnes existent avant l'application
-        if "Poids total" in df.columns and "Volume total" in df.columns:
-            df["Besoin estafette (poids)"] = df["Poids total"].apply(lambda p: math.ceil(p / poids_max))
-            df["Besoin estafette (volume)"] = df["Volume total"].apply(lambda v: math.ceil(v / volume_max))
-            df["Besoin estafette réel"] = df[["Besoin estafette (poids)", "Besoin estafette (volume)"]].max(axis=1)
-        else:
-            # Cette erreur est improbable si les étapes précédentes ont été suivies correctement
-            print("Colonnes Poids total ou Volume total manquantes pour le calcul estafette.")
-        return df
+    def _add_zone_and_calculate_zone_data(self, df_grouped, df_wcliegps):
+        """
+        Ajoute la zone aux données groupées et calcule les statistiques par Zone.
+        """
+        # Assurer que la clé de fusion est cohérente
+        df_wcliegps['Code Client'] = df_wcliegps['Code Client'].astype(str).str.strip()
+        df_grouped['Code Client'] = df_grouped['Code Client'].astype(str).str.strip()
+        
+        # Renommage de la colonne Zone dans le fichier client si nécessaire
+        df_wcliegps = df_wcliegps.rename(columns={'ZONAGE': 'Zone'})
+        
+        # Sélectionner uniquement Code Client et Zone (pour éviter les doublons/conflits de colonnes)
+        df_zones = df_wcliegps[['Code Client', 'Zone']].drop_duplicates()
+        
+        # Fusionner pour ajouter la colonne 'Zone' à df_grouped
+        df_grouped_zone = pd.merge(df_grouped, df_zones, on='Code Client', how='left')
 
-    # =====================================================
-    # 🔹 Ajout Zone
-    # =====================================================
-    def _add_zone(self, df):
-        zones = {
-            "Zone 1": ["TUNIS", "ARIANA", "MANOUBA", "BEN AROUS", "BIZERTE", "MATEUR",
-                       "MENZEL BOURGUIBA", "UTIQUE"],
-            "Zone 2": ["NABEUL", "HAMMAMET", "KORBA", "MENZEL TEMIME", "KELIBIA", "SOLIMAN"],
-            "Zone 3": ["SOUSSE", "MONASTIR", "MAHDIA", "KAIROUAN"],
-            "Zone 4": ["GABÈS", "MEDENINE", "ZARZIS", "DJERBA"],
-            "Zone 5": ["GAFSA", "KASSERINE", "TOZEUR", "NEFTA", "DOUZ"],
-            "Zone 6": ["JENDOUBA", "BÉJA", "LE KEF", "TABARKA", "SILIANA"],
-            "Zone 7": ["SFAX"]
-        }
+        # Remplir les zones manquantes (ex: avec 'ZONE_INCONNUE')
+        df_grouped_zone['Zone'] = df_grouped_zone['Zone'].fillna('ZONE_INCONNUE').astype(str).str.strip()
+        
+        # Tableau 3: Livraisons par Client & Ville + Zone (copie du df_grouped_zone)
+        
+        # Tableau 4: Besoin Estafette par Zone
+        df_zone = df_grouped_zone.groupby('Zone').agg(
+            {'Nombre livraisons': 'sum', 
+             'Poids total': 'sum', 
+             'Volume total': 'sum'}
+        ).reset_index()
 
-        def get_zone(ville):
-            ville = str(ville).upper().strip()
-            for z, villes in zones.items():
-                if ville in villes:
-                    return z
-            return "Zone inconnue"
+        # Calcul du besoin estafette réel par Zone
+        df_zone['Besoin estafette Poids'] = np.ceil(df_zone['Poids total'] / MAX_POIDS)
+        df_zone['Besoin estafette Volume'] = np.ceil(df_zone['Volume total'] / MAX_VOLUME)
+        df_zone['Besoin estafette réel'] = df_zone[['Besoin estafette Poids', 'Besoin estafette Volume']].max(axis=1)
+        df_zone = df_zone.drop(columns=['Besoin estafette Poids', 'Besoin estafette Volume'])
 
-        df["Zone"] = df["Ville"].apply(get_zone)
-        return df
+        return df_grouped_zone, df_zone
 
-    # =====================================================
-    # 🆕 Groupement par Zone
-    # =====================================================
-    def _group_by_zone(self, df_grouped_zone):
-        # Utilise les données regroupées par livraison (qui contiennent déjà Poids total et Volume total)
-        df_zone = df_grouped_zone.groupby("Zone", as_index=False).agg({
-            "Poids total": "sum",
-            "Volume total": "sum",
-            "No livraison": "count"
-        }).rename(columns={"No livraison": "Nombre livraisons"})
-        return df_zone
+    def _optimize_estafettes(self, df_grouped_zone):
+        """
+        Simule la répartition des livraisons dans des estafettes (Voyages) par Zone.
+        Ajoute le Taux d'Occupation (%).
+        """
+        
+        # Trier par Zone pour s'assurer que l'optimisation se fait par zone contiguë
+        df_sorted = df_grouped_zone.sort_values(by='Zone').copy()
+        
+        # Initialisation des variables de suivi
+        voyages = []
+        current_zone = None
+        voyage_id = 0
+        current_poids = 0
+        current_volume = 0
+        
+        # Colonne pour stocker l'ID du voyage assigné à chaque ligne de livraison
+        df_sorted['Voyage_ID'] = -1 
 
-    # =====================================================
-    # 🆕 Calcul des voyages optimisés par Estafette (Bin Packing 1D/2D Heuristique)
-    # =====================================================
-    def _calculate_optimized_estafette(self, df_grouped_zone):
-        # === Capacités max ===
-        MAX_POIDS = 1550  # kg
-        # Volume max est 1.2 * 1.2 * 0.8 * 4. J'utilise la valeur constante 4.608
-        MAX_VOLUME = 4.608  # m3
+        for index, row in df_sorted.iterrows():
+            zone = row['Zone']
+            poids = row['Poids total']
+            volume = row['Volume total']
 
-        resultats = []
-        estafette_num = 1  # compteur global unique
+            # Si on change de zone, ou si le chargement dépasse la capacité
+            is_new_zone = (zone != current_zone)
+            poids_exceeded = (current_poids + poids > MAX_POIDS)
+            volume_exceeded = (current_volume + volume > MAX_VOLUME)
 
-        # === Boucle par zone ===
-        # Utilise "df_grouped_zone" qui contient une ligne par "No livraison" avec "Poids total" et "Volume total"
-        for zone, group in df_grouped_zone.groupby("Zone"):
-            # Trier les BL par poids décroissant (heuristique First Fit Decreasing)
-            group_sorted = group.sort_values(by="Poids total", ascending=False).reset_index()
+            if is_new_zone:
+                # Nouvelle zone : réinitialiser le voyage
+                current_zone = zone
+                voyage_id += 1 # Nouveau voyage
+                current_poids = poids
+                current_volume = volume
+            elif poids_exceeded or volume_exceeded:
+                # Capacité dépassée : démarrer un nouveau voyage dans la même zone
+                voyage_id += 1 # Nouveau voyage
+                current_poids = poids
+                current_volume = volume
+            else:
+                # Peut être ajouté au voyage actuel
+                current_poids += poids
+                current_volume += volume
+            
+            # Assignation de l'ID du voyage à la ligne
+            df_sorted.loc[index, 'Voyage_ID'] = voyage_id
 
-            estafettes = []  # liste des estafettes déjà créées pour la zone
+        # Consolidation des résultats par voyage pour le Tableau 5
+        df_optimized_estafettes = df_sorted.groupby(['Zone', 'Voyage_ID']).agg(
+            {'Poids total': 'sum', 
+             'Volume total': 'sum',
+             'Nombre livraisons': 'sum'}
+        ).rename(columns={'Poids total': 'Poids total chargé', 
+                          'Volume total': 'Volume total chargé'}).reset_index()
+        
+        # 🎯 CALCUL DU TAUX D'OCCUPATION (mouvementé du app.py vers le backend.py)
+        df_optimized_estafettes['Taux d\'occupation (%)'] = df_optimized_estafettes.apply(
+            lambda row: max(row['Poids total chargé'] / MAX_POIDS, row['Volume total chargé'] / MAX_VOLUME) * 100,
+            axis=1
+        ).round(2)
+        
+        # Renommer la colonne Voyage_ID pour un affichage plus clair
+        df_optimized_estafettes['Voyage'] = 'Voyage N°' + (df_optimized_estafettes['Voyage_ID'].astype(str))
+        df_optimized_estafettes = df_optimized_estafettes.drop(columns=['Voyage_ID'])
+        
+        # Réorganiser les colonnes
+        df_optimized_estafettes = df_optimized_estafettes[['Zone', 'Voyage', 'Poids total chargé', 'Volume total chargé', 'Taux d\'occupation (%)', 'Nombre livraisons']]
 
-            for idx, row in group_sorted.iterrows():
-                bl = str(row["No livraison"])
-                poids = row["Poids total"]
-                volume = row["Volume total"]
+        return df_optimized_estafettes
 
-                placed = False
 
-                # Chercher la 1ère estafette où ça rentre
-                for e in estafettes:
-                    if e["poids"] + poids <= MAX_POIDS and e["volume"] + volume <= MAX_VOLUME:
-                        e["poids"] += poids
-                        e["volume"] += volume
-                        e["bls"].append(bl)
-                        placed = True
-                        break
+    def process_delivery_data(self, liv_file, ydlogist_file, wcliegps_file):
+        """
+        Méthode principale pour exécuter l'ensemble du pipeline de traitement.
+        Retourne les 5 DataFrames requis par Streamlit.
+        """
+        # 1. Chargement et Nettoyage
+        df_liv, df_ydlogist, df_wcliegps = self._load_data(liv_file, ydlogist_file, wcliegps_file)
+        df_merged = self._clean_and_merge(df_liv, df_ydlogist)
 
-                # Si aucun emplacement trouvé -> créer une nouvelle estafette
-                if not placed:
-                    estafettes.append({
-                        "poids": poids,
-                        "volume": volume,
-                        "bls": [bl]
-                    })
+        # 2. Calcul des données par Ville (Tableaux 1 & 2)
+        df_grouped, df_city = self._calculate_city_data(df_merged)
 
-            # Sauvegarder les résultats avec numérotation continue
-            for e in estafettes:
-                resultats.append([
-                    zone,
-                    estafette_num,  # numéro global
-                    e["poids"],
-                    e["volume"],
-                    ";".join(e["bls"])
-                ])
-                estafette_num += 1  # on incrémente à chaque nouvelle estafette
-
-        # === Créer un DataFrame résultat ===
-        df_estafettes = pd.DataFrame(resultats, columns=["Zone", "Estafette N°", "Poids total chargé", "Volume total chargé", "BL inclus"])
-        return df_estafettes
+        # 3. Ajout des zones et calcul des données par Zone (Tableaux 3 & 4)
+        df_grouped_zone, df_zone = self._add_zone_and_calculate_zone_data(df_grouped, df_wcliegps)
+        
+        # 4. Optimisation des voyages (Tableau 5)
+        df_optimized_estafettes = self._optimize_estafettes(df_grouped_zone)
+        
+        # Retourner les 5 DataFrames dans l'ordre attendu par app.py
+        return df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes
 
 
     # =====================================================
