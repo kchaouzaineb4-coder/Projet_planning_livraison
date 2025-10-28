@@ -9,8 +9,8 @@ st.title("Planning de Livraisons - Streamlit")
 
 # Upload fichiers
 liv_file = st.file_uploader("Fichier Livraisons", type=["xlsx"])
-ydlogist_file = st.file_uploader("Fichier YDLOGIST", type=["xlsx"])
-wcliegps_file = st.file_uploader("Fichier WCLIEGPS", type=["xlsx"])
+ydlogist_file = st.file_uploader("Fichier Volumes", type=["xlsx"])
+wcliegps_file = st.file_uploader("Fichier Clients", type=["xlsx"])
 
 if st.button("Exécuter le traitement complet"):
     if liv_file and ydlogist_file and wcliegps_file:
