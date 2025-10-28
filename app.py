@@ -1,68 +1,63 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 from backend import DeliveryProcessor
+import plotly.express as px
 
 st.set_page_config(page_title="Planning Livraisons", layout="wide")
-st.title("Planning de Livraisons - Dashboard 📦")
 
-liv_file = st.file_uploader("📄 Fichier Livraisons", type=["xlsx"])
-ydlogist_file = st.file_uploader("📄 Fichier YDLOGIST", type=["xlsx"])
-wcliegps_file = st.file_uploader("📄 Fichier WCLIEGPS", type=["xlsx"])
+st.title("📦 Planning de Livraisons - Dashboard")
 
-if st.button("🚀 Exécuter le traitement"):
-    if liv_file and ydlogist_file and wcliegps_file:
+# Upload fichier
+uploaded_file = st.file_uploader("📄 Fichier Livraisons", type=["xlsx"])
 
-        processor = DeliveryProcessor()
+if uploaded_file:
+    try:
+        df_liv = pd.read_excel(uploaded_file)
+        processor = DeliveryProcessor(df_liv)
 
-        try:
-            df_grouped, df_city = processor.process_delivery_data(
-                liv_file, ydlogist_file, wcliegps_file
-            )
+        st.success("✅ Fichier chargé avec succès !")
+        st.write("### Aperçu des données")
+        st.dataframe(df_liv.head())
 
-            st.subheader("📌 Tableau Livraisons par Client & Ville")
-            st.dataframe(df_grouped)
+        # ========== ANALYSE ========== #
+        st.write("---")
 
-            # ✅ Téléchargement
-            path_grouped = "Livraison_finale_avec_ville_et_client.xlsx"
-            path_city = "Livraison_Besoin_Estafette.xlsx"
-            processor.export_results(df_grouped, df_city, path_grouped, path_city)
+        col1, col2 = st.columns(2)
 
-            st.download_button("⬇ Télécharger Tableau Détail",
-                               data=open(path_grouped, "rb"), file_name=path_grouped)
+        # ✅ Graphique : Nb livraisons par jour
+        with col1:
+            df_count_day = processor.count_by_day()
+            fig1 = px.bar(df_count_day, x="Date", y="Nb Livraisons",
+                          title="📅 Nombre de Livraisons par Jour")
+            st.plotly_chart(fig1, use_container_width=True)
 
-            st.download_button("⬇ Télécharger Tableau Estafette par Ville",
-                               data=open(path_city, "rb"), file_name=path_city)
+        # ✅ Graphique : Volume total par jour
+        with col2:
+            df_vol_day = processor.volume_by_day()
+            fig2 = px.line(df_vol_day, x="Date", y="Volume Total (m3)",
+                           title="📦 Volume Total par Jour (m3)")
+            st.plotly_chart(fig2, use_container_width=True)
 
-            st.subheader("📊 Statistiques Graphiques par Ville")
+        st.write("---")
 
-            col1, col2 = st.columns(2)
-            col3, col4 = st.columns(2)
+        col3, col4 = st.columns(2)
 
-            # 4 Graphiques demandés ✅✅✅✅
+        # ✅ Nouveau : Nb livraisons par ville
+        with col3:
+            df_count_city = processor.count_by_city()
+            fig3 = px.bar(df_count_city, x="ADR_LIV_VILLE", y="Nb Livraisons",
+                          title="🏙️ Nombre de Livraisons par Ville")
+            st.plotly_chart(fig3, use_container_width=True)
 
-            with col1:
-                st.plotly_chart(px.bar(df_city, x="Ville", y="Nombre livraisons",
-                                       title="📦 Nombre de livraisons par ville"),
-                                use_container_width=True)
+        # ✅ Nouveau : Volume total par ville
+        with col4:
+            df_vol_city = processor.volume_by_city()
+            fig4 = px.bar(df_vol_city, x="ADR_LIV_VILLE", y="Volume Total (m3)",
+                          title="🏗️ Volume Total par Ville (m3)")
+            st.plotly_chart(fig4, use_container_width=True)
 
-            with col2:
-                st.plotly_chart(px.bar(df_city, x="Ville", y="Volume total",
-                                       title="📦 Volume total livré (m³) par ville"),
-                                use_container_width=True)
+    except Exception as e:
+        st.error(f"❌ Erreur lors du traitement : {e}")
 
-            with col3:
-                st.plotly_chart(px.bar(df_city, x="Ville", y="Poids total",
-                                       title="⚖ Poids total livré par ville"),
-                                use_container_width=True)
-
-            with col4:
-                st.plotly_chart(px.bar(df_city, x="Ville", y="Besoin estafette réel",
-                                       title="🚐 Besoin en Estafettes par ville"),
-                                use_container_width=True)
-
-        except Exception as e:
-            st.error(f"❌ Erreur : {str(e)}")
-
-    else:
-        st.warning("⚠ Veuillez uploader les 3 fichiers Excel.")
+else:
+    st.info("📌 Veuillez importer votre fichier Excel pour commencer.")
