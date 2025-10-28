@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from backend import DeliveryProcessor
-import os
 import plotly.express as px
 
 # Configuration page
@@ -17,23 +16,23 @@ if st.button("Exécuter le traitement complet"):
     if liv_file and ydlogist_file and wcliegps_file:
         processor = DeliveryProcessor()
         try:
-            # Traitement
+            # Traitement complet
             df_grouped, df_city, df_grouped_zone = processor.process_delivery_data(
                 liv_file, ydlogist_file, wcliegps_file
             )
 
-            # Paths export
-            path_grouped = "Livraison_par_Client_Ville.xlsx"
-            path_city = "Besoin_estafette_par_Ville.xlsx"
-            path_zone = "Livraison_Client_Ville_Zone.xlsx"
-            processor.export_results(df_grouped, df_city, df_grouped_zone,
-                                     path_grouped, path_city, path_zone)
+            # =====================================================
+            # ✅ Tableau 1 - Livraisons par Client & Ville (SANS ZONE)
+            # =====================================================
+            df_grouped_display = df_grouped.copy()
+            if "Zone" in df_grouped_display.columns:
+                df_grouped_display = df_grouped_display.drop(columns=["Zone"])
 
-            # --------------------------
-            # ✅ Tableau original par Client & Ville
-            # --------------------------
             st.subheader("Tableau original : Livraisons par Client & Ville")
-            st.dataframe(df_grouped)
+            st.dataframe(df_grouped_display)
+
+            path_grouped = "Livraison_par_Client_Ville.xlsx"
+            df_grouped_display.to_excel(path_grouped, index=False)
 
             with open(path_grouped, "rb") as f:
                 st.download_button(
@@ -43,12 +42,14 @@ if st.button("Exécuter le traitement complet"):
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
-            # --------------------------
-            # ✅ Besoin Estafette par Ville
-            # --------------------------
+            # =====================================================
+            # ✅ Tableau 2 - Besoin Estafette par Ville
+            # =====================================================
             st.subheader("Besoin Estafette par Ville")
             st.dataframe(df_city)
 
+            path_city = "Besoin_estafette_par_Ville.xlsx"
+            df_city.to_excel(path_city, index=False)
             with open(path_city, "rb") as f:
                 st.download_button(
                     label="Télécharger Besoin Estafette par Ville",
@@ -57,9 +58,9 @@ if st.button("Exécuter le traitement complet"):
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
-            # --------------------------
-            # ✅ Graphiques statistiques par ville
-            # --------------------------
+            # =====================================================
+            # ✅ Graphiques Statistiques par Ville
+            # =====================================================
             st.subheader("Statistiques par Ville")
 
             col1, col2 = st.columns(2)
@@ -67,10 +68,9 @@ if st.button("Exécuter le traitement complet"):
                 st.plotly_chart(px.bar(df_city, x="Ville", y="Poids total",
                                        title="Poids total livré par ville"),
                                 use_container_width=True)
-
             with col2:
                 st.plotly_chart(px.bar(df_city, x="Ville", y="Volume total",
-                                       title="Volume total par ville (m³)"),
+                                       title="Volume total livré par ville (m³)"),
                                 use_container_width=True)
 
             col3, col4 = st.columns(2)
@@ -78,18 +78,19 @@ if st.button("Exécuter le traitement complet"):
                 st.plotly_chart(px.bar(df_city, x="Ville", y="Nombre livraisons",
                                        title="Nombre de livraisons par ville"),
                                 use_container_width=True)
-
             with col4:
                 st.plotly_chart(px.bar(df_city, x="Ville", y="Besoin estafette réel",
                                        title="Besoin en Estafettes par ville"),
                                 use_container_width=True)
 
-            # --------------------------
-            # ✅ Tableau Client & Ville + Zone (après les graphes)
-            # --------------------------
+            # =====================================================
+            # ✅ Tableau 3 - Client & Ville + Zone
+            # =====================================================
             st.subheader("Tableau : Livraisons par Client & Ville + Zone")
             st.dataframe(df_grouped_zone)
 
+            path_zone = "Livraison_Client_Ville_Zone.xlsx"
+            df_grouped_zone.to_excel(path_zone, index=False)
             with open(path_zone, "rb") as f:
                 st.download_button(
                     label="Télécharger Tableau Client & Ville + Zone",
