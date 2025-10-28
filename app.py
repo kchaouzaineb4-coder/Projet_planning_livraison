@@ -28,7 +28,7 @@ if st.button("Exécuter le traitement complet"):
             if "Zone" in df_grouped_display.columns:
                 df_grouped_display = df_grouped_display.drop(columns=["Zone"])
 
-            st.subheader("Tableau original : Livraisons par Client & Ville")
+            st.subheader("Livraisons par Client & Ville")
             st.dataframe(df_grouped_display)
 
             path_grouped = "Livraison_par_Client_Ville.xlsx"
@@ -86,7 +86,7 @@ if st.button("Exécuter le traitement complet"):
             # =====================================================
             # ✅ Tableau 3 - Client & Ville + Zone
             # =====================================================
-            st.subheader("Tableau : Livraisons par Client & Ville + Zone")
+            st.subheader("Livraisons par Client & Ville + Zone")
             st.dataframe(df_grouped_zone)
 
             path_zone = "Livraison_Client_Ville_Zone.xlsx"
