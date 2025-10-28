@@ -159,9 +159,6 @@ if st.session_state.data_processed:
     # Tableau 5 - Voyages par Estafette Optimisé
     # =====================================================
     st.subheader("Voyages par Estafette Optimisé")
-    st.markdown("""
-        *Le taux d'occupation (%) est calculé comme le maximum de l'utilisation en poids par rapport à **1550 kg** et de l'utilisation en volume par rapport à **$4.608 \text{ m}^3$**.*
-        """)
     
     # Affichage du DataFrame avec formatage de la colonne 'Taux d\'occupation (%)'
     st.dataframe(df_optimized_estafettes.style.format({
