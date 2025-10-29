@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+# Assurez-vous que le fichier backend.py est dans le même dossier
 from backend import DeliveryProcessor, TruckRentalProcessor, SEUIL_POIDS, SEUIL_VOLUME 
 import plotly.express as px
 
@@ -18,20 +19,17 @@ if 'data_processed' not in st.session_state:
     st.session_state.df_grouped_zone = None
     st.session_state.df_zone = None 
     st.session_state.df_optimized_estafettes = None
-    st.session_state.rental_processor = None # Objet de traitement de location
-    st.session_state.propositions = None # Dataframe de propositions
-    st.session_state.selected_client = None # Client sélectionné
-    st.session_state.message = "" # Message de résultat d'opération
+    st.session_state.rental_processor = None
+    st.session_state.propositions = None
+    st.session_state.selected_client = None
+    st.session_state.message = ""
 
 # =====================================================
 # Fonctions de Callback pour la Location
 # =====================================================
 def update_propositions_view():
-    """Met à jour le DataFrame de propositions après une action."""
     if st.session_state.rental_processor:
         st.session_state.propositions = st.session_state.rental_processor.detecter_propositions()
-        
-        # Réinitialiser la sélection si le client n'est plus dans les propositions ouvertes
         if (st.session_state.selected_client is not None and 
             st.session_state.propositions is not None and 
             st.session_state.selected_client not in st.session_state.propositions['Client'].astype(str).tolist()):
@@ -40,7 +38,6 @@ def update_propositions_view():
         st.session_state.propositions = pd.DataFrame()
 
 def handle_location_action(accepter):
-    """Gère l'acceptation ou le refus de la proposition de location."""
     if st.session_state.rental_processor and st.session_state.selected_client:
         client_to_process = str(st.session_state.selected_client)
         ok, msg, _ = st.session_state.rental_processor.appliquer_location(
@@ -88,13 +85,13 @@ with col_button:
                 st.session_state.df_grouped_zone = df_grouped_zone
                 st.session_state.df_zone = df_zone 
                 
-                # Initialisation du processeur de location avec transfert BL immédiat
                 st.session_state.rental_processor = TruckRentalProcessor(df_optimized_estafettes)
                 update_propositions_view()
                 
                 st.session_state.data_processed = True
                 st.session_state.message = "Traitement terminé avec succès ! Les résultats s'affichent ci-dessous."
                 st.rerun()
+
             except Exception as e:
                 st.error(f"❌ Erreur lors du traitement : {str(e)}")
                 st.session_state.data_processed = False
@@ -103,10 +100,9 @@ with col_button:
 st.markdown("---")
 
 # =====================================================
-# AFFICHAGE DES RÉSULTATS
+# 2. AFFICHAGE DES RÉSULTATS
 # =====================================================
 if st.session_state.data_processed:
-    # Messages d'opération
     if st.session_state.message.startswith("✅"):
         st.success(st.session_state.message)
     elif st.session_state.message.startswith("❌"):
@@ -116,11 +112,8 @@ if st.session_state.data_processed:
     else:
         st.info(st.session_state.message or "Prêt à traiter les propositions de location.")
     
-    df_optimized_estafettes = st.session_state.rental_processor.get_df_result() 
-
-    # =====================================================
-    # 2. ANALYSE DE LIVRAISON DÉTAILLÉE
-    # =====================================================
+    df_optimized_estafettes = st.session_state.rental_processor.get_df_result()
+    
     st.header("2. 🔍 Analyse de Livraison Détaillée")
     tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
         "Livraisons Client/Ville", 
@@ -149,22 +142,29 @@ if st.session_state.data_processed:
     with tab_charts:
         st.subheader("Statistiques par Ville")
         col1, col2 = st.columns(2)
+        
+        df_city_cols = st.session_state.df_city.columns.tolist()
+        poids_col = "Poids total (kg)" if "Poids total (kg)" in df_city_cols else "Poids total"
+        volume_col = "Volume total (m³)" if "Volume total (m³)" in df_city_cols else "Volume total"
+        nb_liv_col = "Nombre livraisons" if "Nombre livraisons" in df_city_cols else "Nb livraisons"
+        estaf_col = "Besoin estafette réel" if "Besoin estafette réel" in df_city_cols else "Besoin estafettes"
+        
         with col1:
-            st.plotly_chart(px.bar(st.session_state.df_city, x="Ville", y="Poids total (kg)",
+            st.plotly_chart(px.bar(st.session_state.df_city, x="Ville", y=poids_col,
                                    title="Poids total livré par ville"),
                             use_container_width=True)
         with col2:
-            st.plotly_chart(px.bar(st.session_state.df_city, x="Ville", y="Volume total",
+            st.plotly_chart(px.bar(st.session_state.df_city, x="Ville", y=volume_col,
                                    title="Volume total livré par ville (m³)"),
                             use_container_width=True)
 
         col3, col4 = st.columns(2)
         with col3:
-            st.plotly_chart(px.bar(st.session_state.df_city, x="Ville", y="Nombre livraisons",
+            st.plotly_chart(px.bar(st.session_state.df_city, x="Ville", y=nb_liv_col,
                                    title="Nombre de livraisons par ville"),
                             use_container_width=True)
         with col4:
-            st.plotly_chart(px.bar(st.session_state.df_city, x="Ville", y="Besoin estafette réel",
+            st.plotly_chart(px.bar(st.session_state.df_city, x="Ville", y=estaf_col,
                                    title="Besoin en Estafettes par ville"),
                             use_container_width=True)
 
@@ -174,7 +174,7 @@ if st.session_state.data_processed:
     # 3. PROPOSITION DE LOCATION DE CAMION
     # =====================================================
     st.header("3. 🚚 Proposition de location de camion")
-    st.markdown(f"🔸 Si un client dépasse **{SEUIL_POIDS} kg** ou **{SEUIL_VOLUME} m³**, une location est proposée.")
+    st.markdown(f"🔸 Si un client dépasse **{SEUIL_POIDS} kg** ou **{SEUIL_VOLUME} m³**, une location est proposée (si non déjà décidée).")
 
     if st.session_state.propositions is not None and not st.session_state.propositions.empty:
         col_prop, col_details = st.columns([2, 3])
@@ -231,7 +231,7 @@ if st.session_state.data_processed:
     # =====================================================
     # 4. VOYAGES PAR ESTAFETTE OPTIMISÉ
     # =====================================================
-    st.header("4. Voyages par Estafette Optimisé (Inclut Camions Loués)")
+    st.header("4.Voyages par Estafette Optimisé (Inclut Camions Loués)")
     st.info("Ce tableau représente l'ordonnancement final des livraisons, y compris les commandes pour lesquelles un camion loué (Code Véhicule : CAMION-LOUE) a été accepté ou refusé.")
     
     st.dataframe(df_optimized_estafettes.style.format({
@@ -240,7 +240,6 @@ if st.session_state.data_processed:
          "Taux d'occupation (%)": "{:.2f}%"
     }), use_container_width=True)
 
-    # Bouton de téléchargement
     path_optimized = "Voyages_Estafette_Optimises.xlsx"
     df_optimized_estafettes.to_excel(path_optimized, index=False)
     with open(path_optimized, "rb") as f:
