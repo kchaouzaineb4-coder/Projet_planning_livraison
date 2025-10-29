@@ -1,180 +1,92 @@
-import streamlit as st
-import pandas as pd
-from backend import DeliveryProcessor
-import plotly.express as px
+# --- app.py ---
+# Importation du framework Flask.
+# Si Flask n'est pas installé, vous devez l'installer : pip install Flask
+from flask import Flask, render_template_string
 
-# Configuration page
-st.set_page_config(page_title="Planning Livraisons", layout="wide")
-st.title("Planning de Livraisons - Streamlit")
+# Initialisation de l'application Flask
+app = Flask(__name__)
 
-# =====================================================
-# INITIALISATION DE L'ÉTAT DE SESSION
-# =====================================================
-if 'data_processed' not in st.session_state:
-    st.session_state.data_processed = False
-    st.session_state.df_grouped = None
-    st.session_state.df_city = None
-    st.session_state.df_grouped_zone = None
-    st.session_state.df_zone = None 
-    st.session_state.df_optimized_estafettes = None # Ajout pour les voyages optimisés
+# Définition du contenu HTML pour l'interface de la page.
+# Note : Pour une application plus grande, le HTML devrait être dans un fichier
+# séparé (template) et non dans une chaîne de caractères.
+HTML_CONTENT = """
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interface Web Simple</title>
+    <!-- Styles CSS pour rendre l'interface un peu plus agréable -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            color: #2c3e50;
+            text-align: center;
+            padding: 50px 20px;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 100%;
+            border-top: 5px solid #3498db;
+        }
+        h1 {
+            color: #3498db;
+            font-size: 2.2em;
+            margin-bottom: 20px;
+        }
+        p {
+            font-size: 1.1em;
+            line-height: 1.6;
+        }
+        .action-button {
+            display: inline-block;
+            margin-top: 25px;
+            padding: 10px 20px;
+            background-color: #2ecc71;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+        .action-button:hover {
+            background-color: #27ae60;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bienvenue ! Ceci est votre interface Web</h1>
+        <p>
+            Ce contenu est servi par le fichier Python (app.py) utilisant Flask. 
+            C'est le point de départ pour afficher tous vos éléments d'interface.
+        </p>
+        <p>Modifiez le contenu de la variable `HTML_CONTENT` pour construire votre application.</p>
+        <a href="#" class="action-button">Démarrer l'Application</a>
+    </div>
+</body>
+</html>
+"""
 
-# Upload fichiers
-liv_file = st.file_uploader("Fichier Livraisons", type=["xlsx"])
-ydlogist_file = st.file_uploader("Fichier Volumes", type=["xlsx"])
-wcliegps_file = st.file_uploader("Fichier Clients", type=["xlsx"])
+# Définition de la route par défaut ('/')
+@app.route('/')
+def index():
+    # Retourne la chaîne HTML pour l'afficher dans le navigateur
+    return render_template_string(HTML_CONTENT)
 
-# =====================================================
-# Logique de Traitement (Se déclenche et stocke les résultats)
-# =====================================================
-if st.button("Exécuter le traitement complet"):
-    if liv_file and ydlogist_file and wcliegps_file:
-        processor = DeliveryProcessor()
-        try:
-            with st.spinner("Traitement des données en cours..."):
-                # Traitement complet (récupère les 5 DataFrames)
-                df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes = processor.process_delivery_data(
-                    liv_file, ydlogist_file, wcliegps_file
-                )
-            
-            # Stockage des résultats dans l'état de session
-            st.session_state.df_grouped = df_grouped
-            st.session_state.df_city = df_city
-            st.session_state.df_grouped_zone = df_grouped_zone
-            st.session_state.df_zone = df_zone 
-            st.session_state.df_optimized_estafettes = df_optimized_estafettes # Stockage du résultat optimisé
-            st.session_state.data_processed = True
-            st.success("Traitement terminé avec succès !")
-
-        except Exception as e:
-            st.error(f"❌ Erreur lors du traitement : {str(e)}")
-            st.session_state.data_processed = False
-    else:
-        st.warning("Veuillez uploader tous les fichiers nécessaires.")
-
-# =====================================================
-# Logique d'Affichage (Se déclenche si les données sont dans l'état de session)
-# =====================================================
-if st.session_state.data_processed:
-    df_grouped = st.session_state.df_grouped
-    df_city = st.session_state.df_city
-    df_grouped_zone = st.session_state.df_grouped_zone
-    df_zone = st.session_state.df_zone 
-    df_optimized_estafettes = st.session_state.df_optimized_estafettes # Récupération
-
-    # =====================================================
-    # Tableau 1 - Livraisons par Client & Ville (SANS ZONE)
-    # =====================================================
-    df_grouped_display = df_grouped.copy()
-    if "Zone" in df_grouped_display.columns:
-        df_grouped_display = df_grouped_display.drop(columns=["Zone"])
-
-    st.subheader("Livraisons par Client & Ville")
-    st.dataframe(df_grouped_display)
-
-    path_grouped = "Livraison_par_Client_Ville.xlsx"
-    df_grouped_display.to_excel(path_grouped, index=False) 
-
-    with open(path_grouped, "rb") as f:
-        st.download_button(
-            label="Télécharger Tableau Client & Ville",
-            data=f,
-            file_name=path_grouped,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-    # =====================================================
-    # Tableau 2 - Besoin Estafette par Ville
-    # =====================================================
-    st.subheader("Besoin Estafette par Ville")
-    st.dataframe(df_city)
-
-    path_city = "Besoin_estafette_par_Ville.xlsx"
-    df_city.to_excel(path_city, index=False)
-    with open(path_city, "rb") as f:
-        st.download_button(
-            label="Télécharger Besoin Estafette par Ville",
-            data=f,
-            file_name=path_city,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-    # =====================================================
-    # Graphiques Statistiques par Ville
-    # =====================================================
-    st.subheader("Statistiques par Ville")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.plotly_chart(px.bar(df_city, x="Ville", y="Poids total",
-                               title="Poids total livré par ville"),
-                        use_container_width=True)
-    with col2:
-        st.plotly_chart(px.bar(df_city, x="Ville", y="Volume total",
-                               title="Volume total livré par ville (m³)"),
-                        use_container_width=True)
-
-    col3, col4 = st.columns(2)
-    with col3:
-        st.plotly_chart(px.bar(df_city, x="Ville", y="Nombre livraisons",
-                               title="Nombre de livraisons par ville"),
-                        use_container_width=True)
-    with col4:
-        st.plotly_chart(px.bar(df_city, x="Ville", y="Besoin estafette réel",
-                               title="Besoin en Estafettes par ville"),
-                        use_container_width=True)
-
-    # =====================================================
-    # Tableau 3 - Client & Ville + Zone
-    # =====================================================
-    st.subheader("Livraisons par Client & Ville + Zone")
-    st.dataframe(df_grouped_zone)
-
-    path_zone = "Livraison_Client_Ville_Zone.xlsx"
-    df_grouped_zone.to_excel(path_zone, index=False)
-    with open(path_zone, "rb") as f:
-        st.download_button(
-            label="Télécharger Tableau Client & Ville + Zone",
-            data=f,
-            file_name=path_zone,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        
-    # =====================================================
-    # Tableau 4 - Besoin Estafette par Zone
-    # =====================================================
-    st.subheader("Besoin Estafette par Zone")
-    st.dataframe(df_zone)
-
-    path_zone_summary = "Besoin_estafette_par_Zone.xlsx"
-    df_zone.to_excel(path_zone_summary, index=False)
-    with open(path_zone_summary, "rb") as f:
-        st.download_button(
-            label="Télécharger Besoin Estafette par Zone",
-            data=f,
-            file_name=path_zone_summary,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-    # =====================================================
-    # Tableau 5 - Voyages par Estafette Optimisé
-    # =====================================================
-    st.subheader("Voyages par Estafette Optimisé")
-    
-    # Affichage du DataFrame avec formatage de la colonne 'Taux d\'occupation (%)'
-    st.dataframe(df_optimized_estafettes.style.format({
-        "Poids total chargé": "{:.2f} kg",
-        "Volume total chargé": "{:.3f} m³",
-        "Taux d'occupation (%)": "{:.2f}%"
-    }))
-
-
-    path_optimized = "Voyages_Estafette_Optimises.xlsx"
-    # Note: On utilise le DataFrame non formaté en string pour l'export Excel
-    df_optimized_estafettes.to_excel(path_optimized, index=False)
-    with open(path_optimized, "rb") as f:
-        st.download_button(
-            label="Télécharger Voyages Estafette Optimisés",
-            data=f,
-            file_name=path_optimized,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+# Exécuter l'application
+if __name__ == '__main__':
+    # Lance le serveur local de développement.
+    # L'application sera accessible à l'adresse http://127.0.0.1:5000/
+    # (ou l'équivalent local)
+    app.run(debug=True)
