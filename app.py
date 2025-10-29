@@ -245,7 +245,7 @@ if st.session_state.data_processed:
     # =====================================================
     # 4. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 4 - Résultat final)
     # =====================================================
-    st.header("4. ✅ Voyages par Estafette Optimisé (Inclut Camions Loués)")
+    st.header("4.Voyages par Estafette Optimisé (Inclut Camions Loués)")
     st.info("Ce tableau représente l'ordonnancement final des livraisons, y compris les commandes pour lesquelles un camion loué (Code Véhicule : CAMION-LOUE) a été accepté ou refusé.")
     
     # Affichage du DataFrame avec formatage
