@@ -1,8 +1,10 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 # Assurez-vous que le fichier backend.py est dans le même dossier
-from backend import DeliveryProcessor, TruckRentalProcessor, SEUIL_POIDS, SEUIL_VOLUME 
+from backend import DeliveryProcessor, TruckRentalProcessor, SEUIL_POIDS, SEUIL_VOLUME, MAX_POIDS, MAX_VOLUME
 import plotly.express as px
+from typing import List, Optional
 
 # Configuration page
 st.set_page_config(page_title="Planning Livraisons", layout="wide")
@@ -19,13 +21,18 @@ if 'data_processed' not in st.session_state:
     st.session_state.df_grouped_zone = None
     st.session_state.df_zone = None 
     st.session_state.df_optimized_estafettes = None
+    st.session_state.df_bl_details = None # Détails des BL pour les transferts
     st.session_state.rental_processor = None # Objet de traitement de location
     st.session_state.propositions = None # Dataframe de propositions
-    st.session_state.selected_client = None # Client sélectionné
+    st.session_state.selected_client = None # Client sélectionné pour la location
     st.session_state.message = "" # Message de résultat d'opération
+    st.session_state.selected_zone_transfert = None # Zone sélectionnée pour le transfert
+    st.session_state.selected_source_transfert = None # Estafette source sélectionnée
+    st.session_state.selected_cible_transfert = None # Estafette cible sélectionnée
+    st.session_state.bls_a_transferer = [] # Liste des BLs à transférer
 
 # =====================================================
-# Fonctions de Callback pour la Location
+# Fonctions de Callback pour la Location (Section 3)
 # =====================================================
 
 def update_propositions_view():
@@ -41,17 +48,15 @@ def update_propositions_view():
     else:
         st.session_state.propositions = pd.DataFrame()
 
-def handle_location_action(accepter):
+def handle_location_action(accepter: bool):
     """Gère l'acceptation ou le refus de la proposition de location."""
     if st.session_state.rental_processor and st.session_state.selected_client:
-        # Assurer que le client est une chaîne valide
         client_to_process = str(st.session_state.selected_client)
         ok, msg, _ = st.session_state.rental_processor.appliquer_location(
             client_to_process, accepter=accepter
         )
         st.session_state.message = msg
         update_propositions_view()
-        # st.rerun() # Pas besoin de rerun ici car le on_click est déjà dans un bloc de rerender
     elif not st.session_state.selected_client:
         st.session_state.message = "⚠️ Veuillez sélectionner un client à traiter."
     else:
@@ -62,6 +67,44 @@ def accept_location_callback():
 
 def refuse_location_callback():
     handle_location_action(False)
+
+# =====================================================
+# Fonctions de Callback pour le Transfert (Section 4)
+# =====================================================
+
+def handle_transfert_bls():
+    """Gère le clic sur le bouton de transfert de BLs."""
+    proc = st.session_state.rental_processor
+    
+    # Vérifications de base
+    if not proc:
+        st.session_state.message = "❌ Le processeur de données n'est pas initialisé."
+        return
+
+    # S'assurer que les valeurs sont non nulles avant de les utiliser
+    zone = st.session_state.selected_zone_transfert
+    bls = st.session_state.bls_a_transferer
+    source = st.session_state.selected_source_transfert
+    cible = st.session_state.selected_cible_transfert
+
+    if not zone or not source or not cible or not bls:
+        st.session_state.message = "⚠️ Veuillez sélectionner la zone, les estafettes source/cible et au moins un BL à transférer."
+        return
+    
+    # Exécuter le transfert
+    ok, msg = proc.transferer_bls(zone, bls, source, cible)
+    st.session_state.message = msg
+    
+    if ok:
+        # Après un transfert réussi, mettez à jour la vue des propositions pour synchronisation
+        update_propositions_view()
+        
+        # Réinitialiser les sélections spécifiques au transfert
+        st.session_state.selected_source_transfert = None
+        st.session_state.selected_cible_transfert = None
+        st.session_state.bls_a_transferer = []
+        # Re-exécuter pour mettre à jour les sélecteurs de voyages
+        st.rerun()
 
 # =====================================================
 # 1. UPLOAD DES FICHIERS INPUT (Section 1)
@@ -76,14 +119,14 @@ with col_file_2:
 with col_file_3:
     wcliegps_file = st.file_uploader("Fichier Clients/Zones", type=["xlsx"])
 with col_button:
-    # Espace pour le bouton
-    st.markdown("<br>", unsafe_allow_html=True) # Petit espace
+    st.markdown("<br>", unsafe_allow_html=True)
     if st.button("Exécuter le traitement complet", type="primary"):
         if liv_file and ydlogist_file and wcliegps_file:
             processor = DeliveryProcessor()
             try:
                 with st.spinner("Traitement des données en cours..."):
-                    df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes = processor.process_delivery_data(
+                    # Les données mock sont utilisées ici
+                    df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes, df_bl_details = processor.process_delivery_data(
                         liv_file, ydlogist_file, wcliegps_file
                     )
                 
@@ -92,15 +135,16 @@ with col_button:
                 st.session_state.df_grouped = df_grouped
                 st.session_state.df_city = df_city
                 st.session_state.df_grouped_zone = df_grouped_zone
-                st.session_state.df_zone = df_zone 
+                st.session_state.df_zone = df_zone
+                st.session_state.df_bl_details = df_bl_details 
                 
-                # 🆕 Initialisation du processeur de location et des propositions
-                st.session_state.rental_processor = TruckRentalProcessor(df_optimized_estafettes)
+                # Initialisation du processeur de location/voyage avec les détails BL
+                st.session_state.rental_processor = TruckRentalProcessor(df_optimized_estafettes, df_bl_details)
                 update_propositions_view()
                 
                 st.session_state.data_processed = True
                 st.session_state.message = "Traitement terminé avec succès ! Les résultats s'affichent ci-dessous."
-                st.rerun() # Rerun pour mettre à jour l'interface
+                st.rerun()
 
             except Exception as e:
                 st.error(f"❌ Erreur lors du traitement : {str(e)}")
@@ -122,7 +166,7 @@ if st.session_state.data_processed:
     elif st.session_state.message.startswith("⚠️"):
         st.warning(st.session_state.message)
     else:
-        st.info(st.session_state.message or "Prêt à traiter les propositions de location.")
+        st.info(st.session_state.message or "Prêt à traiter les propositions de location ou à effectuer des transferts manuels.")
     
     # Récupération du DF mis à jour à chaque fois
     df_optimized_estafettes = st.session_state.rental_processor.get_df_result() 
@@ -190,22 +234,19 @@ if st.session_state.data_processed:
         
         with col_prop:
             st.markdown("### Propositions ouvertes")
-            # Affichage des propositions ouvertes
             st.dataframe(st.session_state.propositions, 
-                         use_container_width=True,
-                         column_order=["Client", "Poids total (kg)", "Volume total (m³)", "Raison"],
-                         hide_index=True)
+                          use_container_width=True,
+                          column_order=["Client", "Poids total (kg)", "Volume total (m³)", "Raison"],
+                          hide_index=True)
             
-            # Sélection du client (assure qu'un client non None est sélectionné par défaut si possible)
             client_options = st.session_state.propositions['Client'].astype(str).tolist()
             client_options_with_empty = [""] + client_options
             
-            # Index de sélection par défaut
             default_index = 0
             if st.session_state.selected_client in client_options:
                  default_index = client_options_with_empty.index(st.session_state.selected_client)
             elif len(client_options) > 0:
-                 default_index = 1 # Sélectionne le premier client par défaut s'il y en a
+                 default_index = 1
 
             st.session_state.selected_client = st.selectbox(
                 "Client à traiter :", 
@@ -233,7 +274,6 @@ if st.session_state.data_processed:
             if is_client_selected:
                 resume, details_df_styled = st.session_state.rental_processor.get_details_client(st.session_state.selected_client)
                 st.text(resume)
-                # Affichage du DataFrame stylisé
                 st.dataframe(details_df_styled, use_container_width=True, hide_index=True)
             else:
                 st.info("Sélectionnez un client pour afficher les détails de la commande/estafettes.")
@@ -243,21 +283,160 @@ if st.session_state.data_processed:
     st.markdown("---")
     
     # =====================================================
-    # 4. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 4 - Résultat final)
+    # 4. TRANSFERT MANUEL DES BONS DE LIVRAISON (Section 4)
     # =====================================================
-    st.header("4.Voyages par Estafette Optimisé (Inclut Camions Loués)")
-    st.info("Ce tableau représente l'ordonnancement final des livraisons, y compris les commandes pour lesquelles un camion loué (Code Véhicule : CAMION-LOUE) a été accepté ou refusé.")
+    st.header("4. 🔄 Transfert Manuel des Bons de Livraison (BL)")
+    st.markdown(f"**Objectif :** Déplacer des BL d'un voyage à un autre dans la **même Zone**, sans dépasser les capacités maximales (Poids: **{MAX_POIDS} kg**, Volume: **{MAX_VOLUME} m³**) de l'estafette cible.")
+
+    df_current = st.session_state.rental_processor.get_df_result()
+    all_zones = sorted(df_current['Zone'].unique().tolist())
     
-    # Affichage du DataFrame avec formatage
-    st.dataframe(df_optimized_estafettes.style.format({
+    # 1. Sélecteur de Zone
+    col_zone, col_source, col_cible = st.columns(3)
+
+    with col_zone:
+        # Initialiser ou conserver la zone sélectionnée
+        if st.session_state.selected_zone_transfert not in all_zones:
+             st.session_state.selected_zone_transfert = all_zones[0] if all_zones else None
+             
+        zone_select = st.selectbox(
+            "Sélectionner la Zone :",
+            options=all_zones,
+            index=all_zones.index(st.session_state.selected_zone_transfert) if st.session_state.selected_zone_transfert in all_zones else 0,
+            key='zone_select_transfer'
+        )
+        # Mettre à jour l'état de session si la valeur a changé
+        if zone_select != st.session_state.selected_zone_transfert:
+            st.session_state.selected_zone_transfert = zone_select
+            st.session_state.selected_source_transfert = None
+            st.session_state.selected_cible_transfert = None
+            st.rerun() # Recharger pour mettre à jour les options source/cible
+
+    
+    if st.session_state.selected_zone_transfert:
+        zone_filtree = df_current[df_current['Zone'] == st.session_state.selected_zone_transfert].copy()
+        estafette_options = sorted(zone_filtree['Estafette N°'].unique().tolist())
+        estafette_options_with_empty = [""] + estafette_options
+
+        # 2. Sélecteur d'Estafette Source
+        with col_source:
+            st.session_state.selected_source_transfert = st.selectbox(
+                "Estafette Source :",
+                options=estafette_options_with_empty,
+                index=estafette_options_with_empty.index(st.session_state.selected_source_transfert) if st.session_state.selected_source_transfert in estafette_options_with_empty else 0,
+                key='source_select_transfer'
+            )
+
+        # 3. Sélecteur d'Estafette Cible
+        with col_cible:
+            # Assurez-vous que l'estafette source n'est pas dans la liste des options cibles
+            cible_options = [e for e in estafette_options if e != st.session_state.selected_source_transfert]
+            cible_options_with_empty = [""] + cible_options
+            
+            st.session_state.selected_cible_transfert = st.selectbox(
+                "Estafette Cible :",
+                options=cible_options_with_empty,
+                index=cible_options_with_empty.index(st.session_state.selected_cible_transfert) if st.session_state.selected_cible_transfert in cible_options_with_empty else 0,
+                key='cible_select_transfer'
+            )
+            
+        st.markdown("---")
+        
+        # 4. Sélecteur de BLs (Dépend de la Source)
+        if st.session_state.selected_source_transfert:
+            source_match = zone_filtree[zone_filtree['Estafette N°'] == st.session_state.selected_source_transfert]
+            
+            if not source_match.empty:
+                source_df = source_match.iloc[0]
+                bls_source = source_df['BL inclus']
+                
+                st.markdown(f"**Estafette Source ({st.session_state.selected_source_transfert}) :** Poids {source_df['Poids total chargé']:.2f} kg, Volume {source_df['Volume total chargé']:.3f} m³")
+
+                st.session_state.bls_a_transferer = st.multiselect(
+                    "Sélectionner les Bons de Livraison (BLs) à transférer :",
+                    options=bls_source,
+                    default=st.session_state.bls_a_transferer,
+                    key='bls_multiselect_transfer'
+                )
+                
+                # 5. Affichage des capacités cibles et bouton de transfert
+                if st.session_state.selected_cible_transfert and st.session_state.df_bl_details is not None:
+                    cible_match = zone_filtree[zone_filtree['Estafette N°'] == st.session_state.selected_cible_transfert]
+                    
+                    if not cible_match.empty:
+                        cible_df = cible_match.iloc[0]
+                        
+                        # Calcul rapide du potentiel de transfert pour l'affichage
+                        if st.session_state.bls_a_transferer:
+                            
+                            df_bl_detail_lookup = st.session_state.df_bl_details.set_index('Bon de Livraison')
+                            poids_transfert = sum(df_bl_detail_lookup.loc[bl, 'Poids'] for bl in st.session_state.bls_a_transferer if bl in df_bl_detail_lookup.index)
+                            volume_transfert = sum(df_bl_detail_lookup.loc[bl, 'Volume'] for bl in st.session_state.bls_a_transferer if bl in df_bl_detail_lookup.index)
+
+                            nouveau_poids = cible_df['Poids total chargé'] + poids_transfert
+                            nouveau_volume = cible_df['Volume total chargé'] + volume_transfert
+                            
+                            transfert_possible = True
+                            
+                            st.info(f"**Estafette Cible ({st.session_state.selected_cible_transfert}) :** Poids actuel {cible_df['Poids total chargé']:.2f} kg, Volume actuel {cible_df['Volume total chargé']:.3f} m³")
+
+                            if nouveau_poids > MAX_POIDS or nouveau_volume > MAX_VOLUME:
+                                st.error(f"ATTENTION : Le transfert dépasserait la capacité cible.")
+                                if nouveau_poids > MAX_POIDS:
+                                    st.error(f"  - Dépassement Poids : {nouveau_poids:.2f} kg > {MAX_POIDS} kg max")
+                                if nouveau_volume > MAX_VOLUME:
+                                    st.error(f"  - Dépassement Volume : {nouveau_volume:.3f} m³ > {MAX_VOLUME} m³ max")
+                                transfert_possible = False
+                            else:
+                                st.success(f"**ESTIMATION APRÈS TRANSFERT :** "
+                                        f"Poids final : {nouveau_poids:.2f} kg / {MAX_POIDS} kg. "
+                                        f"Volume final : {nouveau_volume:.3f} m³ / {MAX_VOLUME} m³.")
+                                transfert_possible = True
+                        else:
+                            st.info("Sélectionnez les BLs à transférer pour voir l'estimation.")
+                            transfert_possible = False
+
+                        st.button(
+                            "▶️ CONFIRMER ET EXÉCUTER LE TRANSFERT",
+                            on_click=handle_transfert_bls,
+                            disabled=not transfert_possible or len(st.session_state.bls_a_transferer) == 0,
+                            type="primary"
+                        )
+                    else:
+                        st.error("Estafette cible introuvable.")
+                else:
+                    st.info("Sélectionnez l'estafette cible et des BLs pour l'estimation de capacité.")
+            else:
+                st.error("Estafette source introuvable.")
+        else:
+            st.info("Sélectionnez l'estafette source pour choisir les BLs.")
+    else:
+        st.info("Sélectionnez une zone pour commencer le transfert.")
+        
+    st.markdown("---")
+
+
+    # =====================================================
+    # 5. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 5)
+    # =====================================================
+    st.header("5. Voyages par Estafette Optimisé (Inclut Camions Loués et Transferts Manuels)")
+    st.info("Ce tableau représente l'ordonnancement final des livraisons, mis à jour après les décisions de location et les transferts manuels.")
+    
+    # Colonnes à afficher et formater
+    display_df = df_optimized_estafettes.copy()
+    display_df['BL inclus'] = display_df['BL inclus'].apply(lambda x: ', '.join(x))
+    display_df['Clients inclus'] = display_df['Clients inclus'].apply(lambda x: ', '.join(x))
+    display_df['Representants inclus'] = display_df['Representants inclus'].apply(lambda x: ', '.join(x))
+
+    # Mise en forme
+    st.dataframe(display_df.style.format({
          "Poids total chargé": "{:.2f} kg",
          "Volume total chargé": "{:.3f} m³",
-         "Taux d'occupation (%)": "{:.2f}%"
+         "Taux d\'occupation (%)": "{:.2f}%"
     }), use_container_width=True)
 
     # Bouton de téléchargement
     path_optimized = "Voyages_Estafette_Optimises.xlsx"
-    # Note: On utilise le DataFrame non formaté en string pour l'export Excel
     df_optimized_estafettes.to_excel(path_optimized, index=False)
     with open(path_optimized, "rb") as f:
         st.download_button(
