@@ -636,3 +636,51 @@ class DeliveryProcessor:
         # Mettre à jour le DataFrame
         self.df_base = df
         return True, f"✅ BLs transférés de {source_estafette_num} vers {target_estafette_num} avec succès."
+    # =====================================================
+# Classe pour la location de camions avec transfert immédiat des BLs
+# =====================================================
+class TruckRentalProcessor:
+
+    def __init__(self, df_optimized):
+        self.df_result = df_optimized.copy()
+        self.propositions = self.detecter_propositions()
+
+    def detecter_propositions(self):
+        """Retourne les clients pour lesquels une location est proposée"""
+        df_prop = self.df_result[(self.df_result["Poids total (kg)"] > SEUIL_POIDS) |
+                                 (self.df_result["Volume total (m³)"] > SEUIL_VOLUME)].copy()
+        if df_prop.empty:
+            return pd.DataFrame()
+        df_prop["Raison"] = np.where(df_prop["Poids total (kg)"] > SEUIL_POIDS, "Poids dépassé", "Volume dépassé")
+        return df_prop[["Client", "Poids total (kg)", "Volume total (m³)", "Raison"]]
+
+    def appliquer_location(self, client, accepter=True):
+        """
+        Applique la location pour un client : True = accepter, False = refuser
+        Transfert immédiat des BLs si accepté.
+        """
+        if client not in self.propositions["Client"].astype(str).tolist():
+            return False, f"Client {client} non trouvé dans les propositions.", None
+
+        # Mise à jour du DataFrame principal
+        idx = self.df_result[self.df_result["Client"].astype(str) == client].index
+        if accepter:
+            self.df_result.loc[idx, "Code Véhicule"] = "CAMION-LOUE"
+            msg = f"✅ Location acceptée pour {client}. Les BLs sont transférés immédiatement."
+        else:
+            self.df_result.loc[idx, "Code Véhicule"] = "ESTAFETTE"
+            msg = f"❌ Proposition de location refusée pour {client}."
+
+        # Mise à jour des propositions
+        self.propositions = self.detecter_propositions()
+        return True, msg, self.df_result.loc[idx]
+
+    def get_details_client(self, client):
+        """Retourne un résumé et un DataFrame filtré pour le client"""
+        df_client = self.df_result[self.df_result["Client"].astype(str) == client]
+        resume = f"Client {client} - {len(df_client)} lignes, poids total {df_client['Poids total (kg)'].sum():.2f} kg"
+        return resume, df_client
+
+    def get_df_result(self):
+        """Retourne le DataFrame final avec toutes les décisions de location appliquées"""
+        return self.df_result.copy()
