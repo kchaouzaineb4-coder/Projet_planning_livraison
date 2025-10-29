@@ -266,6 +266,12 @@ if st.session_state.data_processed:
              file_name=path_optimized,
              mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+if "Véhicule N°" in df_optimized_estafettes.columns:
+    df_optimized_estafettes["Code Véhicule"] = df_optimized_estafettes["Véhicule N°"].apply(
+        lambda x: x if x != "CAMION-LOUE" else "CAMION-LOUE"
+    )
+else:
+    df_optimized_estafettes["Code Véhicule"] = "NON DÉFINI"
     # =====================================================
 # 5. TRANSFERT DES BL (Section 5 - Export BL)
 # =====================================================
