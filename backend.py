@@ -1,38 +1,33 @@
+
+
+
+
 import pandas as pd
 import math
-import numpy as np 
-from typing import List, Tuple, Dict, Any
+import numpy as np # Import pour gérer les NaN plus efficacement
 
 # --- Constantes pour la location de camion ---
-SEUIL_POIDS = 3000.0    # kg (Seuil de poids pour proposer une location)
-SEUIL_VOLUME = 9.216    # m³ (Seuil de volume pour proposer une location)
+SEUIL_POIDS = 3000.0    # kg
+SEUIL_VOLUME = 9.216    # m³ (ex: 2.4 * 2.4 * 0.8 * 2 = 9.216)
 CAMION_CODE = "CAMION-LOUE"
-MAX_POIDS_ESTAFETTE = 1550    # kg (Capacité max Estafette)
-MAX_VOLUME_ESTAFETTE = 4.608  # m3 (Capacité max Estafette)
 
 class TruckRentalProcessor:
     """
-    Classe pour gérer la logique de proposition, de décision et d'ajustement manuel 
-    de location de camion, basée sur les données optimisées.
+    Classe pour gérer la logique de proposition et de décision de location de camion
+    basée sur les données optimisées.
     """
-     
-    def __init__(self, df_optimized: pd.DataFrame, df_granular_bls: pd.DataFrame):
-        """
-        Initialise le processeur.
-        
-        :param df_optimized: DataFrame des voyages optimisés (une ligne par Estafette/Voyage).
-        :param df_granular_bls: DataFrame des données granulaires (une ligne par BL/livraison) pour le recalcul.
-        """
-        self.df_granular_bls = df_granular_bls.copy()
+    
+    def __init__(self, df_optimized):
+        """Initialise le processeur avec le DataFrame de base pour la gestion des propositions."""
         self.df_base = self._initialize_rental_columns(df_optimized.copy())
-        
-        # Initialiser le compteur de camions loués (C1, C2, etc.)
+        # Initialiser le compteur de camions loués pour générer C1, C2, etc.
+        # On commence à 1 + le nombre de camions loués déjà présents si on chargeait un état
         self._next_camion_num = self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE].shape[0] + 1
 
-    def _initialize_rental_columns(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Ajoute/renomme les colonnes d'état de location pour la cohérence interne."""
+    def _initialize_rental_columns(self, df):
+        """Ajoute les colonnes d'état de location si elles n'existent pas et les renomme."""
         
-        # Renommage pour la cohérence interne
+        # Colonnes à renommer pour la cohérence interne et la gestion des décisions
         df.rename(columns={
             "Poids total chargé": "Poids total",
             "Volume total chargé": "Volume total",
@@ -46,11 +41,11 @@ class TruckRentalProcessor:
         if "Location_proposee" not in df.columns:
             df["Location_proposee"] = False
         if "Code Véhicule" not in df.columns:
-            df["Code Véhicule"] = "ESTAFETTE"
+            df["Code Véhicule"] = "ESTAFETTE" # Valeur par défaut
         if "Camion N°" not in df.columns:
-            # Assigner le numéro Estafette (E1, E2...) comme numéro Camion par défaut
+            # Ce Camion N° initial sera écrasé par le N° d'Estafette pour les lignes optimisées
             df["Camion N°"] = df["Estafette N°"].apply(lambda x: f"E{int(x)}" if pd.notna(x) and x != 0 else "À Optimiser")
-            
+        
         # Mettre à jour les "Camion N°" pour les lignes de location (si déjà là)
         mask_camion_loue = df["Code Véhicule"] == CAMION_CODE
         if mask_camion_loue.any():
@@ -65,19 +60,20 @@ class TruckRentalProcessor:
 
         return df
 
-    def detecter_propositions(self) -> pd.DataFrame:
+    def detecter_propositions(self):
         """
-        Regroupe les données par Client pour déterminer si le SEUIL (poids/volume) est dépassé.
-        Retourne un DataFrame des clients proposables, excluant ceux déjà traités.
+        Regroupe les données par Client commande pour déterminer si le SEUIL est dépassé.
+        Retourne un DataFrame des clients proposables.
         """
         # Exclure les clients déjà traités (ceux où Location_proposee est True)
+        # On utilise le 'Client commande' qui est l'agrégation du client
         processed_clients = self.df_base[self.df_base["Location_proposee"]]["Client commande"].unique()
         
         # Filtrer toutes les lignes de df_base pour exclure les commandes des clients déjà traités
         df_pending = self.df_base[~self.df_base["Client commande"].isin(processed_clients)].copy()
 
         if df_pending.empty:
-            return pd.DataFrame() 
+            return pd.DataFrame() # Retourne un DataFrame vide si tout est déjà traité
 
         # Utiliser df_pending pour l'agrégation
         grouped = df_pending.groupby("Client commande").agg(
@@ -108,16 +104,16 @@ class TruckRentalProcessor:
 
         return propositions.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False).reset_index(drop=True)
 
-    def get_details_client(self, client: str) -> Tuple[str, pd.io.formats.style.Styler]:
-        """Récupère et formate les détails de tous les voyages optimisés pour un client."""
-        
+    def get_details_client(self, client):
+        """Récupère et formate les détails de tous les BLs/voyages pour un client."""
+        # Filtrer en s'assurant que 'Client commande' est bien dans le df
         if "Client commande" not in self.df_base.columns:
              return "Erreur: Colonne 'Client commande' manquante.", pd.DataFrame()
              
         data = self.df_base[self.df_base["Client commande"] == client].copy()
         
         if data.empty:
-            return f"Aucune donnée pour {client}", pd.DataFrame().style
+            return f"Aucune donnée pour {client}", pd.DataFrame()
 
         total_poids = data["Poids total"].sum()
         total_volume = data["Volume total"].sum()
@@ -150,7 +146,7 @@ class TruckRentalProcessor:
 
         return resume, data_display_styled
 
-    def appliquer_location(self, client: str, accepter: bool) -> Tuple[bool, str, pd.DataFrame]:
+    def appliquer_location(self, client, accepter):
         """Applique ou refuse la location pour un client et met à jour le DataFrame de base."""
         mask = self.df_base["Client commande"] == client
         if not mask.any():
@@ -161,22 +157,18 @@ class TruckRentalProcessor:
         # Récupérer les données totales (somme de tous les voyages du client)
         poids_total = df.loc[mask, "Poids total"].sum()
         volume_total = df.loc[mask, "Volume total"].sum()
-        
-        # Concaténer tous les BLs associés aux voyages du client
-        all_bls = df.loc[mask, "BL inclus"].str.split(';').explode().str.strip().unique()
-        bl_concat = ";".join([b for b in all_bls if b])
-        
-        # Concaténer tous les représentants et zones
-        representants = ";".join(sorted(df.loc[mask, "Représentant"].astype(str).str.split(',').explode().str.strip().unique().tolist()))
+        bl_concat = ";".join(df.loc[mask, "BL inclus"].astype(str).unique().tolist())
+        representants = ";".join(sorted(df.loc[mask, "Représentant"].astype(str).unique().tolist()))
         zones = ";".join(sorted(df.loc[mask, "Zone"].astype(str).unique().tolist()))
         
-        # Taux d'occupation (basé sur des seuils de camion loué, plus importants)
+        # Taux d'occupation (basé sur des seuils plus importants pour le camion loué)
         TAUX_POIDS_MAX_LOC = 5000 # kg, par exemple 
         TAUX_VOLUME_MAX_LOC = 15 # m3, par exemple
         
         taux_occu = max(poids_total / TAUX_POIDS_MAX_LOC * 100, volume_total / TAUX_VOLUME_MAX_LOC * 100)
         
         if accepter:
+            # --- MODIFICATION CLÉ ICI ---
             # 1. Générer le numéro de camion C1, C2, C3...
             camion_num_final = f"C{self._next_camion_num}"
             
@@ -218,110 +210,11 @@ class TruckRentalProcessor:
             self.df_base = df
             return True, f"❌ Proposition REFUSÉE pour {client}. Les commandes restent réparties en Estafettes.", self.detecter_propositions()
 
-    def transfer_bl_between_estafettes(self, source_estafette_num: str, target_estafette_num: str, bl_list: List[str]) -> Tuple[bool, str, pd.DataFrame]:
+    def get_df_result(self):
         """
-        CORRIGÉ. Transfère une ou plusieurs BLs d'une estafette source à une estafette cible
-        dans le DataFrame optimisé. Le poids et volume sont recalculés à partir des données granulaires.
-        
-        :param source_estafette_num: Numéro de l'estafette source (E1, E2...)
-        :param target_estafette_num: Numéro de l'estafette cible (E1, E2...)
-        :param bl_list: Liste de BLs à transférer
-        :return: (success: bool, message: str, df_base: pd.DataFrame)
-        """
-        
-        df = self.df_base.copy()
-        
-        # Normaliser la liste de BL
-        if isinstance(bl_list, str):
-            bl_list = [b.strip() for b in bl_list.split(';') if b.strip()]
-        if not bl_list:
-             return False, "❌ Aucune BL spécifiée pour le transfert.", self.df_base
-        
-        if source_estafette_num == target_estafette_num:
-            return False, "❌ L'estafette source et cible sont identiques.", self.df_base
-        
-        # Vérifier que les deux estafettes existent
-        mask_source = df["Camion N°"] == source_estafette_num
-        mask_target = df["Camion N°"] == target_estafette_num
-        
-        if not mask_source.any():
-            return False, f"❌ Estafette source {source_estafette_num} introuvable.", self.df_base
-        if not mask_target.any():
-            return False, f"❌ Estafette cible {target_estafette_num} introuvable.", self.df_base
-        
-        # Extraction des BLs existants
-        bls_source_existants = [b.strip() for b in df.loc[mask_source, "BL inclus"].iloc[0].split(';') if b.strip()]
-        
-        # Vérifier que TOUS les BLs à transférer sont bien dans la source
-        if not all(bl in bls_source_existants for bl in bl_list):
-             missing_bls = [bl for bl in bl_list if bl not in bls_source_existants]
-             return False, f"❌ Certains BLs sont manquants dans l'estafette source {source_estafette_num}: {', '.join(missing_bls)}.", self.df_base
-
-        # Vérifier que le transfert ne dépasse pas la capacité cible
-        bl_data_to_move = self.df_granular_bls[self.df_granular_bls["No livraison"].astype(str).isin(bl_list)]
-        poids_a_ajouter = bl_data_to_move["Poids total"].sum()
-        volume_a_ajouter = bl_data_to_move["Volume total"].sum()
-        
-        poids_cible_actuel = df.loc[mask_target, "Poids total"].iloc[0]
-        volume_cible_actuel = df.loc[mask_target, "Volume total"].iloc[0]
-
-        if (poids_cible_actuel + poids_a_ajouter > MAX_POIDS_ESTAFETTE or
-            volume_cible_actuel + volume_a_ajouter > MAX_VOLUME_ESTAFETTE):
-            return False, f"❌ Le transfert des BLs ferait dépasser la capacité de l'Estafette cible {target_estafette_num}.", self.df_base
-
-        # --- Mise à jour de la colonne BL inclus ---
-        # 1. Retirer les BLs de la source
-        new_bls_source = [b for b in bls_source_existants if b not in bl_list]
-        df.loc[mask_source, "BL inclus"] = ";".join(new_bls_source)
-        
-        # 2. Ajouter les BLs à la cible
-        bls_target_existants = [b.strip() for b in df.loc[mask_target, "BL inclus"].iloc[0].split(';') if b.strip()]
-        new_bls_target = bls_target_existants + bl_list
-        df.loc[mask_target, "BL inclus"] = ";".join(new_bls_target)
-
-        # --- Recalculer poids, volume, taux d'occupation, clients et représentants ---
-        for estafette_num in [source_estafette_num, target_estafette_num]:
-            mask = df["Camion N°"] == estafette_num
-            
-            current_bl_string = df.loc[mask, "BL inclus"].iloc[0]
-            current_bls = [b.strip() for b in current_bl_string.split(';') if b.strip()]
-
-            # Rechercher les données granulaires pour tous les BLs dans l'Estafette
-            bl_data = self.df_granular_bls[self.df_granular_bls["No livraison"].astype(str).isin(current_bls)]
-
-            new_poids = bl_data["Poids total"].sum()
-            new_volume = bl_data["Volume total"].sum()
-
-            df.loc[mask, "Poids total"] = new_poids
-            df.loc[mask, "Volume total"] = new_volume
-
-            # Recalculer Taux d'occupation
-            new_taux_occu = max(new_poids / MAX_POIDS_ESTAFETTE * 100, new_volume / MAX_VOLUME_ESTAFETTE * 100)
-            df.loc[mask, "Taux d'occupation (%)"] = new_taux_occu.round(2)
-            
-            # Recalculer Client(s) inclus et Représentant(s) inclus (liste unique triée)
-            new_clients = ", ".join(sorted(bl_data["Client de l'estafette"].astype(str).unique().tolist()))
-            new_reps = ", ".join(sorted(bl_data["Représentant"].astype(str).unique().tolist()))
-            
-            df.loc[mask, "Client commande"] = new_clients
-            df.loc[mask, "Représentant"] = new_reps
-
-        # Mettre à jour le DataFrame de base
-        self.df_base = df
-        
-        # Gérer la suppression si l'estafette source est vide
-        mask_source_empty = self.df_base["Camion N°"] == source_estafette_num
-        if self.df_base.loc[mask_source_empty, "Poids total"].iloc[0] < 0.001: # Si le poids est proche de zéro
-             self.df_base = self.df_base[~mask_source_empty].reset_index(drop=True)
-             return True, f"✅ BLs transférés. L'Estafette source {source_estafette_num} a été supprimée car elle est vide. Le plan de livraison est mis à jour.", self.df_base
-        
-        return True, f"✅ BLs transférés de {source_estafette_num} vers {target_estafette_num} avec succès. Le plan de livraison est mis à jour.", self.df_base
-
-
-    def get_df_result(self) -> pd.DataFrame:
-        """
-        Retourne le DataFrame optimisé final avec les modifications de location, 
-        dans le format d'affichage demandé.
+        Retourne le DataFrame optimisé final avec les modifications de location.
+        Inclut la modification demandée : fusion de 'Estafette N°' et 'Camion N°'
+        dans la seule colonne 'Véhicule N°'.
         """
         df_result = self.df_base.copy()
         
@@ -331,10 +224,12 @@ class TruckRentalProcessor:
              "Volume total": "Volume total chargé",
              "Client commande": "Client(s) inclus",
              "Représentant": "Représentant(s) inclus",
+             # MODIFICATION DEMANDÉE : Renommer Camion N° en Véhicule N°
              "Camion N°": "Véhicule N°" 
         }, inplace=True)
         
         # Tri final: Les camions loués (Code_Tri=0) en premier, puis les estafettes.
+        # Nous utilisons toujours "Estafette N°" pour le tri même si elle sera supprimée ensuite.
         df_result['Code_Tri'] = df_result['Code Véhicule'].apply(lambda x: 0 if x == CAMION_CODE else 1)
         
         # Utiliser 'Véhicule N°' (qui contient E1, E2 ou C1, C2...) pour le tri des véhicules
@@ -342,12 +237,14 @@ class TruckRentalProcessor:
 
         # Suppression des colonnes de tri et temporaires
         df_result = df_result.drop(columns=['Code_Tri'], errors='ignore')
+        
+        # MODIFICATION DEMANDÉE : Suppression de la colonne "Estafette N°" du résultat affichable
         df_result = df_result.drop(columns=['Estafette N°'], errors='ignore')
         
-        # Définition des colonnes finales pour l'affichage
+        # Définition des colonnes finales pour l'affichage (sans Estafette N° mais avec Véhicule N°)
         final_cols_display = [
              "Zone", 
-             "Véhicule N°", 
+             "Véhicule N°", # Contient maintenant E1, E2, C1, C2...
              "Poids total chargé", 
              "Volume total chargé", 
              "Client(s) inclus", 
@@ -368,11 +265,7 @@ class DeliveryProcessor:
     # =====================================================
     # ✅ Fonction principale : traitement complet
     # =====================================================
-    def process_delivery_data(self, liv_file: str, ydlogist_file: str, wcliegps_file: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        """
-        Gère le flux complet de lecture, préparation, groupement et optimisation des livraisons.
-        Retourne les DataFrames intermédiaires et finaux.
-        """
+    def process_delivery_data(self, liv_file, ydlogist_file, wcliegps_file):
         try:
             # Lecture des fichiers
             df_liv = self._load_livraisons(liv_file)
@@ -405,14 +298,10 @@ class DeliveryProcessor:
             df_city = self._calculate_estafette_need(df_city)
 
             # Nouveau tableau : ajout Zone
-            # Renommer "Client" (Client du BL) en "Client de l'estafette" avant l'ajout de zone
             df_grouped_zone = self._add_zone(df_grouped.rename(columns={"Client": "Client de l'estafette"}))
 
             # Filtrer les livraisons avec "Zone inconnue"
             df_grouped_zone = df_grouped_zone[df_grouped_zone["Zone"] != "Zone inconnue"].copy()
-            
-            # Stocker les données granulaires (BL-level) nécessaires au TruckRentalProcessor pour les ajustements manuels.
-            df_granular_bls = df_grouped_zone.copy()
             
             # 🆕 Groupement par zone
             df_zone = self._group_by_zone(df_grouped_zone)
@@ -423,8 +312,8 @@ class DeliveryProcessor:
             # 🆕 Calcul des voyages optimisés 
             df_optimized_estafettes = self._calculate_optimized_estafette(df_grouped_zone)
 
-            # Retourne tous les DataFrames, y compris le granular pour le TruckRentalProcessor
-            return df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes, df_granular_bls
+            # 🆕 Retourne les DataFrames + l'instance TruckRentalProcessor
+            return df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes
 
         except Exception as e:
             raise Exception(f"❌ Erreur lors du traitement des données : {str(e)}")
@@ -432,7 +321,7 @@ class DeliveryProcessor:
     # =====================================================
     # 🔹 Chargement des données
     # =====================================================
-    def _load_livraisons(self, liv_file: str) -> pd.DataFrame:
+    def _load_livraisons(self, liv_file):
         df = pd.read_excel(liv_file)
         
         # ✅ CORRECTION BUG : Renommer la colonne 'N° BON LIVRAISON' en 'No livraison'
@@ -445,7 +334,7 @@ class DeliveryProcessor:
             
         return df
 
-    def _load_ydlogist(self, file_path: str) -> pd.DataFrame:
+    def _load_ydlogist(self, file_path):
         df = pd.read_excel(file_path)
         # Renommage des colonnes Unité Volume (index 16) et Poids de l'US (index 13)
         if len(df.columns) > 16:
@@ -455,36 +344,38 @@ class DeliveryProcessor:
             
         return df
 
-    def _load_wcliegps(self, wcliegps_file: str) -> pd.DataFrame:
+    def _load_wcliegps(self, wcliegps_file):
         df_clients = pd.read_excel(wcliegps_file)
         
         # Identifier et renommer la colonne Représentant (index 16, colonne Q)
         if len(df_clients.columns) > 16:
             df_clients.rename(columns={df_clients.columns[16]: "Représentant"}, inplace=True)
         
+        # S'assurer que les colonnes 'Client' et 'Représentant' existent pour la jointure
         required_cols = ["Client", "Ville", "Représentant"]
         for col in required_cols:
             if col not in df_clients.columns:
-                 # Gérer le cas où la colonne n'a pas été trouvée à l'index 16 ou est manquante
-                 raise ValueError(f"La colonne '{col}' est manquante dans le fichier clients. Veuillez vérifier le format.")
+                 # Gérer le cas où la colonne n'a pas été trouvée à l'index 16
+                 if col not in df_clients.columns:
+                      raise ValueError(f"La colonne '{col}' est manquante dans le fichier clients. Veuillez vérifier le format.")
         
         return df_clients[["Client", "Ville", "Représentant"]].copy()
 
     # =====================================================
     # 🔹 Filtrage
     # =====================================================
-    def _filter_initial_data(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _filter_initial_data(self, df):
         clients_exclus = [
              "AMECAP", "SANA", "SOPAL", "SOPALGAZ", "SOPALSERV", "SOPALTEC",
              "SOPALALG", "AQUA", "WINOX", "QUIVEM", "SANISTONE",
              "SOPAMAR", "SOPALAFR", "SOPALINTER"
-        ]
+          ]
         return df[(df["Type livraison"] != "SDC") & (~df["Client commande"].isin(clients_exclus))]
 
     # =====================================================
     # 🔹 Calcul Poids
     # =====================================================
-    def _calculate_weights(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _calculate_weights(self, df):
         # Conversion Poids de l'US
         df["Poids de l'US"] = pd.to_numeric(df["Poids de l'US"].astype(str).str.replace(",", ".")
                                              .str.replace(r"[^\d.]", "", regex=True), errors="coerce").fillna(0)
@@ -498,39 +389,38 @@ class DeliveryProcessor:
     # =====================================================
     # 🔹 Calcul Volume
     # =====================================================
-    def _calculate_volumes(self, df_liv: pd.DataFrame, df_art: pd.DataFrame) -> pd.DataFrame:
+    def _calculate_volumes(self, df_liv, df_art):
         df_liv_sel = df_liv[["No livraison", "Article", "Quantité livrée US", "Client commande"]]
         df_art_sel = df_art[["Article", "Volume de l'US", "Unité Volume"]].copy()
         
         # Conversion Volume de l'US
         df_art_sel["Volume de l'US"] = pd.to_numeric(df_art_sel["Volume de l'US"].astype(str).str.replace(",", "."),
-                                                     errors="coerce")
+                                                      errors="coerce")
         return pd.merge(df_liv_sel, df_art_sel, on="Article", how="left")
 
     # =====================================================
     # 🔹 Fusion
     # =====================================================
-    def _merge_delivery_data(self, df_poids: pd.DataFrame, df_vol: pd.DataFrame) -> pd.DataFrame:
+    def _merge_delivery_data(self, df_poids, df_vol):
         # On fusionne avec les colonnes de poids pour garder les colonnes initiales
         return pd.merge(df_poids.drop(columns=["Quantité livrée US", "Poids de l'US"], errors='ignore'), 
-                        df_vol, on=["No livraison", "Article", "Client commande"], how="left")
+                         df_vol, on=["No livraison", "Article", "Client commande"], how="left")
 
 
     # =====================================================
     # 🔹 Ajout Client, Ville et Représentant
     # =====================================================
-    def _add_city_client_info(self, df: pd.DataFrame, df_clients: pd.DataFrame) -> pd.DataFrame:
+    def _add_city_client_info(self, df, df_clients):
         # Jointure pour ajouter Ville et Représentant
         # Attention: 'Client commande' est le code du BL, 'Client' est le code du client dans df_clients
         return pd.merge(df, df_clients[["Client", "Ville", "Représentant"]],
-                        left_on="Client commande", right_on="Client", how="left")
+                         left_on="Client commande", right_on="Client", how="left")
 
     # =====================================================
     # 🔹 Groupement par Livraison/Client/Ville/Représentant
     # =====================================================
-    def _group_data(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        # La colonne "Client commande" est utilisée pour la jointure, la colonne "Client" issue de la jointure
-        # est le code client réel (WCLIEGPS)
+    def _group_data(self, df):
+        # La colonne "Client commande" devient "Client" ici pour le regroupement
         df_grouped = df.groupby(["No livraison", "Client", "Ville", "Représentant"], as_index=False).agg({
             "Article": lambda x: ", ".join(x.astype(str)),
             "Poids total": "sum",
@@ -546,9 +436,9 @@ class DeliveryProcessor:
     # =====================================================
     # 🔹 Calcul besoin estafette (Applicable à Ville ou Zone)
     # =====================================================
-    def _calculate_estafette_need(self, df: pd.DataFrame) -> pd.DataFrame:
-        poids_max = MAX_POIDS_ESTAFETTE  # kg
-        volume_max = MAX_VOLUME_ESTAFETTE # m3
+    def _calculate_estafette_need(self, df):
+        poids_max = 1550 # kg
+        volume_max = 4.608 # m3 (1.2 * 1.2 * 0.8 * 4)
         
         if "Poids total" in df.columns and "Volume total" in df.columns:
             df["Besoin estafette (poids)"] = df["Poids total"].apply(lambda p: math.ceil(p / poids_max))
@@ -561,7 +451,7 @@ class DeliveryProcessor:
     # =====================================================
     # 🔹 Ajout Zone
     # =====================================================
-    def _add_zone(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _add_zone(self, df):
         zones = {
              "Zone 1": ["TUNIS", "ARIANA", "MANOUBA", "BEN AROUS", "BIZERTE", "MATEUR",
                          "MENZEL BOURGUIBA", "UTIQUE"],
@@ -573,7 +463,7 @@ class DeliveryProcessor:
              "Zone 7": ["SFAX"]
            }
 
-        def get_zone(ville: Any) -> str:
+        def get_zone(ville):
             ville = str(ville).upper().strip()
             for z, villes in zones.items():
                 if ville in villes:
@@ -586,7 +476,7 @@ class DeliveryProcessor:
     # =====================================================
     # 🆕 Groupement par Zone
     # =====================================================
-    def _group_by_zone(self, df_grouped_zone: pd.DataFrame) -> pd.DataFrame:
+    def _group_by_zone(self, df_grouped_zone):
         df_zone = df_grouped_zone.groupby("Zone", as_index=False).agg({
             "Poids total": "sum",
             "Volume total": "sum",
@@ -595,12 +485,12 @@ class DeliveryProcessor:
         return df_zone
 
     # =====================================================
-    # 🆕 Calcul des voyages optimisés par Estafette (Bin Packing)
+    # 🆕 Calcul des voyages optimisés par Estafette
     # =====================================================
-    def _calculate_optimized_estafette(self, df_grouped_zone: pd.DataFrame) -> pd.DataFrame:
+    def _calculate_optimized_estafette(self, df_grouped_zone):
         # === Capacités max ===
-        MAX_POIDS = MAX_POIDS_ESTAFETTE   # kg
-        MAX_VOLUME = MAX_VOLUME_ESTAFETTE # m3
+        MAX_POIDS = 1550    # kg
+        MAX_VOLUME = 4.608  # m3 (1.2 * 1.2 * 0.8 * 4)
 
         resultats = []
         estafette_num = 1  # compteur global unique pour les estafettes
@@ -611,11 +501,10 @@ class DeliveryProcessor:
             group_sorted = group.sort_values(by="Poids total", ascending=False).reset_index()
             estafettes = []  # liste des estafettes déjà créées pour la zone
             
-            for _, row in group_sorted.iterrows():
+            for idx, row in group_sorted.iterrows():
                 bl = str(row["No livraison"])
                 poids = row["Poids total"]
                 volume = row["Volume total"]
-                # Le nom de colonne est "Client de l'estafette" ici suite au rename dans process_delivery_data
                 client = str(row["Client de l'estafette"]) 
                 representant = str(row["Représentant"])
                 placed = False
@@ -635,30 +524,30 @@ class DeliveryProcessor:
                 # Si aucun emplacement trouvé -> créer une nouvelle estafette
                 if not placed:
                     estafettes.append({
-                         "poids": poids,
-                         "volume": volume,
-                         "bls": [bl],
-                         "clients": {c.strip() for c in client.split(',')},
-                         "representants": {r.strip() for r in representant.split(',')},
-                         "num_global": estafette_num # On assigne le numéro global ici
+                        "poids": poids,
+                        "volume": volume,
+                        "bls": [bl],
+                        "clients": {c.strip() for c in client.split(',')},
+                        "representants": {r.strip() for r in representant.split(',')},
+                        "num_global": estafette_num # On assigne le numéro global ici
                     })
-                    estafette_num += 1 # On incrémente le compteur global
-            
+                    estafette_num += 1 # On incrémente le compteur global seulement si on crée une nouvelle estafette
+
             # Sauvegarder les résultats
             for e in estafettes:
                 clients_list = ", ".join(sorted(list(e["clients"])))
                 representants_list = ", ".join(sorted(list(e["representants"])))
                 resultats.append([
-                     zone,
-                     e["num_global"], 
-                     e["poids"],
-                     e["volume"],
-                     clients_list,    
-                     representants_list,
-                     ";".join(e["bls"])
+                    zone,
+                    e["num_global"], # Utilisation du numéro global
+                    e["poids"],
+                    e["volume"],
+                    clients_list,   
+                    representants_list,
+                    ";".join(e["bls"])
                 ])
                 
-        # === Créer un DataFrame résultat ===
+            # === Créer un DataFrame résultat ===
         df_estafettes = pd.DataFrame(resultats, columns=["Zone", "Estafette N°", "Poids total chargé", "Volume total chargé", "Client(s) inclus", "Représentant(s) inclus", "BL inclus"])
         
         # CALCUL DU TAUX D'OCCUPATION
@@ -677,3 +566,77 @@ class DeliveryProcessor:
         df_estafettes = df_estafettes.drop(columns=["Taux Poids (%)", "Taux Volume (%)"]) 
         
         return df_estafettes
+    # =====================================================
+    # 🆕 Transfert des BL d'une estafette à une autre dans la même zone
+    # =====================================================
+    def transfer_bl_between_estafettes(self, source_estafette_num, target_estafette_num, bl_list):
+        """
+        Transfert une ou plusieurs BLs d'une estafette source à une estafette cible
+        dans la même zone. Le poids et volume sont recalculés automatiquement.
+        
+        :param source_estafette_num: Numéro de l'estafette source (E1, E2...)
+        :param target_estafette_num: Numéro de l'estafette cible (E1, E2...)
+        :param bl_list: Liste de BLs à transférer (list ou string séparés par ;)
+        :return: (success: bool, message: str)
+        """
+        df = self.df_base.copy()
+        
+        # Normaliser la liste de BL
+        if isinstance(bl_list, str):
+            bl_list = [b.strip() for b in bl_list.split(';') if b.strip()]
+        
+        if source_estafette_num == target_estafette_num:
+            return False, "❌ L'estafette source et cible sont identiques."
+        
+        # Vérifier que les deux estafettes existent
+        mask_source = df["Camion N°"] == source_estafette_num
+        mask_target = df["Camion N°"] == target_estafette_num
+        
+        if not mask_source.any():
+            return False, f"❌ Estafette source {source_estafette_num} introuvable."
+        if not mask_target.any():
+            return False, f"❌ Estafette cible {target_estafette_num} introuvable."
+        
+        # Vérifier que les BLs existent dans l'estafette source
+        bl_source = df.loc[mask_source, "BL inclus"].str.split(';').explode().str.strip()
+        if not all(bl in bl_source.values for bl in bl_list):
+            return False, "❌ Certains BLs n'existent pas dans l'estafette source."
+        
+        # Transfert BLs
+        for bl in bl_list:
+            # Retirer le BL de l'estafette source
+            df.loc[mask_source, "BL inclus"] = df.loc[mask_source, "BL inclus"].apply(
+                lambda x: ";".join([b for b in x.split(';') if b.strip() != bl])
+            )
+            
+            # Ajouter le BL à l'estafette cible
+            df.loc[mask_target, "BL inclus"] = df.loc[mask_target, "BL inclus"].apply(
+                lambda x: ";".join(filter(None, list(x.split(';')) + [bl]))
+            )
+        
+        # Recalculer poids et volume pour les deux estafettes
+        for estafette_num in [source_estafette_num, target_estafette_num]:
+            mask = df["Camion N°"] == estafette_num
+            df.loc[mask, "Poids total chargé"] = df.loc[mask].apply(
+                lambda row: sum(
+                    df.loc[df["BL inclus"].str.contains(bl.strip(), na=False), "Poids total chargé"]
+                    for bl in row["BL inclus"].split(';') if bl.strip()
+                ), axis=1
+            )
+            df.loc[mask, "Volume total chargé"] = df.loc[mask].apply(
+                lambda row: sum(
+                    df.loc[df["BL inclus"].str.contains(bl.strip(), na=False), "Volume total chargé"]
+                    for bl in row["BL inclus"].split(';') if bl.strip()
+                ), axis=1
+            )
+            # Recalcul taux occupation
+            df.loc[mask, "Taux d'occupation (%)"] = df.loc[mask].apply(
+                lambda row: max(
+                    row["Poids total chargé"] / 1550 * 100,
+                    row["Volume total chargé"] / 4.608 * 100
+                ), axis=1
+            )
+        
+        # Mettre à jour le DataFrame
+        self.df_base = df
+        return True, f"✅ BLs transférés de {source_estafette_num} vers {target_estafette_num} avec succès."
