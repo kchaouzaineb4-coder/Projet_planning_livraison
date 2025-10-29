@@ -23,6 +23,9 @@ if 'data_processed' not in st.session_state:
     st.session_state.propositions = None # Dataframe de propositions
     st.session_state.selected_client = None # Client sélectionné
     st.session_state.message = "" # Message de résultat d'opération
+    
+    # 🆕 NOUVELLE VARIABLE D'ÉTAT pour le transfert des BL
+    st.session_state.trips_to_transfer = [] # Liste des voyages sélectionnés pour le transfert
 
 # =====================================================
 # Fonctions de Callback pour la Location
@@ -51,7 +54,6 @@ def handle_location_action(accepter):
         )
         st.session_state.message = msg
         update_propositions_view()
-        # st.rerun() # Pas besoin de rerun ici car le on_click est déjà dans un bloc de rerender
     elif not st.session_state.selected_client:
         st.session_state.message = "⚠️ Veuillez sélectionner un client à traiter."
     else:
@@ -62,6 +64,38 @@ def accept_location_callback():
 
 def refuse_location_callback():
     handle_location_action(False)
+
+# =====================================================
+# Fonctions de Callback pour le Transfert des BL (NOUVEAU)
+# =====================================================
+
+def handle_bl_transfer_action():
+    """Gère la validation du transfert (expédition) des BLs pour les voyages sélectionnés."""
+    selected_trips = st.session_state.get('trips_to_transfer', [])
+    
+    if not selected_trips:
+        st.session_state.message = "⚠️ Veuillez sélectionner au moins un voyage à transférer."
+        return
+
+    df = st.session_state.df_optimized_estafettes
+    
+    # Met à jour le statut pour les voyages sélectionnés
+    rows_updated = 0
+    for trip_name in selected_trips:
+        # trip_name est une chaîne comme "Estafette X - Ville Y"
+        if trip_name in df['Estafette / Ville'].values:
+            # Utilisation de .loc pour éviter le SettingWithCopyWarning et garantir la mise à jour
+            df.loc[df['Estafette / Ville'] == trip_name, 'Statut Transfert'] = 'TRANSFÉRÉ ✅'
+            rows_updated += 1
+            
+    st.session_state.df_optimized_estafettes = df # Sauvegarde le DF mis à jour
+    st.session_state.trips_to_transfer = [] # Réinitialise la sélection
+    
+    if rows_updated > 0:
+        st.session_state.message = f"✅ {rows_updated} voyage(s) marqué(s) comme 'TRANSFÉRÉ'. Les BL sont clôturés."
+    else:
+        st.session_state.message = "❌ Aucun voyage correspondant n'a pu être mis à jour."
+
 
 # =====================================================
 # 1. UPLOAD DES FICHIERS INPUT (Section 1)
@@ -88,13 +122,17 @@ with col_button:
                     )
                 
                 # Stockage des résultats dans l'état de session
+                
+                # 🆕 INITIALISATION DU STATUT DE TRANSFERT
+                df_optimized_estafettes['Statut Transfert'] = 'À traiter'
                 st.session_state.df_optimized_estafettes = df_optimized_estafettes
+                
                 st.session_state.df_grouped = df_grouped
                 st.session_state.df_city = df_city
                 st.session_state.df_grouped_zone = df_grouped_zone
                 st.session_state.df_zone = df_zone 
                 
-                # 🆕 Initialisation du processeur de location et des propositions
+                # Initialisation du processeur de location et des propositions
                 st.session_state.rental_processor = TruckRentalProcessor(df_optimized_estafettes)
                 update_propositions_view()
                 
@@ -125,7 +163,8 @@ if st.session_state.data_processed:
         st.info(st.session_state.message or "Prêt à traiter les propositions de location.")
     
     # Récupération du DF mis à jour à chaque fois
-    df_optimized_estafettes = st.session_state.rental_processor.get_df_result() 
+    # Note: On utilise le DF de l'état de session qui est mis à jour par les actions de location et de transfert
+    df_optimized_estafettes = st.session_state.df_optimized_estafettes 
     
     # =====================================================
     # 2. ANALYSE DE LIVRAISON DÉTAILLÉE (Section 2)
@@ -243,13 +282,60 @@ if st.session_state.data_processed:
     st.markdown("---")
     
     # =====================================================
-    # 4. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 4 - Résultat final)
+    # 4. 📤 TRANSFERT ET CLÔTURE DES BONS DE LIVRAISON (BL) (NOUVEAU)
     # =====================================================
-    st.header("4.Voyages par Estafette Optimisé (Inclut Camions Loués)")
-    st.info("Ce tableau représente l'ordonnancement final des livraisons, y compris les commandes pour lesquelles un camion loué (Code Véhicule : CAMION-LOUE) a été accepté ou refusé.")
+    st.header("4. 📤 Transfert et Clôture des Bons de Livraison (BL)")
+    st.info("Sélectionnez les voyages dont les BL sont prêts à être marqués comme 'Transférés' dans votre système.")
+
+    # On récupère tous les voyages dont le statut n'est pas encore 'TRANSFÉRÉ'
+    trips_to_select = df_optimized_estafettes[
+        df_optimized_estafettes['Statut Transfert'] != 'TRANSFÉRÉ ✅'
+    ]['Estafette / Ville'].unique().tolist()
+
+    if trips_to_select:
+        
+        col_sel, col_btn = st.columns([3, 1])
+
+        with col_sel:
+            # La clé de session 'trips_to_transfer' est mise à jour automatiquement par Streamlit
+            st.multiselect(
+                "Voyages à transférer (Valider l'expédition et le BL) :",
+                options=trips_to_select,
+                default=[],
+                key='trips_to_transfer',
+                help="Sélectionnez un ou plusieurs voyages pour marquer tous les BLs associés comme 'Transférés'."
+            )
+
+        with col_btn:
+            st.markdown("<br>", unsafe_allow_html=True) # Espace
+            st.button(
+                "✅ Valider le Transfert des BL", 
+                on_click=handle_bl_transfer_action, 
+                type="primary",
+                use_container_width=True,
+                # Désactiver le bouton s'il n'y a rien de sélectionné
+                disabled=not st.session_state.get('trips_to_transfer')
+            )
+    else:
+        st.success("🎉 Tous les voyages planifiés ont déjà été marqués comme 'TRANSFÉRÉ'.")
+
+    st.markdown("---")
     
-    # Affichage du DataFrame avec formatage
-    st.dataframe(df_optimized_estafettes.style.format({
+    # =====================================================
+    # 5. VOYAGES PAR ESTAFETTE OPTIMISÉ (Ancienne Section 4, maintenant 5)
+    # =====================================================
+    st.header("5. Voyages par Estafette Optimisé (Inclut Camions Loués & Statut Transfert)")
+    st.info("Ce tableau représente l'ordonnancement final des livraisons, y compris les commandes pour lesquelles un camion loué (Code Véhicule : CAMION-LOUE) a été accepté ou refusé, et le statut de clôture des BL.")
+    
+    # Définition de la colonne à colorer
+    def highlight_transfer_status(s):
+        is_transferred = s == 'TRANSFÉRÉ ✅'
+        return ['background-color: #d4edda' if v else '' for v in is_transferred]
+    
+    # Affichage du DataFrame avec formatage et stylisation
+    st.dataframe(df_optimized_estafettes.style
+        .apply(highlight_transfer_status, subset=['Statut Transfert'])
+        .format({
          "Poids total chargé": "{:.2f} kg",
          "Volume total chargé": "{:.3f} m³",
          "Taux d'occupation (%)": "{:.2f}%"
@@ -266,4 +352,3 @@ if st.session_state.data_processed:
              file_name=path_optimized,
              mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        
