@@ -276,7 +276,7 @@ if st.session_state.data_processed:
     df_bl = st.session_state.df_optimized_estafettes.copy()
 
     # Ajouter une colonne spécifique si nécessaire pour CAMION-LOUE
-    df_bl["Code Véhicule"] = df_bl["Véhicule"].apply(lambda x: x if x != "CAMION-LOUE" else "CAMION-LOUE")
+    df_bl["Code Véhicule"] = df_bl["Véhicule N°"].apply(lambda x: x if x != "CAMION-LOUE" else "CAMION-LOUE")
 
     # Colonnes utiles pour le BL
     bl_columns = ["Client", "Ville", "Adresse", "Produit", "Qté", "Poids", "Volume", "Estafette", "Code Véhicule"]
