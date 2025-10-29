@@ -243,56 +243,27 @@ if st.session_state.data_processed:
     st.markdown("---")
     
     # =====================================================
-# 4. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 4)
-# =====================================================
-st.header("4. Voyages par Estafette Optimisé (Inclut Camions Loués)")
-
-# ✅ Ajout de Code Véhicule proprement et une seule fois
-if "Véhicule N°" in df_optimized_estafettes.columns:
-    df_optimized_estafettes["Code Véhicule"] = df_optimized_estafettes["Véhicule N°"].astype(str)
-else:
-    df_optimized_estafettes["Code Véhicule"] = "NON DEFINI"
-
-st.dataframe(df_optimized_estafettes.style.format({
-    "Poids total chargé": "{:.2f} kg",
-    "Volume total chargé": "{:.3f} m³",
-    "Taux d'occupation (%)": "{:.2f}%"
-}), use_container_width=True)
-
-# ✅ Télécharger
-path_optimized = "Voyages_Estafette_Optimises.xlsx"
-df_optimized_estafettes.to_excel(path_optimized, index=False)
-with open(path_optimized, "rb") as f:
-    st.download_button(
-        label="💾 Télécharger Voyages Estafette Optimisés",
-        data=f,
-        file_name=path_optimized,
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-st.markdown("---")
-
-# =====================================================
-# 5. TRANSFERT DES BL (Section 5)
-# =====================================================
-st.header("5. 📝 Transfert des BL pour les livraisons")
-
-df_bl = df_optimized_estafettes.copy()
-
-# ✅ Colonnes utiles
-bl_columns = ["Client", "Ville", "Adresse", "Produit", "Qté", "Poids",
-              "Volume", "Estafette", "Code Véhicule"]
-df_bl_final = df_bl[bl_columns]
-
-st.dataframe(df_bl_final, use_container_width=True)
-
-path_bl = "BL_Transferts.xlsx"
-df_bl_final.to_excel(path_bl, index=False)
-with open(path_bl, "rb") as f:
-    st.download_button(
-        label="💾 Télécharger BL Transférés",
-        data=f,
-        file_name=path_bl,
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    # 4. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 4 - Résultat final)
+    # =====================================================
+    st.header("4.Voyages par Estafette Optimisé (Inclut Camions Loués)")
+    st.info("Ce tableau représente l'ordonnancement final des livraisons, y compris les commandes pour lesquelles un camion loué (Code Véhicule : CAMION-LOUE) a été accepté ou refusé.")
     
+    # Affichage du DataFrame avec formatage
+    st.dataframe(df_optimized_estafettes.style.format({
+         "Poids total chargé": "{:.2f} kg",
+         "Volume total chargé": "{:.3f} m³",
+         "Taux d'occupation (%)": "{:.2f}%"
+    }), use_container_width=True)
+
+    # Bouton de téléchargement
+    path_optimized = "Voyages_Estafette_Optimises.xlsx"
+    # Note: On utilise le DataFrame non formaté en string pour l'export Excel
+    df_optimized_estafettes.to_excel(path_optimized, index=False)
+    with open(path_optimized, "rb") as f:
+        st.download_button(
+             label="💾 Télécharger Voyages Estafette Optimisés",
+             data=f,
+             file_name=path_optimized,
+             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        
