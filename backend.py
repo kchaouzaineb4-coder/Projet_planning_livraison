@@ -126,7 +126,7 @@ class TruckRentalProcessor:
         colonnes_affichage = [
              "Zone", "Camion N°", "Poids total", "Volume total", "BL inclus", "Taux d'occupation (%)",
              "Client commande", "Représentant", "Location_camion", "Location_proposee", "Code Véhicule"
-          ]
+           ]
         
         # Réorganiser et sélectionner les colonnes
         data_display = data[[col for col in colonnes_affichage if col in data.columns]]
@@ -207,34 +207,53 @@ class TruckRentalProcessor:
             return True, f"❌ Proposition REFUSÉE pour {client}. Les commandes restent réparties en Estafettes.", self.detecter_propositions()
 
     def get_df_result(self):
-        """Retourne le DataFrame optimisé final avec les modifications de location."""
+        """
+        Retourne le DataFrame optimisé final avec les modifications de location.
+        Inclut la modification demandée : fusion de 'Estafette N°' et 'Camion N°'
+        dans la seule colonne 'Véhicule N°'.
+        """
+        df_result = self.df_base.copy()
+        
         # Renommer les colonnes pour les rendre conformes à l'affichage final
-        df_result = self.df_base.rename(columns={
+        df_result.rename(columns={
              "Poids total": "Poids total chargé",
              "Volume total": "Volume total chargé",
              "Client commande": "Client(s) inclus",
-             "Représentant": "Représentant(s) inclus"
-        })
+             "Représentant": "Représentant(s) inclus",
+             # MODIFICATION DEMANDÉE : Renommer Camion N° en Véhicule N°
+             "Camion N°": "Véhicule N°" 
+        }, inplace=True)
         
-        # S'assurer que les colonnes finales sont présentes
-        final_cols = [
-             "Zone", "Estafette N°", "Poids total chargé", "Volume total chargé", 
-             "Client(s) inclus", "Représentant(s) inclus", "BL inclus", "Taux d'occupation (%)",
-             "Location_camion", "Location_proposee", "Code Véhicule", "Camion N°"
-        ]
-        
-        # Tri final: Les camions loués (Estafette N°=0) en premier, puis les autres
-        # Le tri sur 'Estafette N°' (numérique) fonctionne mieux pour les ESTAFETTE E1, E2, E3...
-        # On trie d'abord par 'Code Véhicule' (CAMION-LOUE avant ESTAFETTE)
-        # Puis par 'Estafette N°' pour les Estafettes, et par 'Camion N°' pour les camions (C1, C2...)
+        # Tri final: Les camions loués (Code_Tri=0) en premier, puis les estafettes.
+        # Nous utilisons toujours "Estafette N°" pour le tri même si elle sera supprimée ensuite.
         df_result['Code_Tri'] = df_result['Code Véhicule'].apply(lambda x: 0 if x == CAMION_CODE else 1)
         
-        df_result = df_result.sort_values(by=["Code_Tri", "Estafette N°", "Camion N°", "Zone"], ascending=[True, True, True, True])
+        # Utiliser 'Véhicule N°' (qui contient E1, E2 ou C1, C2...) pour le tri des véhicules
+        df_result = df_result.sort_values(by=["Code_Tri", "Estafette N°", "Véhicule N°", "Zone"], ascending=[True, True, True, True])
 
-        # Suppression de la colonne de tri temporaire
+        # Suppression des colonnes de tri et temporaires
         df_result = df_result.drop(columns=['Code_Tri'], errors='ignore')
+        
+        # MODIFICATION DEMANDÉE : Suppression de la colonne "Estafette N°" du résultat affichable
+        df_result = df_result.drop(columns=['Estafette N°'], errors='ignore')
+        
+        # Définition des colonnes finales pour l'affichage (sans Estafette N° mais avec Véhicule N°)
+        final_cols_display = [
+             "Zone", 
+             "Véhicule N°", # Contient maintenant E1, E2, C1, C2...
+             "Poids total chargé", 
+             "Volume total chargé", 
+             "Client(s) inclus", 
+             "Représentant(s) inclus", 
+             "BL inclus", 
+             "Taux d'occupation (%)",
+             "Location_camion", 
+             "Location_proposee", 
+             "Code Véhicule"
+        ]
 
-        return df_result[[col for col in final_cols if col in df_result.columns]]
+        # Sélection des colonnes dans l'ordre final
+        return df_result[[col for col in final_cols_display if col in df_result.columns]]
 
 
 class DeliveryProcessor:
@@ -332,9 +351,9 @@ class DeliveryProcessor:
         required_cols = ["Client", "Ville", "Représentant"]
         for col in required_cols:
             if col not in df_clients.columns:
-                # Gérer le cas où la colonne n'a pas été trouvée à l'index 16
-                if col not in df_clients.columns:
-                     raise ValueError(f"La colonne '{col}' est manquante dans le fichier clients. Veuillez vérifier le format.")
+                 # Gérer le cas où la colonne n'a pas été trouvée à l'index 16
+                 if col not in df_clients.columns:
+                      raise ValueError(f"La colonne '{col}' est manquante dans le fichier clients. Veuillez vérifier le format.")
         
         return df_clients[["Client", "Ville", "Représentant"]].copy()
 
@@ -372,7 +391,7 @@ class DeliveryProcessor:
         
         # Conversion Volume de l'US
         df_art_sel["Volume de l'US"] = pd.to_numeric(df_art_sel["Volume de l'US"].astype(str).str.replace(",", "."),
-                                                     errors="coerce")
+                                                      errors="coerce")
         return pd.merge(df_liv_sel, df_art_sel, on="Article", how="left")
 
     # =====================================================
@@ -381,7 +400,7 @@ class DeliveryProcessor:
     def _merge_delivery_data(self, df_poids, df_vol):
         # On fusionne avec les colonnes de poids pour garder les colonnes initiales
         return pd.merge(df_poids.drop(columns=["Quantité livrée US", "Poids de l'US"], errors='ignore'), 
-                        df_vol, on=["No livraison", "Article", "Client commande"], how="left")
+                         df_vol, on=["No livraison", "Article", "Client commande"], how="left")
 
 
     # =====================================================
@@ -391,7 +410,7 @@ class DeliveryProcessor:
         # Jointure pour ajouter Ville et Représentant
         # Attention: 'Client commande' est le code du BL, 'Client' est le code du client dans df_clients
         return pd.merge(df, df_clients[["Client", "Ville", "Représentant"]],
-                          left_on="Client commande", right_on="Client", how="left")
+                         left_on="Client commande", right_on="Client", how="left")
 
     # =====================================================
     # 🔹 Groupement par Livraison/Client/Ville/Représentant
@@ -438,7 +457,7 @@ class DeliveryProcessor:
              "Zone 5": ["GAFSA", "KASSERINE", "TOZEUR", "NEFTA", "DOUZ"],
              "Zone 6": ["JENDOUBA", "BÉJA", "LE KEF", "TABARKA", "SILIANA"],
              "Zone 7": ["SFAX"]
-          }
+           }
 
         def get_zone(ville):
             ville = str(ville).upper().strip()
@@ -523,7 +542,7 @@ class DeliveryProcessor:
                     representants_list,
                     ";".join(e["bls"])
                 ])
-            
+                
             # === Créer un DataFrame résultat ===
         df_estafettes = pd.DataFrame(resultats, columns=["Zone", "Estafette N°", "Poids total chargé", "Volume total chargé", "Client(s) inclus", "Représentant(s) inclus", "BL inclus"])
         
