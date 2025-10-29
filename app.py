@@ -237,8 +237,3 @@ if st.session_state.data_processed:
             st.plotly_chart(px.bar(st.session_state.df_city, x="Ville", y="Besoin estafette réel",
                                    title="Besoin en Estafettes par ville"),
                             use_container_width=True)
-
-# L'interface utilisateur est maintenant prête à être lancée avec `streamlit run app.py`.
-
----
-Voici un tutoriel sur [comment créer une application Streamlit simple](https://www.youtube.com/watch?v=A37Qo5E8Mh8) si vous souhaitez une référence visuelle pour la mise en place de votre application.
