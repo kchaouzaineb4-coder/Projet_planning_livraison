@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-# Importation de toutes les entités nécessaires
 from backend import (
     DeliveryProcessor, 
     TruckRentalProcessor, 
@@ -8,7 +7,7 @@ from backend import (
     SEUIL_VOLUME
 )
 import plotly.express as px
-from io import BytesIO # Nécessaire pour l'export Excel
+from io import BytesIO
 
 # =====================================================
 # CONFIGURATION ET INITIALISATION
@@ -20,13 +19,17 @@ st.title("🚚 Planning et Optimisation de Livraisons")
 if 'data_processed' not in st.session_state:
     st.session_state.data_processed = False
     st.session_state.df_grouped = None
-    st.session_state.df_city = None
-    st.session_state.df_grouped_zone = None
-    st.session_state.df_zone = None 
-    st.session_state.rental_processor = None # Objet de traitement de location
-    st.session_state.propositions = None # Dataframe de propositions ouvertes
-    st.session_state.selected_client = "" # Client sélectionné par l'utilisateur
-    st.session_state.message = "Veuillez charger les fichiers pour commencer le traitement."
+    st.session_state.rental_processor = None
+    st.session_state.propositions = None
+    st.session_state.selected_client = ""
+    st.session_state.message = "Veuillez configurer les colonnes et charger les fichiers pour commencer le traitement."
+
+# Initialisation des noms de colonnes par défaut si non présents
+if 'col_client_id' not in st.session_state:
+    st.session_state.col_client_id = "Client"
+    st.session_state.col_poids = "Poids"
+    st.session_state.col_volume = "Volume"
+    st.session_state.col_zone = "Zone"
 
 # =====================================================
 # FONCTIONS DE CALLBACK
@@ -45,7 +48,7 @@ def update_propositions_view():
 
 def handle_location_action(accepter):
     """Gère l'acceptation ou le refus de la proposition de location."""
-    client_to_treat = st.session_state.get('client_select') # Utiliser la clé du selectbox
+    client_to_treat = st.session_state.get('client_select') 
     
     if st.session_state.rental_processor and client_to_treat:
         ok, msg, _ = st.session_state.rental_processor.appliquer_location(
@@ -57,8 +60,8 @@ def handle_location_action(accepter):
         st.session_state.message = "⚠️ Veuillez sélectionner un client à traiter."
     else:
         st.session_state.message = "⚠️ Le processeur de location n'est pas initialisé."
-    st.session_state['client_select'] = "" # Réinitialiser la sélection après traitement
-    st.rerun() # Rerun pour s'assurer que les dataframes sont mis à jour
+    st.session_state['client_select'] = "" 
+    st.rerun()
 
 def accept_location_callback():
     handle_location_action(True)
@@ -70,62 +73,107 @@ def refuse_location_callback():
 # SECTIONS DE L'INTERFACE UTILISATEUR
 # =====================================================
 
-def upload_section():
-    """Section de chargement des fichiers et d'exécution du traitement."""
-    with st.container():
-        st.subheader("Chargement des Données")
-        col_file_1, col_file_2, col_file_3, col_button = st.columns([1, 1, 1, 1])
+def column_config_section():
+    """Section pour la configuration des noms de colonnes."""
+    with st.expander("⚙️ Configuration des Noms de Colonnes (IMPORTANT)", expanded=not st.session_state.data_processed):
+        st.warning("Veuillez entrer les noms exacts des colonnes comme elles apparaissent dans vos fichiers Excel (sensible à la casse).")
+        col_c, col_p, col_v, col_z = st.columns(4)
         
-        with col_file_1:
-            liv_file = st.file_uploader("Fichier Livraisons (Client/Ville)", type=["xlsx"])
-        with col_file_2:
-            ydlogist_file = st.file_uploader("Fichier Poids/Volumes", type=["xlsx"])
-        with col_file_3:
-            wcliegps_file = st.file_uploader("Fichier Clients (Zone)", type=["xlsx"])
+        with col_c:
+            st.session_state.col_client_id = st.text_input(
+                "ID Client (dans tous les fichiers)", 
+                value=st.session_state.col_client_id,
+                key='input_client_id'
+            )
+        with col_p:
+            st.session_state.col_poids = st.text_input(
+                "Colonne Poids (dans Fichier Volumes)", 
+                value=st.session_state.col_poids,
+                key='input_poids'
+            )
+        with col_v:
+            st.session_state.col_volume = st.text_input(
+                "Colonne Volume (dans Fichier Volumes)", 
+                value=st.session_state.col_volume,
+                key='input_volume'
+            )
+        with col_z:
+            st.session_state.col_zone = st.text_input(
+                "Colonne Zone (dans Fichier Clients)", 
+                value=st.session_state.col_zone,
+                key='input_zone'
+            )
+        
+    return {
+        'client_id': st.session_state.col_client_id,
+        'poids': st.session_state.col_poids,
+        'volume': st.session_state.col_volume,
+        'zone': st.session_state.col_zone,
+    }
 
-        with col_button:
-            st.markdown("<br>", unsafe_allow_html=True) # Petit espace
-            if st.button("▶️ Exécuter le Traitement", type="primary", use_container_width=True):
-                if liv_file and ydlogist_file and wcliegps_file:
-                    processor = DeliveryProcessor()
-                    try:
-                        with st.spinner("Traitement des données en cours..."):
-                            df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes = processor.process_delivery_data(
-                                liv_file, ydlogist_file, wcliegps_file
-                            )
-                        
-                        # Stockage des résultats dans l'état de session
-                        st.session_state.df_optimized_estafettes = df_optimized_estafettes
-                        st.session_state.df_grouped = df_grouped
-                        st.session_state.df_city = df_city
-                        st.session_state.df_grouped_zone = df_grouped_zone
-                        st.session_state.df_zone = df_zone 
-                        
-                        # Initialisation du processeur de location
-                        st.session_state.rental_processor = TruckRentalProcessor(df_optimized_estafettes)
-                        update_propositions_view()
-                        
-                        st.session_state.data_processed = True
-                        st.session_state.message = "✅ Traitement terminé avec succès ! Consultez les propositions de location ci-dessous."
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Erreur lors du traitement : {str(e)}. Veuillez vérifier le format de vos fichiers.")
-                        st.session_state.data_processed = False
-                else:
-                    st.warning("Veuillez uploader tous les fichiers nécessaires.")
+def upload_section(col_map):
+    """Section de chargement des fichiers et d'exécution du traitement."""
+    
+    st.subheader("Chargement des Fichiers")
+    col_file_1, col_file_2, col_file_3, col_button = st.columns([1, 1, 1, 1])
+    
+    with col_file_1:
+        liv_file = st.file_uploader("1. Fichier Livraisons (Client/Ville)", type=["xlsx"])
+    with col_file_2:
+        ydlogist_file = st.file_uploader("2. Fichier Poids/Volumes", type=["xlsx"])
+    with col_file_3:
+        wcliegps_file = st.file_uploader("3. Fichier Clients (Zone)", type=["xlsx"])
+
+    with col_button:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("▶️ Exécuter le Traitement", type="primary", use_container_width=True):
+            if liv_file and ydlogist_file and wcliegps_file:
+                processor = DeliveryProcessor()
+                try:
+                    with st.spinner("Traitement des données en cours..."):
+                        # Passage des noms de colonnes configurés au processeur
+                        df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes = processor.process_delivery_data(
+                            liv_file, ydlogist_file, wcliegps_file, col_map
+                        )
+                    
+                    # Stockage des résultats dans l'état de session
+                    st.session_state.df_optimized_estafettes = df_optimized_estafettes
+                    st.session_state.df_grouped = df_grouped
+                    st.session_state.df_city = df_city
+                    st.session_state.df_grouped_zone = df_grouped_zone
+                    st.session_state.df_zone = df_zone 
+                    
+                    st.session_state.rental_processor = TruckRentalProcessor(df_optimized_estafettes)
+                    update_propositions_view()
+                    
+                    st.session_state.data_processed = True
+                    st.session_state.message = "✅ Traitement terminé avec succès ! Consultez les propositions de location ci-dessous."
+                    st.rerun()
+                except Exception as e:
+                    # Capture l'erreur spécifique si une colonne configurée est manquante
+                    st.error(f"❌ Erreur lors du traitement : {str(e)}. Veuillez vérifier si les noms de colonnes configurés correspondent aux noms réels dans les fichiers.")
+                    st.session_state.data_processed = False
+            else:
+                st.warning("Veuillez uploader tous les fichiers nécessaires.")
 
 def rental_section():
     """Section dédiée à la gestion des propositions de location de camion."""
     
-    if st.session_state.rental_processor is None:
-        return # Ne rien afficher si le processeur n'est pas prêt
-
     st.divider()
     st.header("🚚 Gestion des Propositions de Location")
-    st.info(st.session_state.message)
+    
+    # Affichage du message d'état
+    if st.session_state.message.startswith("✅"):
+        st.success(st.session_state.message)
+    elif st.session_state.message.startswith("❌"):
+        st.error(st.session_state.message)
+    elif st.session_state.message.startswith("⚠️"):
+        st.warning(st.session_state.message)
+    else:
+        st.info(st.session_state.message)
+
 
     df_optimized_estafettes = st.session_state.rental_processor.get_df_result()
-    
     propositions = st.session_state.propositions
 
     if propositions is not None and not propositions.empty:
@@ -141,15 +189,12 @@ def rental_section():
                          column_order=["Client", "Poids total chargé", "Volume total chargé", "Raison"],
                          hide_index=True)
             
-            # Sélection du client. Note: Utilise une clé 'client_select' pour la session state
             client_options = [""] + propositions['Client'].astype(str).tolist()
-            
-            # Mise à jour de la sélection pour persister la valeur si possible
             initial_index = 0
             if st.session_state.selected_client in client_options:
                  initial_index = client_options.index(st.session_state.selected_client)
 
-            st.session_state.selected_client = st.selectbox(
+            st.selectbox(
                 "Client à traiter :", 
                 options=client_options, 
                 index=initial_index,
@@ -157,7 +202,7 @@ def rental_section():
             )
 
             col_btn_acc, col_btn_ref = st.columns(2)
-            is_client_selected = bool(st.session_state.selected_client)
+            is_client_selected = bool(st.session_state.get('client_select'))
             
             with col_btn_acc:
                 st.button("✅ Accepter la location", 
@@ -177,14 +222,12 @@ def rental_section():
             if client_to_show:
                 resume, details_df_styled = st.session_state.rental_processor.get_details_client(client_to_show)
                 st.code(resume, language='')
-                # Affichage du DataFrame stylisé (le processeur retourne déjà un style.Styler)
                 st.dataframe(details_df_styled, use_container_width=True, hide_index=True)
             else:
                 st.info("Sélectionnez un client dans la liste pour afficher les détails.")
     else:
         st.success("🎉 Aucune proposition de location de camion détectée. Toutes les commandes sont conformes ou ont été traitées.")
         
-    # Affichage du tableau final optimisé
     st.subheader("Synthèse de l'Optimisation par Client")
     st.dataframe(df_optimized_estafettes.style.format({
         "Poids total chargé": "{:.2f} kg",
@@ -194,9 +237,7 @@ def rental_section():
         "Capacité Volume (m³)": "{:.1f}"
     }), use_container_width=True)
 
-    # Bouton de téléchargement
     path_optimized = "Voyages_Estafette_Optimises_Final.xlsx"
-    # Utilisation de BytesIO pour éviter les accès disques
     output = BytesIO()
     df_optimized_estafettes.to_excel(output, index=False)
     output.seek(0)
@@ -275,7 +316,8 @@ def analysis_section():
 # =====================================================
 # FLUX PRINCIPAL DE L'APPLICATION
 # =====================================================
-upload_section()
+column_mapping = column_config_section()
+upload_section(column_mapping)
 
 if st.session_state.data_processed:
     rental_section()
