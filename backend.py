@@ -562,3 +562,77 @@ class DeliveryProcessor:
         df_estafettes = df_estafettes.drop(columns=["Taux Poids (%)", "Taux Volume (%)"]) 
         
         return df_estafettes
+    # =====================================================
+    # 🆕 Transfert des BL d'une estafette à une autre dans la même zone
+    # =====================================================
+    def transfer_bl_between_estafettes(self, source_estafette_num, target_estafette_num, bl_list):
+        """
+        Transfert une ou plusieurs BLs d'une estafette source à une estafette cible
+        dans la même zone. Le poids et volume sont recalculés automatiquement.
+        
+        :param source_estafette_num: Numéro de l'estafette source (E1, E2...)
+        :param target_estafette_num: Numéro de l'estafette cible (E1, E2...)
+        :param bl_list: Liste de BLs à transférer (list ou string séparés par ;)
+        :return: (success: bool, message: str)
+        """
+        df = self.df_base.copy()
+        
+        # Normaliser la liste de BL
+        if isinstance(bl_list, str):
+            bl_list = [b.strip() for b in bl_list.split(';') if b.strip()]
+        
+        if source_estafette_num == target_estafette_num:
+            return False, "❌ L'estafette source et cible sont identiques."
+        
+        # Vérifier que les deux estafettes existent
+        mask_source = df["Camion N°"] == source_estafette_num
+        mask_target = df["Camion N°"] == target_estafette_num
+        
+        if not mask_source.any():
+            return False, f"❌ Estafette source {source_estafette_num} introuvable."
+        if not mask_target.any():
+            return False, f"❌ Estafette cible {target_estafette_num} introuvable."
+        
+        # Vérifier que les BLs existent dans l'estafette source
+        bl_source = df.loc[mask_source, "BL inclus"].str.split(';').explode().str.strip()
+        if not all(bl in bl_source.values for bl in bl_list):
+            return False, "❌ Certains BLs n'existent pas dans l'estafette source."
+        
+        # Transfert BLs
+        for bl in bl_list:
+            # Retirer le BL de l'estafette source
+            df.loc[mask_source, "BL inclus"] = df.loc[mask_source, "BL inclus"].apply(
+                lambda x: ";".join([b for b in x.split(';') if b.strip() != bl])
+            )
+            
+            # Ajouter le BL à l'estafette cible
+            df.loc[mask_target, "BL inclus"] = df.loc[mask_target, "BL inclus"].apply(
+                lambda x: ";".join(filter(None, list(x.split(';')) + [bl]))
+            )
+        
+        # Recalculer poids et volume pour les deux estafettes
+        for estafette_num in [source_estafette_num, target_estafette_num]:
+            mask = df["Camion N°"] == estafette_num
+            df.loc[mask, "Poids total chargé"] = df.loc[mask].apply(
+                lambda row: sum(
+                    df.loc[df["BL inclus"].str.contains(bl.strip(), na=False), "Poids total chargé"]
+                    for bl in row["BL inclus"].split(';') if bl.strip()
+                ), axis=1
+            )
+            df.loc[mask, "Volume total chargé"] = df.loc[mask].apply(
+                lambda row: sum(
+                    df.loc[df["BL inclus"].str.contains(bl.strip(), na=False), "Volume total chargé"]
+                    for bl in row["BL inclus"].split(';') if bl.strip()
+                ), axis=1
+            )
+            # Recalcul taux occupation
+            df.loc[mask, "Taux d'occupation (%)"] = df.loc[mask].apply(
+                lambda row: max(
+                    row["Poids total chargé"] / 1550 * 100,
+                    row["Volume total chargé"] / 4.608 * 100
+                ), axis=1
+            )
+        
+        # Mettre à jour le DataFrame
+        self.df_base = df
+        return True, f"✅ BLs transférés de {source_estafette_num} vers {target_estafette_num} avec succès."

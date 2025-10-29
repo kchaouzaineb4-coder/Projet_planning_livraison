@@ -266,3 +266,35 @@ if st.session_state.data_processed:
              file_name=path_optimized,
              mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+    # =====================================================
+# 5. TRANSFERT DES BL (Section 5 - Export BL)
+# =====================================================
+st.header("5. 📝 Transfert des BL pour les livraisons")
+
+if st.session_state.data_processed:
+    # On génère un fichier BL regroupé par Client/Ville et Estafette
+    df_bl = st.session_state.df_optimized_estafettes.copy()
+
+    # Ajouter une colonne spécifique si nécessaire pour CAMION-LOUE
+    df_bl["Code Véhicule"] = df_bl["Véhicule"].apply(lambda x: x if x != "CAMION-LOUE" else "CAMION-LOUE")
+
+    # Colonnes utiles pour le BL
+    bl_columns = ["Client", "Ville", "Adresse", "Produit", "Qté", "Poids", "Volume", "Estafette", "Code Véhicule"]
+    df_bl_final = df_bl[bl_columns]
+
+    # Affichage du BL final
+    st.dataframe(df_bl_final, use_container_width=True)
+
+    # Bouton de téléchargement
+    path_bl = "BL_Transferts.xlsx"
+    df_bl_final.to_excel(path_bl, index=False)
+    with open(path_bl, "rb") as f:
+        st.download_button(
+            label="💾 Télécharger BL Transférés",
+            data=f,
+            file_name=path_bl,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+else:
+    st.info("⚠️ Les données doivent être traitées pour générer les BL.")
+    
