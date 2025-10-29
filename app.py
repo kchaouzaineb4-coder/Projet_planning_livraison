@@ -15,14 +15,6 @@ from io import BytesIO
 st.set_page_config(page_title="Planning Livraisons", layout="wide")
 st.title("🚚 Planning et Optimisation de Livraisons")
 
-# Noms de colonnes codés en dur (selon la demande de l'utilisateur)
-HARDCODED_COL_MAP = {
-    'client_id': "Client",
-    'poids': "Poids",
-    'volume': "Volume",
-    'zone': "Zone",
-}
-
 # Initialisation de l'état de session
 if 'data_processed' not in st.session_state:
     st.session_state.data_processed = False
@@ -30,7 +22,14 @@ if 'data_processed' not in st.session_state:
     st.session_state.rental_processor = None
     st.session_state.propositions = None
     st.session_state.selected_client = ""
-    st.session_state.message = "Veuillez charger les fichiers pour commencer le traitement."
+    st.session_state.message = "Veuillez configurer les colonnes et charger les fichiers pour commencer le traitement."
+
+# Initialisation des noms de colonnes par défaut si non présents
+if 'col_client_id' not in st.session_state:
+    st.session_state.col_client_id = "Client"
+    st.session_state.col_poids = "Poids"
+    st.session_state.col_volume = "Volume"
+    st.session_state.col_zone = "Zone"
 
 # =====================================================
 # FONCTIONS DE CALLBACK
@@ -74,14 +73,48 @@ def refuse_location_callback():
 # SECTIONS DE L'INTERFACE UTILISATEUR
 # =====================================================
 
-# La fonction column_config_section() a été supprimée.
+def column_config_section():
+    """Section pour la configuration des noms de colonnes."""
+    with st.expander("⚙️ Configuration des Noms de Colonnes (IMPORTANT)", expanded=not st.session_state.data_processed):
+        st.warning("Veuillez entrer les noms exacts des colonnes comme elles apparaissent dans vos fichiers Excel (sensible à la casse).")
+        col_c, col_p, col_v, col_z = st.columns(4)
+        
+        with col_c:
+            st.session_state.col_client_id = st.text_input(
+                "ID Client (dans tous les fichiers)", 
+                value=st.session_state.col_client_id,
+                key='input_client_id'
+            )
+        with col_p:
+            st.session_state.col_poids = st.text_input(
+                "Colonne Poids (dans Fichier Volumes)", 
+                value=st.session_state.col_poids,
+                key='input_poids'
+            )
+        with col_v:
+            st.session_state.col_volume = st.text_input(
+                "Colonne Volume (dans Fichier Volumes)", 
+                value=st.session_state.col_volume,
+                key='input_volume'
+            )
+        with col_z:
+            st.session_state.col_zone = st.text_input(
+                "Colonne Zone (dans Fichier Clients)", 
+                value=st.session_state.col_zone,
+                key='input_zone'
+            )
+        
+    return {
+        'client_id': st.session_state.col_client_id,
+        'poids': st.session_state.col_poids,
+        'volume': st.session_state.col_volume,
+        'zone': st.session_state.col_zone,
+    }
 
 def upload_section(col_map):
     """Section de chargement des fichiers et d'exécution du traitement."""
     
     st.subheader("Chargement des Fichiers")
-    st.info(f"Configuration des noms de colonnes fixée : ID Client='{col_map['client_id']}', Poids='{col_map['poids']}', Volume='{col_map['volume']}', Zone='{col_map['zone']}'.")
-    
     col_file_1, col_file_2, col_file_3, col_button = st.columns([1, 1, 1, 1])
     
     with col_file_1:
@@ -103,22 +136,22 @@ def upload_section(col_map):
                             liv_file, ydlogist_file, wcliegps_file, col_map
                         )
                     
-                        # Stockage des résultats dans l'état de session
-                        st.session_state.df_optimized_estafettes = df_optimized_estafettes
-                        st.session_state.df_grouped = df_grouped
-                        st.session_state.df_city = df_city
-                        st.session_state.df_grouped_zone = df_grouped_zone
-                        st.session_state.df_zone = df_zone 
-                        
-                        st.session_state.rental_processor = TruckRentalProcessor(df_optimized_estafettes)
-                        update_propositions_view()
-                        
-                        st.session_state.data_processed = True
-                        st.session_state.message = "✅ Traitement terminé avec succès ! Consultez les propositions de location ci-dessous."
-                        st.rerun()
+                    # Stockage des résultats dans l'état de session
+                    st.session_state.df_optimized_estafettes = df_optimized_estafettes
+                    st.session_state.df_grouped = df_grouped
+                    st.session_state.df_city = df_city
+                    st.session_state.df_grouped_zone = df_grouped_zone
+                    st.session_state.df_zone = df_zone 
+                    
+                    st.session_state.rental_processor = TruckRentalProcessor(df_optimized_estafettes)
+                    update_propositions_view()
+                    
+                    st.session_state.data_processed = True
+                    st.session_state.message = "✅ Traitement terminé avec succès ! Consultez les propositions de location ci-dessous."
+                    st.rerun()
                 except Exception as e:
                     # Capture l'erreur spécifique si une colonne configurée est manquante
-                    st.error(f"❌ Erreur lors du traitement : {str(e)}. Veuillez vérifier que les fichiers contiennent bien les colonnes : Client, Poids, Volume, Zone.")
+                    st.error(f"❌ Erreur lors du traitement : {str(e)}. Veuillez vérifier si les noms de colonnes configurés correspondent aux noms réels dans les fichiers.")
                     st.session_state.data_processed = False
             else:
                 st.warning("Veuillez uploader tous les fichiers nécessaires.")
@@ -152,13 +185,13 @@ def rental_section():
             
             # Affichage des propositions ouvertes
             st.dataframe(propositions, 
-                        use_container_width=True,
-                        column_order=["Client", "Poids total chargé", "Volume total chargé", "Raison"],
-                        hide_index=True)
+                         use_container_width=True,
+                         column_order=["Client", "Poids total chargé", "Volume total chargé", "Raison"],
+                         hide_index=True)
             
             client_options = [""] + propositions['Client'].astype(str).tolist()
             initial_index = 0
-            if st.session_state.selected_client and st.session_state.selected_client in client_options:
+            if st.session_state.selected_client in client_options:
                  initial_index = client_options.index(st.session_state.selected_client)
 
             st.selectbox(
@@ -262,28 +295,29 @@ def analysis_section():
         col1, col2 = st.columns(2)
         with col1:
             st.plotly_chart(px.bar(df_city, x="Ville", y="Poids total (kg)",
-                                     title="Poids total livré par ville"),
-                               use_container_width=True)
+                                   title="Poids total livré par ville"),
+                            use_container_width=True)
         with col2:
             st.plotly_chart(px.bar(df_city, x="Ville", y="Volume total (m³)",
-                                     title="Volume total livré par ville (m³)"),
-                               use_container_width=True)
+                                   title="Volume total livré par ville (m³)"),
+                            use_container_width=True)
 
         col3, col4 = st.columns(2)
         with col3:
             st.plotly_chart(px.bar(df_city, x="Ville", y="Nombre livraisons",
-                                     title="Nombre de livraisons par ville"),
-                               use_container_width=True)
+                                   title="Nombre de livraisons par ville"),
+                            use_container_width=True)
         with col4:
             st.plotly_chart(px.bar(df_city, x="Ville", y="Besoin estafette réel",
-                                     title="Besoin en Estafettes par ville"),
-                               use_container_width=True)
+                                   title="Besoin en Estafettes par ville"),
+                            use_container_width=True)
 
 
 # =====================================================
 # FLUX PRINCIPAL DE L'APPLICATION
 # =====================================================
-upload_section(HARDCODED_COL_MAP)
+column_mapping = column_config_section()
+upload_section(column_mapping)
 
 if st.session_state.data_processed:
     rental_section()
