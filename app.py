@@ -5,7 +5,7 @@ import plotly.express as px
 
 # Configuration page
 st.set_page_config(page_title="Planning Livraisons", layout="wide")
-st.title("🚚 Planning de Livraisons - Streamlit")
+st.title("🚚 Planning de Livraisons")
 
 # =====================================================
 # INITIALISATION DE L'ÉTAT DE SESSION
@@ -103,7 +103,7 @@ with col_button:
 # Logique d'Affichage (Se déclenche si les données sont dans l'état de session)
 # =====================================================
 if st.session_state.data_processed:
-    st.subheader("Message d'opération")
+    
     if st.session_state.message.startswith("✅"):
         st.success(st.session_state.message)
     elif st.session_state.message.startswith("❌"):
