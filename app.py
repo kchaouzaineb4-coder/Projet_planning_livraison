@@ -1,147 +1,180 @@
-# --- app.py ---
-# Importation du framework Flask.
-# Si Flask n'est pas installé, vous devez l'installer : pip install Flask
-from flask import Flask, render_template_string
+import streamlit as st
+import pandas as pd
+from backend import DeliveryProcessor
+import plotly.express as px
 
-# Initialisation de l'application Flask
-app = Flask(__name__)
+# Configuration page
+st.set_page_config(page_title="Planning Livraisons", layout="wide")
+st.title("Planning de Livraisons - Streamlit")
 
-# Définition du contenu HTML pour l'interface de la page de location de camions.
-# Le style est intégré pour maintenir l'application dans un seul fichier Python.
-HTML_CONTENT = """
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Location de Camions</title>
-    <!-- Styles CSS pour une interface moderne et responsive -->
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f0f4f8;
-            color: #2c3e50;
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container {
-            background-color: #ffffff;
-            padding: 40px;
-            border-radius: 16px;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
-            max-width: 600px;
-            width: 100%;
-            border-top: 6px solid #e74c3c; /* Rouge pour un look dynamique/logistic */
-        }
-        h1 {
-            color: #e74c3c;
-            font-size: 2em;
-            margin-bottom: 10px;
-            border-bottom: 2px solid #f0f0f0;
-            padding-bottom: 15px;
-        }
-        p.subtitle {
-            font-size: 1em;
-            color: #7f8c8d;
-            margin-bottom: 30px;
-        }
-        .form-group {
-            margin-bottom: 20px;
-            text-align: left;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: bold;
-            color: #34495e;
-        }
-        input[type="text"], 
-        input[type="number"],
-        input[type="date"],
-        select {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #bdc3c7;
-            border-radius: 8px;
-            box-sizing: border-box;
-            transition: border-color 0.3s;
-        }
-        input[type="text"]:focus, 
-        input[type="number"]:focus,
-        input[type="date"]:focus,
-        select:focus {
-            border-color: #e74c3c;
-            outline: none;
-            box-shadow: 0 0 5px rgba(231, 76, 60, 0.3);
-        }
-        .submit-button {
-            width: 100%;
-            padding: 15px;
-            background-color: #e74c3c;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1.1em;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background-color 0.3s ease, transform 0.1s ease;
-        }
-        .submit-button:hover {
-            background-color: #c0392b;
-        }
-        .submit-button:active {
-            transform: scale(0.98);
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Formulaire de Location de Camions</h1>
-        <p class="subtitle">Sélectionnez le type de véhicule et la durée de la location.</p>
+# =====================================================
+# INITIALISATION DE L'ÉTAT DE SESSION
+# =====================================================
+if 'data_processed' not in st.session_state:
+    st.session_state.data_processed = False
+    st.session_state.df_grouped = None
+    st.session_state.df_city = None
+    st.session_state.df_grouped_zone = None
+    st.session_state.df_zone = None 
+    st.session_state.df_optimized_estafettes = None # Ajout pour les voyages optimisés
+
+# Upload fichiers
+liv_file = st.file_uploader("Fichier Livraisons", type=["xlsx"])
+ydlogist_file = st.file_uploader("Fichier Volumes", type=["xlsx"])
+wcliegps_file = st.file_uploader("Fichier Clients", type=["xlsx"])
+
+# =====================================================
+# Logique de Traitement (Se déclenche et stocke les résultats)
+# =====================================================
+if st.button("Exécuter le traitement complet"):
+    if liv_file and ydlogist_file and wcliegps_file:
+        processor = DeliveryProcessor()
+        try:
+            with st.spinner("Traitement des données en cours..."):
+                # Traitement complet (récupère les 5 DataFrames)
+                df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes = processor.process_delivery_data(
+                    liv_file, ydlogist_file, wcliegps_file
+                )
+            
+            # Stockage des résultats dans l'état de session
+            st.session_state.df_grouped = df_grouped
+            st.session_state.df_city = df_city
+            st.session_state.df_grouped_zone = df_grouped_zone
+            st.session_state.df_zone = df_zone 
+            st.session_state.df_optimized_estafettes = df_optimized_estafettes # Stockage du résultat optimisé
+            st.session_state.data_processed = True
+            st.success("Traitement terminé avec succès !")
+
+        except Exception as e:
+            st.error(f"❌ Erreur lors du traitement : {str(e)}")
+            st.session_state.data_processed = False
+    else:
+        st.warning("Veuillez uploader tous les fichiers nécessaires.")
+
+# =====================================================
+# Logique d'Affichage (Se déclenche si les données sont dans l'état de session)
+# =====================================================
+if st.session_state.data_processed:
+    df_grouped = st.session_state.df_grouped
+    df_city = st.session_state.df_city
+    df_grouped_zone = st.session_state.df_grouped_zone
+    df_zone = st.session_state.df_zone 
+    df_optimized_estafettes = st.session_state.df_optimized_estafettes # Récupération
+
+    # =====================================================
+    # Tableau 1 - Livraisons par Client & Ville (SANS ZONE)
+    # =====================================================
+    df_grouped_display = df_grouped.copy()
+    if "Zone" in df_grouped_display.columns:
+        df_grouped_display = df_grouped_display.drop(columns=["Zone"])
+
+    st.subheader("Livraisons par Client & Ville")
+    st.dataframe(df_grouped_display)
+
+    path_grouped = "Livraison_par_Client_Ville.xlsx"
+    df_grouped_display.to_excel(path_grouped, index=False) 
+
+    with open(path_grouped, "rb") as f:
+        st.download_button(
+            label="Télécharger Tableau Client & Ville",
+            data=f,
+            file_name=path_grouped,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    # =====================================================
+    # Tableau 2 - Besoin Estafette par Ville
+    # =====================================================
+    st.subheader("Besoin Estafette par Ville")
+    st.dataframe(df_city)
+
+    path_city = "Besoin_estafette_par_Ville.xlsx"
+    df_city.to_excel(path_city, index=False)
+    with open(path_city, "rb") as f:
+        st.download_button(
+            label="Télécharger Besoin Estafette par Ville",
+            data=f,
+            file_name=path_city,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    # =====================================================
+    # Graphiques Statistiques par Ville
+    # =====================================================
+    st.subheader("Statistiques par Ville")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.plotly_chart(px.bar(df_city, x="Ville", y="Poids total",
+                               title="Poids total livré par ville"),
+                        use_container_width=True)
+    with col2:
+        st.plotly_chart(px.bar(df_city, x="Ville", y="Volume total",
+                               title="Volume total livré par ville (m³)"),
+                        use_container_width=True)
+
+    col3, col4 = st.columns(2)
+    with col3:
+        st.plotly_chart(px.bar(df_city, x="Ville", y="Nombre livraisons",
+                               title="Nombre de livraisons par ville"),
+                        use_container_width=True)
+    with col4:
+        st.plotly_chart(px.bar(df_city, x="Ville", y="Besoin estafette réel",
+                               title="Besoin en Estafettes par ville"),
+                        use_container_width=True)
+
+    # =====================================================
+    # Tableau 3 - Client & Ville + Zone
+    # =====================================================
+    st.subheader("Livraisons par Client & Ville + Zone")
+    st.dataframe(df_grouped_zone)
+
+    path_zone = "Livraison_Client_Ville_Zone.xlsx"
+    df_grouped_zone.to_excel(path_zone, index=False)
+    with open(path_zone, "rb") as f:
+        st.download_button(
+            label="Télécharger Tableau Client & Ville + Zone",
+            data=f,
+            file_name=path_zone,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         
-        <form action="#" method="POST">
-            
-            <div class="form-group">
-                <label for="truckType">Type de Camion :</label>
-                <select id="truckType" name="truckType" required>
-                    <option value="" disabled selected>Choisir un type...</option>
-                    <option value="petit">Petit (2 tonnes)</option>
-                    <option value="moyen">Moyen (5 tonnes)</option>
-                    <option value="grand">Grand (10+ tonnes)</option>
-                    <option value="remorque">Semi-remorque</option>
-                </select>
-            </div>
+    # =====================================================
+    # Tableau 4 - Besoin Estafette par Zone
+    # =====================================================
+    st.subheader("Besoin Estafette par Zone")
+    st.dataframe(df_zone)
 
-            <div class="form-group">
-                <label for="startDate">Date de Début de Location :</label>
-                <input type="date" id="startDate" name="startDate" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="duration">Durée de Location (jours) :</label>
-                <input type="number" id="duration" name="duration" min="1" value="1" required>
-            </div>
+    path_zone_summary = "Besoin_estafette_par_Zone.xlsx"
+    df_zone.to_excel(path_zone_summary, index=False)
+    with open(path_zone_summary, "rb") as f:
+        st.download_button(
+            label="Télécharger Besoin Estafette par Zone",
+            data=f,
+            file_name=path_zone_summary,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
-            <button type="submit" class="submit-button">Soumettre la Demande</button>
-        </form>
-    </div>
-</body>
-</html>
-"""
+    # =====================================================
+    # Tableau 5 - Voyages par Estafette Optimisé
+    # =====================================================
+    st.subheader("Voyages par Estafette Optimisé")
+    
+    # Affichage du DataFrame avec formatage de la colonne 'Taux d\'occupation (%)'
+    st.dataframe(df_optimized_estafettes.style.format({
+        "Poids total chargé": "{:.2f} kg",
+        "Volume total chargé": "{:.3f} m³",
+        "Taux d'occupation (%)": "{:.2f}%"
+    }))
 
-# Définition de la route par défaut ('/')
-@app.route('/')
-def index():
-    # Retourne la chaîne HTML pour l'afficher dans le navigateur
-    return render_template_string(HTML_CONTENT)
 
-# Exécuter l'application
-if __name__ == '__main__':
-    # Lance le serveur local de développement.
-    # L'application sera accessible à l'adresse http://127.0.0.1:5000/
-    # (ou l'équivalent local)
-    app.run(debug=True)
+    path_optimized = "Voyages_Estafette_Optimises.xlsx"
+    # Note: On utilise le DataFrame non formaté en string pour l'export Excel
+    df_optimized_estafettes.to_excel(path_optimized, index=False)
+    with open(path_optimized, "rb") as f:
+        st.download_button(
+            label="Télécharger Voyages Estafette Optimisés",
+            data=f,
+            file_name=path_optimized,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
