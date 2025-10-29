@@ -1,7 +1,3 @@
-
-
-
-
 import pandas as pd
 import math
 import numpy as np # Import pour gérer les NaN plus efficacement
