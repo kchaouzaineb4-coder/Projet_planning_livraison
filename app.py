@@ -273,23 +273,31 @@ if st.session_state.data_processed:
 # =====================================================
 st.markdown("## 🔁 Transfert de BLs entre Estafettes")
 
-# Récupération du DataFrame
+# Récupération du DataFrame des livraisons par client/ville/zone
 df_client_ville_zone = st.session_state.df_grouped_zone.copy()
 
-# --- DEBUG : afficher les colonnes pour vérifier ---
+# --- DEBUG : afficher les colonnes ---
 st.write("Colonnes disponibles dans df_client_ville_zone :", df_client_ville_zone.columns.tolist())
 
-# Nettoyage des colonnes Zone et Estafette
+# Créer la colonne 'Estafette' à partir du tableau 'Voyages par Estafette Optimisé'
+df_voyages = st.session_state.df_optimized_estafettes.copy()
+
+# On crée un mapping BL -> Véhicule N°
+bl_to_estafette = {}
+for idx, row in df_voyages.iterrows():
+    bls = str(row.get("BL inclus", "")).split(",")  # On suppose que les BL sont séparés par des virgules
+    vehicule = str(row.get("Véhicule N°", "UNKNOWN")).strip()
+    for bl in bls:
+        bl_clean = bl.strip()
+        if bl_clean:
+            bl_to_estafette[bl_clean] = vehicule
+
+# Ajouter la colonne 'Estafette' dans df_client_ville_zone
+df_client_ville_zone["Estafette"] = df_client_ville_zone["No livraison"].map(lambda x: bl_to_estafette.get(str(x).strip(), "UNKNOWN"))
+
+# Nettoyage
 df_client_ville_zone["Zone"] = df_client_ville_zone["Zone"].astype(str).str.strip()
 df_client_ville_zone["Estafette"] = df_client_ville_zone["Estafette"].astype(str).str.strip()
-
-# Vérifier si la colonne 'Estafette' existe, sinon la créer à partir d'une autre colonne
-if "Estafette" not in df_client_ville_zone.columns or df_client_ville_zone["Estafette"].isna().all():
-    if "Code Véhicule" in df_client_ville_zone.columns:
-        df_client_ville_zone.rename(columns={"Code Véhicule": "Estafette"}, inplace=True)
-    else:
-        st.warning("⚠️ Aucune colonne 'Estafette' ou 'Code Véhicule' trouvée. La liste déroulante risque de ne pas fonctionner.")
-        df_client_ville_zone["Estafette"] = "UNKNOWN"
 
 # Sélection de la zone
 zones_dispo = df_client_ville_zone["Zone"].dropna().unique()
@@ -303,14 +311,18 @@ estafettes_dispo = sorted(
     df_client_ville_zone[df_client_ville_zone["Zone"] == zone_sel]["Estafette"].dropna().unique().tolist()
 )
 
+if not estafettes_dispo:
+    st.warning("⚠️ Aucune estafette disponible dans cette zone.")
+    estafettes_dispo = ["UNKNOWN"]
+
 # Sélection des estafettes source et cible
 source_estafette = st.selectbox("Estafette source", estafettes_dispo)
 cible_estafette = st.selectbox(
-    "Estafette cible", [e for e in estafettes_dispo if e != source_estafette]
+    "Estafette cible", [e for e in estafettes_dispo if e != source_estafette] or ["UNKNOWN"]
 )
 
 # Sélection des BLs à transférer
-bls_source = transfer_manager.get_bls_of_estafette(zone_sel, source_estafette)
+bls_source = transfer_manager.get_bls_of_estafette(zone_sel, source_estafette) if source_estafette != "UNKNOWN" else []
 bls_sel = st.multiselect("Sélectionner les BLs à transférer", bls_source)
 
 # Bouton pour tester le transfert
@@ -325,5 +337,3 @@ if st.button("Vérifier le transfert"):
         else:
             st.error("Transfert impossible ❌")
             st.json(info)
-
-
