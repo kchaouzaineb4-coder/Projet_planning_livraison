@@ -267,13 +267,26 @@ if st.session_state.data_processed:
              file_name=path_optimized,
              mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
+
     # =====================================================
-    # 5. TRANSFERT DES BLs ENTRE ESTAFETTES
+    # 5. TRANSFERT DES BLs ENTRE ESTAFETTES (Nouvelle section)
     # =====================================================
     st.markdown("## 🔁 Transfert de BLs entre Estafettes")
 
     # Récupération du DataFrame
     df_client_ville_zone = st.session_state.df_grouped_zone
+
+    # --- DEBUG : afficher les colonnes pour vérifier ---
+    st.write("Colonnes disponibles dans df_client_ville_zone :", df_client_ville_zone.columns.tolist())
+
+    # Vérifier si la colonne 'Estafette' existe, sinon la créer à partir d'une autre colonne
+    if "Estafette" not in df_client_ville_zone.columns:
+        if "Code Véhicule" in df_client_ville_zone.columns:
+            df_client_ville_zone.rename(columns={"Code Véhicule": "Estafette"}, inplace=True)
+        else:
+            st.warning("⚠️ Aucune colonne 'Estafette' ou 'Code Véhicule' trouvée dans df_client_ville_zone. La liste déroulante risque de ne pas fonctionner.")
+            df_client_ville_zone["Estafette"] = "UNKNOWN"
 
     # Sélection de la zone
     zones_dispo = df_client_ville_zone["Zone"].dropna().unique()
@@ -303,4 +316,3 @@ if st.session_state.data_processed:
             else:
                 st.error("Transfert impossible ❌")
                 st.json(info)
-
