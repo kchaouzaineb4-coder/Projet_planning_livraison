@@ -278,8 +278,8 @@ df_voyages = st.session_state.df_voyages  # "Voyages par Estafette Optimisé"
 df_client_ville_zone = st.session_state.df_grouped_zone  # Client / Ville / Zone
 
 # --- DEBUG : afficher les colonnes ---
-# st.write("Colonnes disponibles dans df_voyages :", df_voyages.columns.tolist())
-# st.write("Colonnes disponibles dans df_client_ville_zone :", df_client_ville_zone.columns.tolist())
+st.write("Colonnes disponibles dans df_voyages :", df_voyages.columns.tolist())
+st.write("Colonnes disponibles dans df_client_ville_zone :", df_client_ville_zone.columns.tolist())
 
 # Sélection des zones disponibles
 zones_dispo = df_voyages["Zone"].dropna().unique()
@@ -323,6 +323,7 @@ if st.button("Transférer les BLs"):
             # --- Mettre à jour df_voyages ---
             df_voyages.loc[df_voyages["Véhicule N°"] == source_estafette, "Poids total chargé"] -= poids_transfert
             df_voyages.loc[df_voyages["Véhicule N°"] == source_estafette, "Volume total chargé"] -= volume_transfert
+
             df_voyages.loc[df_voyages["Véhicule N°"] == cible_estafette, "Poids total chargé"] += poids_transfert
             df_voyages.loc[df_voyages["Véhicule N°"] == cible_estafette, "Volume total chargé"] += volume_transfert
 
@@ -354,24 +355,3 @@ if st.button("Transférer les BLs"):
             df_voyages.loc[df_voyages["Véhicule N°"] == cible_estafette, "BL inclus"] = ";".join(cible_bls_list)
 
             st.success(f"✅ Transfert des BLs vers l'estafette {cible_estafette} effectué avec succès !")
-
-            # --- Affichage comparatif avant/après pour l'estafette cible ---
-            if bls_sel:
-                # Données avant transfert
-                cible_row_before = cible_row.copy()
-                # Après mise à jour dans df_voyages (déjà fait dans le code précédent)
-                cible_row_after = df_voyages[df_voyages["Véhicule N°"] == cible_estafette]
-
-                st.markdown(f"### 📊 Comparatif Estafette {cible_estafette} avant / après transfert")
-                comparatif = pd.DataFrame({
-                    "Poids total chargé (kg)": [cible_row_before["Poids total chargé"].values[0], cible_row_after["Poids total chargé"].values[0]],
-                    "Volume total chargé (m3)": [cible_row_before["Volume total chargé"].values[0], cible_row_after["Volume total chargé"].values[0]],
-                    "Clients inclus": [cible_row_before["Client(s) inclus"].values[0], cible_row_after["Client(s) inclus"].values[0]],
-                    "Représentants inclus": [cible_row_before["Représentant(s) inclus"].values[0], cible_row_after["Représentant(s) inclus"].values[0]],
-                    "BL inclus": [cible_row_before["BL inclus"].values[0], cible_row_after["BL inclus"].values[0]],
-                }, index=["Avant transfert", "Après transfert"])
-                st.dataframe(comparatif)
-
-            # --- Affichage final de toutes les estafettes dans un tableau ---
-            st.markdown("### 📝 Tableau final des estafettes après transfert")
-            st.dataframe(df_voyages.reset_index(drop=True))
