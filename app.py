@@ -279,17 +279,15 @@ MAX_POIDS = 1550  # kg
 MAX_VOLUME = 4.608  # m³
 
 # --- Vérification : s'assurer que la section 3 a été exécutée ---
-if "df_voyages" not in st.session_state:
-    st.warning("⚠️ Vous devez d'abord exécuter la section 3 (résultat final après location).")
+if "df_voyages" not in st.session_state or "df_livraisons" not in st.session_state:
+    st.warning("⚠️ Vous devez d'abord exécuter la section 3 (résultat final après location) et avoir le tableau Livraisons par Client & Ville.")
 else:
-    # --- Récupération du DataFrame principal ---
+    # --- Récupération des DataFrames ---
     df_voyages = st.session_state.df_voyages.copy()
+    df_livraisons = st.session_state.df_livraisons.copy()  # Livraisons par Client & Ville
 
     # --- Colonnes requises ---
-    colonnes_requises = [
-        "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"
-    ]
-
+    colonnes_requises = ["Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]
     if not all(col in df_voyages.columns for col in colonnes_requises):
         st.error(f"❌ Le DataFrame ne contient pas toutes les colonnes nécessaires : {', '.join(colonnes_requises)}")
     else:
@@ -326,15 +324,10 @@ else:
                     if bls_selectionnes:
                         if st.button("🔁 Exécuter le transfert"):
 
-                            # --- Calcul du poids et volume des BLs sélectionnés ---
-                            def get_bls_data(df, bls):
-                                df_temp = df.copy()
-                                df_temp = df_temp[df_temp["BL inclus"].apply(lambda x: any(b in x.split(";") for b in bls))]
-                                poids_total = df_temp["Poids total chargé"].sum()
-                                volume_total = df_temp["Volume total chargé"].sum()
-                                return poids_total, volume_total
-
-                            poids_bls, volume_bls = get_bls_data(df_source, bls_selectionnes)
+                            # --- Récupération du poids et volume exact des BLs depuis df_livraisons ---
+                            df_bls_selection = df_livraisons[df_livraisons["No livraison"].isin(bls_selectionnes)]
+                            poids_bls = df_bls_selection["Poids total"].sum()
+                            volume_bls = df_bls_selection["Volume total"].sum()
 
                             # --- Vérification limites pour le véhicule cible ---
                             df_cible = df_zone[df_zone["Véhicule N°"] == cible]
@@ -348,21 +341,25 @@ else:
                                 def transfer_bl(row):
                                     bls = row["BL inclus"].split(";") if pd.notna(row["BL inclus"]) else []
                                     bls_to_move = [b for b in bls if b in bls_selectionnes]
+
                                     if row["Véhicule N°"] == source:
+                                        # Retirer les BLs transférés
                                         new_bls = [b for b in bls if b not in bls_to_move]
                                         row["BL inclus"] = ";".join(new_bls)
-                                        # Ajustement poids/volume
-                                        if new_bls:
-                                            row["Poids total chargé"] -= poids_bls
-                                            row["Volume total chargé"] -= volume_bls
-                                        else:
-                                            row["Poids total chargé"] = 0
-                                            row["Volume total chargé"] = 0
+                                        # Ajuster poids et volume
+                                        row["Poids total chargé"] -= poids_bls
+                                        row["Volume total chargé"] -= volume_bls
+                                        if row["Poids total chargé"] < 0: row["Poids total chargé"] = 0
+                                        if row["Volume total chargé"] < 0: row["Volume total chargé"] = 0
+
                                     elif row["Véhicule N°"] == cible:
+                                        # Ajouter les BLs transférés
                                         new_bls = bls + bls_to_move
                                         row["BL inclus"] = ";".join(new_bls)
+                                        # Ajuster poids et volume
                                         row["Poids total chargé"] += poids_bls
                                         row["Volume total chargé"] += volume_bls
+
                                     return row
 
                                 df_voyages = df_voyages.apply(transfer_bl, axis=1)
@@ -391,3 +388,4 @@ else:
                                 )
                     else:
                         st.info("ℹ️ Sélectionnez au moins un BL à transférer.")
+
