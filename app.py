@@ -330,12 +330,14 @@ else:
 
                     if bls_selectionnes:
                         if st.button("🔁 Exécuter le transfert"):
-                            
-                            # --- Calcul du poids et volume des BLs sélectionnés depuis le DataFrame df_livraisons ---
-                            df_bls_selection = df_livraisons[df_livraisons["No livraison"].isin(bls_selectionnes)]
+
+                            # --- BLs sélectionnés depuis le DataFrame des livraisons ---
+                            df_bls_selection = st.session_state.df_livraisons[
+                                st.session_state.df_livraisons["No livraison"].isin(bls_selectionnes)
+                            ]
+    
                             poids_bls = df_bls_selection["Poids total"].sum()
                             volume_bls = df_bls_selection["Volume total"].sum()
-
                             # --- Vérification limites pour le véhicule cible ---
                             df_cible = df_zone[df_zone["Véhicule N°"] == cible]
                             poids_cible = df_cible["Poids total chargé"].sum()
@@ -354,41 +356,42 @@ else:
                                         row["BL inclus"] = ";".join(new_bls)
                                         row["Poids total chargé"] -= poids_bls
                                         row["Volume total chargé"] -= volume_bls
-                                        if row["Poids total chargé"] < 0: row["Poids total chargé"] = 0
-                                        if row["Volume total chargé"] < 0: row["Volume total chargé"] = 0
-
+                                        row["Poids total chargé"] = max(0, row["Poids total chargé"])
+                                        row["Volume total chargé"] = max(0, row["Volume total chargé"])
                                     elif row["Véhicule N°"] == cible:
                                         new_bls = bls + bls_to_move
                                         row["BL inclus"] = ";".join(new_bls)
                                         row["Poids total chargé"] += poids_bls
                                         row["Volume total chargé"] += volume_bls
-
                                     return row
 
                                 df_voyages = df_voyages.apply(transfer_bl, axis=1)
                                 st.session_state.df_voyages = df_voyages
                                 st.success(f"✅ Transfert réussi : {len(bls_selectionnes)} BL(s) déplacé(s) de {source} vers {cible}.")
-                            
 
                                 # --- Affichage de tous les voyages mis à jour ---
-                            st.subheader("📊 Voyages après transfert (toutes les zones)")
-                            st.dataframe(df_voyages.sort_values(by=["Zone", "Véhicule N°"])[colonnes_requises], use_container_width=True)
+                                st.subheader("📊 Voyages après transfert (toutes les zones)")
+                                st.dataframe(df_voyages.sort_values(by=["Zone", "Véhicule N°"])[colonnes_requises],
+                                            use_container_width=True)
 
-                            # --- Téléchargement XLSX ---
-                            from io import BytesIO
-                            def to_excel(df):
-                                output = BytesIO()
-                                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                                    df.to_excel(writer, index=False, sheet_name='Transfert BLs')
-                                return output.getvalue()
+                                # --- Téléchargement XLSX ---
+                                from io import BytesIO
+                                def to_excel(df):
+                                    output = BytesIO()
+                                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                                        df.to_excel(writer, index=False, sheet_name='Transfert BLs')
+                                    return output.getvalue()
 
-                            excel_data = to_excel(df_voyages)
-                            st.download_button(
-                                label="💾 Télécharger le tableau mis à jour (XLSX)",
-                                data=excel_data,
-                                file_name="voyages_apres_transfert.xlsx",
-                                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                            )
+                                excel_data = to_excel(df_voyages)
+                                st.download_button(
+                                    label="💾 Télécharger le tableau mis à jour (XLSX)",
+                                    data=excel_data,
+                                    file_name="voyages_apres_transfert.xlsx",
+                                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                                )
+
+
+
                     else:
                         st.info("ℹ️ Sélectionnez au moins un BL à transférer.")
 
