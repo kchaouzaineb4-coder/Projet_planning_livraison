@@ -272,11 +272,18 @@ if st.session_state.data_processed:
 # ===================================================== 
 st.markdown("## 🔁 Transfert de BLs entre Estafettes")
 
-# 🧭 Récupération du DataFrame final après location (Section 4)
-if "df_rental_final" not in st.session_state:
-    st.warning("⚠️ Vous devez d'abord exécuter la section 4 (résultat final après location).")
-else:
+# ✅ Recherche automatique du DataFrame final (résultat Section 3 / 4)
+df_voyages = None
+if "df_rental_final" in st.session_state:
     df_voyages = st.session_state.df_rental_final.copy()
+elif "df_voyages" in st.session_state:
+    df_voyages = st.session_state.df_voyages.copy()
+elif "df_optimized_estafettes" in st.session_state:
+    df_voyages = st.session_state.df_optimized_estafettes.copy()
+
+if df_voyages is None:
+    st.warning("⚠️ Impossible de trouver le tableau final. Veuillez exécuter la section 3 (Location / Résultat final).")
+else:
     df_client_ville_zone = st.session_state.df_grouped_zone.copy()  # Détails BLs
 
     # --- Sélection de la zone
@@ -313,21 +320,20 @@ else:
                 if selected_bls:
                     # --- Détails des BLs sélectionnés
                     df_selected_bls = df_client_ville_zone[df_client_ville_zone["BL"].isin(selected_bls)]
-
                     poids_transfert = df_selected_bls["Poids (kg)"].sum()
                     volume_transfert = df_selected_bls["Volume (m3)"].sum()
 
-                    # --- Récupérer capacité actuelle de la cible
+                    # --- Capacité actuelle de la cible
                     poids_cible = df_zone.loc[df_zone["Estafette N°"] == cible_estafette, "Poids total (kg)"].values[0]
                     volume_cible = df_zone.loc[df_zone["Estafette N°"] == cible_estafette, "Volume total (m3)"].values[0]
 
-                    # --- Seuils max (mêmes que pour location)
+                    # --- Seuils max (identiques à la location)
                     SEUIL_POIDS = 3000.0
                     SEUIL_VOLUME = 9.216
 
                     # --- Vérification des capacités
                     if poids_cible + poids_transfert > SEUIL_POIDS or volume_cible + volume_transfert > SEUIL_VOLUME:
-                        st.error(f"🚫 Dépassement de capacité ! (Poids ou volume)")
+                        st.error("🚫 Dépassement de capacité ! (Poids ou volume)")
                         st.info(f"Capacité actuelle : {poids_cible:.0f} kg / {volume_cible:.2f} m³")
                         st.info(f"Transfert : +{poids_transfert:.0f} kg / +{volume_transfert:.2f} m³")
                     else:
@@ -335,7 +341,9 @@ else:
                         colA, colB = st.columns(2)
                         with colA:
                             st.markdown("### 📊 Avant transfert")
-                            st.dataframe(df_zone[["Estafette N°", "Poids total (kg)", "Volume total (m3)", "BL inclus"]])
+                            st.dataframe(df_zone[
+                                ["Estafette N°", "Poids total (kg)", "Volume total (m3)", "BL inclus"]
+                            ])
 
                         # --- Mise à jour des BLs
                         df_voyages.loc[df_voyages["Estafette N°"] == source_estafette, "BL inclus"] = df_voyages.loc[
@@ -344,7 +352,9 @@ else:
 
                         df_voyages.loc[df_voyages["Estafette N°"] == cible_estafette, "BL inclus"] = df_voyages.loc[
                             df_voyages["Estafette N°"] == cible_estafette, "BL inclus"
-                        ].apply(lambda x: ";".join(list(set([b.strip() for b in (str(x) + ";" + ";".join(selected_bls)).split(";") if b.strip()]))))
+                        ].apply(lambda x: ";".join(
+                            list(set([b.strip() for b in (str(x) + ";" + ";".join(selected_bls)).split(";") if b.strip()]))
+                        ))
 
                         # --- Recalcul des poids / volumes
                         def recalculer_poids_volume(bl_str):
@@ -359,13 +369,18 @@ else:
                         ).apply(pd.Series)
 
                         # --- Taux d’occupation
-                        df_voyages["Taux_occupation_poids_%"] = (df_voyages["Poids total (kg)"] / SEUIL_POIDS * 100).round(1)
-                        df_voyages["Taux_occupation_vol_%"] = (df_voyages["Volume total (m3)"] / SEUIL_VOLUME * 100).round(1)
+                        df_voyages["Taux_occupation_poids_%"] = (
+                            df_voyages["Poids total (kg)"] / SEUIL_POIDS * 100
+                        ).round(1)
+                        df_voyages["Taux_occupation_vol_%"] = (
+                            df_voyages["Volume total (m3)"] / SEUIL_VOLUME * 100
+                        ).round(1)
 
                         with colB:
                             st.markdown("### ✅ Après transfert")
                             st.dataframe(df_voyages[df_voyages["Zone"] == zone_sel][
-                                ["Estafette N°", "Poids total (kg)", "Volume total (m3)", "Taux_occupation_poids_%", "Taux_occupation_vol_%", "BL inclus"]
+                                ["Estafette N°", "Poids total (kg)", "Volume total (m3)",
+                                 "Taux_occupation_poids_%", "Taux_occupation_vol_%", "BL inclus"]
                             ])
 
                         # --- Sauvegarde mise à jour
