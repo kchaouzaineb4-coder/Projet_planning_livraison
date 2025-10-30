@@ -368,6 +368,9 @@ else:
                                 df_voyages = df_voyages.apply(transfer_bl, axis=1)
                                 st.session_state.df_voyages = df_voyages
                                 st.success(f"✅ Transfert réussi : {len(bls_selectionnes)} BL(s) déplacé(s) de {source} vers {cible}.")
+                                # --- Affichage du tableau mis à jour avant téléchargement ---
+                                st.subheader("📊 Voyages après transfert")
+                                st.dataframe(df_voyages[df_voyages["Zone"] == zone_selectionnee][colonnes_requises], use_container_width=True)
 
                                 # --- Affichage tableau mis à jour ---
                                 st.subheader("📊 Résumé après transfert")
