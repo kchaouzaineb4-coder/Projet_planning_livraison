@@ -269,50 +269,58 @@ if st.session_state.data_processed:
         )
 
 
-    # =====================================================
-    # 5. TRANSFERT DES BLs ENTRE ESTAFETTES (Nouvelle section)
-    # =====================================================
-    st.markdown("## 🔁 Transfert de BLs entre Estafettes")
+ # =====================================================
+# 5. TRANSFERT DES BLs ENTRE ESTAFETTES (Nouvelle section)
+# =====================================================
+st.markdown("## 🔁 Transfert de BLs entre Estafettes")
 
-    # Récupération du DataFrame
-    df_client_ville_zone = st.session_state.df_grouped_zone
+# Récupération du DataFrame
+df_client_ville_zone = st.session_state.df_grouped_zone.copy()
 
-    # --- DEBUG : afficher les colonnes pour vérifier ---
-    st.write("Colonnes disponibles dans df_client_ville_zone :", df_client_ville_zone.columns.tolist())
+# --- DEBUG : afficher les colonnes pour vérifier ---
+st.write("Colonnes disponibles dans df_client_ville_zone :", df_client_ville_zone.columns.tolist())
 
-    # Vérifier si la colonne 'Estafette' existe, sinon la créer à partir d'une autre colonne
-    if "Estafette" not in df_client_ville_zone.columns:
-        if "Code Véhicule" in df_client_ville_zone.columns:
-            df_client_ville_zone.rename(columns={"Code Véhicule": "Estafette"}, inplace=True)
+# Vérifier et créer la colonne 'Estafette' si nécessaire
+if "Estafette" not in df_client_ville_zone.columns:
+    if "Code Véhicule" in df_client_ville_zone.columns:
+        df_client_ville_zone.rename(columns={"Code Véhicule": "Estafette"}, inplace=True)
+    else:
+        st.warning("⚠️ Aucune colonne 'Estafette' ou 'Code Véhicule' trouvée. La liste déroulante risque de ne pas fonctionner.")
+        df_client_ville_zone["Estafette"] = "UNKNOWN"
+
+# Vérifier et créer la colonne 'BL' si nécessaire
+if "BL" not in df_client_ville_zone.columns:
+    if "No livraison" in df_client_ville_zone.columns:
+        df_client_ville_zone["BL"] = df_client_ville_zone["No livraison"]
+    else:
+        st.error("⚠️ Impossible de trouver la colonne BL / No livraison. Le transfert ne pourra pas fonctionner.")
+
+# Sélection de la zone
+zones_dispo = df_client_ville_zone["Zone"].dropna().unique()
+zone_sel = st.selectbox("Sélectionner la zone", zones_dispo)
+
+# Instanciation du gestionnaire
+transfer_manager = TruckTransferManager(df_client_ville_zone)
+
+# Sélection des estafettes source et cible
+estafettes_dispo = transfer_manager.get_estafettes_in_zone(zone_sel)
+source_estafette = st.selectbox("Estafette source", estafettes_dispo)
+cible_estafette = st.selectbox("Estafette cible", [e for e in estafettes_dispo if e != source_estafette])
+
+# Sélection des BLs à transférer
+bls_source = transfer_manager.get_bls_of_estafette(zone_sel, source_estafette)
+bls_sel = st.multiselect("Sélectionner les BLs à transférer", bls_source)
+
+# Bouton pour tester le transfert
+if st.button("Vérifier le transfert"):
+    if not bls_sel:
+        st.warning("Sélectionnez au moins un BL à transférer")
+    else:
+        valide, info = transfer_manager.check_transfer(zone_sel, source_estafette, cible_estafette, bls_sel)
+        if valide:
+            st.success("Transfert possible ✅")
+            st.json(info)
         else:
-            st.warning("⚠️ Aucune colonne 'Estafette' ou 'Code Véhicule' trouvée dans df_client_ville_zone. La liste déroulante risque de ne pas fonctionner.")
-            df_client_ville_zone["Estafette"] = "UNKNOWN"
+            st.error("Transfert impossible ❌")
+            st.json(info)
 
-    # Sélection de la zone
-    zones_dispo = df_client_ville_zone["Zone"].dropna().unique()
-    zone_sel = st.selectbox("Sélectionner la zone", zones_dispo)
-
-    # Instanciation du gestionnaire
-    transfer_manager = TruckTransferManager(df_client_ville_zone)
-
-    # Sélection des estafettes source et cible
-    estafettes_dispo = transfer_manager.get_estafettes_in_zone(zone_sel)
-    source_estafette = st.selectbox("Estafette source", estafettes_dispo)
-    cible_estafette = st.selectbox("Estafette cible", [e for e in estafettes_dispo if e != source_estafette])
-
-    # Sélection des BLs à transférer
-    bls_source = transfer_manager.get_bls_of_estafette(zone_sel, source_estafette)
-    bls_sel = st.multiselect("Sélectionner les BLs à transférer", bls_source)
-
-    # Bouton pour tester le transfert
-    if st.button("Vérifier le transfert"):
-        if not bls_sel:
-            st.warning("Sélectionnez au moins un BL à transférer")
-        else:
-            valide, info = transfer_manager.check_transfer(zone_sel, source_estafette, cible_estafette, bls_sel)
-            if valide:
-                st.success("Transfert possible ✅")
-                st.json(info)
-            else:
-                st.error("Transfert impossible ❌")
-                st.json(info)
