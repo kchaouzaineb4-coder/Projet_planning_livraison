@@ -273,25 +273,28 @@ if st.session_state.data_processed:
 # =====================================================
 st.markdown("## 🔁 Transfert de BLs entre Estafettes")
 
+# Récupération des DataFrames
 df_voyages = st.session_state.df_optimized_estafettes
 df_client_ville_zone = st.session_state.df_grouped_zone
 
-# --- DEBUG : afficher les colonnes pour vérifier ---
+# --- DEBUG : afficher les colonnes ---
 st.write("Colonnes disponibles dans df_voyages :", df_voyages.columns.tolist())
 st.write("Colonnes disponibles dans df_client_ville_zone :", df_client_ville_zone.columns.tolist())
 
-# Sélection de la zone
+# --- Sélection de la zone ---
 zones_dispo = df_voyages["Zone"].dropna().unique()
 zone_sel = st.selectbox("Sélectionner la zone", zones_dispo)
 
-# Estafettes disponibles dans la zone
+# --- Estafettes disponibles dans la zone ---
 estafettes_dispo = df_voyages[df_voyages["Zone"] == zone_sel]["Estafette N°"].dropna().astype(str).str.strip().unique().tolist()
+
 source_estafette = st.selectbox("Estafette source", estafettes_dispo)
 cible_estafette = st.selectbox("Estafette cible", [e for e in estafettes_dispo if e != source_estafette])
 
-# --- DYNAMIQUE : BLs disponibles selon l'estafette source ---
+# --- BLs disponibles pour l'estafette source ---
 bls_list = []
-df_source = df_voyages[(df_voyages["Zone"] == zone_sel) & (df_voyages["Estafette N°"] == source_estafette)]
+df_source = df_voyages[(df_voyages["Zone"] == zone_sel) & 
+                       (df_voyages["Estafette N°"].astype(str).str.strip() == str(source_estafette).strip())]
 
 if not df_source.empty and pd.notna(df_source.iloc[0]["BL inclus"]):
     bls_list = [b.strip() for b in str(df_source.iloc[0]["BL inclus"]).split(";") if b.strip()]
@@ -300,55 +303,44 @@ bls_sel = st.multiselect("Sélectionner les BLs à transférer", bls_list)
 
 # --- Bouton pour effectuer le transfert ---
 if st.button("Transférer les BLs sélectionnés"):
-
     if not bls_sel:
         st.warning("⚠️ Sélectionnez au moins un BL à transférer.")
     else:
-        # Copier df_voyages pour modification
-        df_voyages_mod = df_voyages.copy()
+        # Mise à jour des informations dans df_voyages
+        # Récupération des BLs à transférer dans df_client_ville_zone pour poids, volume, client, représentant
+        df_transfer = df_client_ville_zone[df_client_ville_zone["No livraison"].isin(bls_sel)]
 
-        # 1️⃣ Mettre à jour BL inclus pour source et cible
-        for idx, row in df_voyages_mod.iterrows():
-            if row["Zone"] == zone_sel:
-                veh = str(row["Estafette N°"]).strip()
-                # Retirer BLs de l'estafette source
-                if veh == source_estafette and pd.notna(row["BL inclus"]):
-                    bls_row = [b.strip() for b in str(row["BL inclus"]).split(";") if b.strip()]
-                    bls_row = [b for b in bls_row if b not in bls_sel]
-                    df_voyages_mod.at[idx, "BL inclus"] = ";".join(bls_row) if bls_row else None
+        # Poids et volume total transférés
+        poids_transfer = df_transfer["Poids total"].sum()
+        volume_transfer = df_transfer["Volume total"].sum()
 
-                # Ajouter BLs à l'estafette cible
-                if veh == cible_estafette:
-                    if pd.notna(row["BL inclus"]):
-                        bls_row = [b.strip() for b in str(row["BL inclus"]).split(";") if b.strip()]
-                        bls_row.extend(bls_sel)
-                        df_voyages_mod.at[idx, "BL inclus"] = ";".join(sorted(set(bls_row)))
-                    else:
-                        df_voyages_mod.at[idx, "BL inclus"] = ";".join(bls_sel)
+        # Clients et représentants concernés
+        clients_transfer = df_transfer["Client de l'estafette"].unique().tolist()
+        representants_transfer = df_transfer["Représentant"].unique().tolist()
 
-        # 2️⃣ Recalculer Poids total, Volume total, Client(s) inclus, Représentant(s) inclus
-        for veh in [source_estafette, cible_estafette]:
-            df_veh = df_voyages_mod[(df_voyages_mod["Zone"] == zone_sel) & (df_voyages_mod["Estafette N°"] == veh)]
-            bls_veh = []
-            if not df_veh.empty and pd.notna(df_veh.iloc[0]["BL inclus"]):
-                bls_veh = [b.strip() for b in str(df_veh.iloc[0]["BL inclus"]).split(";") if b.strip()]
+        # --- Mettre à jour df_voyages : retirer les BLs de l'estafette source ---
+        df_voyages.loc[df_voyages["Estafette N°"].astype(str).str.strip() == str(source_estafette).strip(), "BL inclus"] = \
+            df_voyages.loc[df_voyages["Estafette N°"].astype(str).str.strip() == str(source_estafette).strip(), "BL inclus"].apply(
+                lambda x: ";".join([b for b in str(x).split(";") if b not in bls_sel])
+            )
 
-            # Filtrer df_client_ville_zone pour ces BLs
-            df_bls_detail = df_client_ville_zone[df_client_ville_zone["No livraison"].isin(bls_veh)]
+        # --- Ajouter les BLs à l'estafette cible ---
+        df_voyages.loc[df_voyages["Estafette N°"].astype(str).str.strip() == str(cible_estafette).strip(), "BL inclus"] = \
+            df_voyages.loc[df_voyages["Estafette N°"].astype(str).str.strip() == str(cible_estafette).strip(), "BL inclus"].apply(
+                lambda x: ";".join([b for b in (str(x).split(";") + bls_sel) if b])
+            )
 
-            # Mise à jour des totaux et listes
-            df_voyages_mod.loc[(df_voyages_mod["Zone"] == zone_sel) & 
-                               (df_voyages_mod["Estafette N°"] == veh), "Poids total chargé"] = df_bls_detail["Poids total"].sum()
-            df_voyages_mod.loc[(df_voyages_mod["Zone"] == zone_sel) & 
-                               (df_voyages_mod["Estafette N°"] == veh), "Volume total chargé"] = df_bls_detail["Volume total"].sum()
-            df_voyages_mod.loc[(df_voyages_mod["Zone"] == zone_sel) & 
-                               (df_voyages_mod["Estafette N°"] == veh), "Client(s) inclus"] = ";".join(sorted(df_bls_detail["Client de l'estafette"].dropna().astype(str).unique()))
-            df_voyages_mod.loc[(df_voyages_mod["Zone"] == zone_sel) & 
-                               (df_voyages_mod["Estafette N°"] == veh), "Représentant(s) inclus"] = ";".join(sorted(df_bls_detail["Représentant"].dropna().astype(str).unique()))
+        # --- Mettre à jour poids et volume ---
+        df_voyages.loc[df_voyages["Estafette N°"].astype(str).str.strip() == str(source_estafette).strip(), "Poids total chargé"] -= poids_transfer
+        df_voyages.loc[df_voyages["Estafette N°"].astype(str).str.strip() == str(source_estafette).strip(), "Volume total chargé"] -= volume_transfer
+        df_voyages.loc[df_voyages["Estafette N°"].astype(str).str.strip() == str(cible_estafette).strip(), "Poids total chargé"] += poids_transfer
+        df_voyages.loc[df_voyages["Estafette N°"].astype(str).str.strip() == str(cible_estafette).strip(), "Volume total chargé"] += volume_transfer
 
-        # Mettre à jour l'état de session
-        st.session_state.df_optimized_estafettes = df_voyages_mod
-        st.success(f"✅ Transfert de {len(bls_sel)} BL(s) de {source_estafette} vers {cible_estafette} effectué avec succès !")
+        # --- Mettre à jour clients et représentants ---
+        df_voyages.loc[df_voyages["Estafette N°"].astype(str).str.strip() == str(cible_estafette).strip(), "Client(s) inclus"] = \
+            ";".join(list(set(str(df_voyages.loc[df_voyages["Estafette N°"].astype(str).str.strip() == str(cible_estafette).strip(), "Client(s) inclus"].iloc[0]).split(";") + clients_transfer)))
+        df_voyages.loc[df_voyages["Estafette N°"].astype(str).str.strip() == str(cible_estafette).strip(), "Représentant(s) inclus"] = \
+            ";".join(list(set(str(df_voyages.loc[df_voyages["Estafette N°"].astype(str).str.strip() == str(cible_estafette).strip(), "Représentant(s) inclus"].iloc[0]).split(";") + representants_transfer)))
 
-        # Rafraîchir l'interface
-        st.experimental_rerun()
+        st.success(f"✅ Transfert des BLs vers l'estafette {cible_estafette} effectué avec succès !")
+        st.experimental_rerun()  # Pour mettre à jour les listes et les données affichées
