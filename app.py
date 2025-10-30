@@ -286,12 +286,12 @@ zones_dispo = df_voyages["Zone"].dropna().unique()
 zone_sel = st.selectbox("Sélectionner la zone", zones_dispo)
 
 # Estafettes disponibles dans la zone
-estafettes_dispo = df_voyages[df_voyages["Zone"] == zone_sel]["Véhicule N°"].dropna().astype(str).str.strip().unique().tolist()
+estafettes_dispo = df_voyages[df_voyages["Zone"] == zone_sel]["Estafette N°"].dropna().astype(str).str.strip().unique().tolist()
 source_estafette = st.selectbox("Estafette source", estafettes_dispo)
 cible_estafette = st.selectbox("Estafette cible", [e for e in estafettes_dispo if e != source_estafette])
 
 # Liste des BLs de l'estafette source
-source_bls_str = df_voyages.loc[df_voyages["Véhicule N°"] == source_estafette, "BL inclus"].values[0]
+source_bls_str = df_voyages.loc[df_voyages["Estafette N°"] == source_estafette, "BL inclus"].values[0]
 source_bls = source_bls_str.split(";") if pd.notna(source_bls_str) else []
 bls_sel = st.multiselect("Sélectionner les BLs à transférer", source_bls)
 
@@ -310,8 +310,8 @@ if st.button("Transférer les BLs"):
         volume_transfert = df_bls["Volume total"].sum()
 
         # Récupérer les lignes source et cible
-        source_row = df_voyages[df_voyages["Véhicule N°"] == source_estafette]
-        cible_row = df_voyages[df_voyages["Véhicule N°"] == cible_estafette]
+        source_row = df_voyages[df_voyages["Estafette N°"] == source_estafette]
+        cible_row = df_voyages[df_voyages["Estafette N°"] == cible_estafette]
 
         poids_cible = cible_row["Poids total chargé"].values[0] + poids_transfert
         volume_cible = cible_row["Volume total chargé"].values[0] + volume_transfert
@@ -321,11 +321,11 @@ if st.button("Transférer les BLs"):
             st.error("❌ Transfert impossible : capacité max de l'estafette cible dépassée !")
         else:
             # --- Mettre à jour df_voyages ---
-            df_voyages.loc[df_voyages["Véhicule N°"] == source_estafette, "Poids total chargé"] -= poids_transfert
-            df_voyages.loc[df_voyages["Véhicule N°"] == source_estafette, "Volume total chargé"] -= volume_transfert
+            df_voyages.loc[df_voyages["Estafette N°"] == source_estafette, "Poids total chargé"] -= poids_transfert
+            df_voyages.loc[df_voyages["Estafette N°"] == source_estafette, "Volume total chargé"] -= volume_transfert
 
-            df_voyages.loc[df_voyages["Véhicule N°"] == cible_estafette, "Poids total chargé"] += poids_transfert
-            df_voyages.loc[df_voyages["Véhicule N°"] == cible_estafette, "Volume total chargé"] += volume_transfert
+            df_voyages.loc[df_voyages["Estafette N°"] == cible_estafette, "Poids total chargé"] += poids_transfert
+            df_voyages.loc[df_voyages["Estafette N°"] == cible_estafette, "Volume total chargé"] += volume_transfert
 
             # --- Mettre à jour clients et représentants ---
             clients_transfert = df_bls["Client de l'estafette"].unique().tolist()
@@ -335,24 +335,24 @@ if st.button("Transférer les BLs"):
             cible_clients = cible_row["Client(s) inclus"].values[0]
             cible_clients_list = cible_clients.split(";") if pd.notna(cible_clients) else []
             cible_clients_list = list(set(cible_clients_list + clients_transfert))
-            df_voyages.loc[df_voyages["Véhicule N°"] == cible_estafette, "Client(s) inclus"] = ";".join(cible_clients_list)
+            df_voyages.loc[df_voyages["Estafette N°"] == cible_estafette, "Client(s) inclus"] = ";".join(cible_clients_list)
 
             # Représentants
             cible_reps = cible_row["Représentant(s) inclus"].values[0]
             cible_reps_list = cible_reps.split(";") if pd.notna(cible_reps) else []
             cible_reps_list = list(set(cible_reps_list + representants_transfert))
-            df_voyages.loc[df_voyages["Véhicule N°"] == cible_estafette, "Représentant(s) inclus"] = ";".join(cible_reps_list)
+            df_voyages.loc[df_voyages["Estafette N°"] == cible_estafette, "Représentant(s) inclus"] = ";".join(cible_reps_list)
 
             # --- Mettre à jour BLs ---
             # Supprimer BLs transférés de la source
             source_bls_list = source_row["BL inclus"].values[0].split(";")
             source_bls_list = [bl for bl in source_bls_list if bl not in bls_sel]
-            df_voyages.loc[df_voyages["Véhicule N°"] == source_estafette, "BL inclus"] = ";".join(source_bls_list)
+            df_voyages.loc[df_voyages["Estafette N°"] == source_estafette, "BL inclus"] = ";".join(source_bls_list)
 
             # Ajouter BLs à la cible
             cible_bls_list = cible_row["BL inclus"].values[0].split(";") if pd.notna(cible_row["BL inclus"].values[0]) else []
             cible_bls_list += bls_sel
-            df_voyages.loc[df_voyages["Véhicule N°"] == cible_estafette, "BL inclus"] = ";".join(cible_bls_list)
+            df_voyages.loc[df_voyages["Estafette N°"] == cible_estafette, "BL inclus"] = ";".join(cible_bls_list)
 
             st.success(f"✅ Transfert des BLs vers l'estafette {cible_estafette} effectué avec succès !")
 # --- Affichage comparatif avant/après pour l'estafette cible ---
@@ -361,7 +361,7 @@ if bls_sel:
     cible_row_before = cible_row.copy()
     
     # Après mise à jour dans df_voyages (déjà fait dans le code précédent)
-    cible_row_after = df_voyages[df_voyages["Véhicule N°"] == cible_estafette]
+    cible_row_after = df_voyages[df_voyages["Estafette N°"] == cible_estafette]
 
     st.markdown(f"### 📊 Comparatif Estafette {cible_estafette} avant / après transfert")
     comparatif = pd.DataFrame({
