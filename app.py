@@ -273,67 +273,62 @@ if st.session_state.data_processed:
 # =====================================================
 st.markdown("## 🔁 Transfert de BLs entre Estafettes")
 
-# Récupération du DataFrame des livraisons par client/ville/zone
+# Copier les DataFrames pour éviter toute modification directe
 df_client_ville_zone = st.session_state.df_grouped_zone.copy()
-
-# --- DEBUG : afficher les colonnes ---
-st.write("Colonnes disponibles dans df_client_ville_zone :", df_client_ville_zone.columns.tolist())
-
-# Créer la colonne 'Estafette' à partir du tableau 'Voyages par Estafette Optimisé'
 df_voyages = st.session_state.df_optimized_estafettes.copy()
 
-# On crée un mapping BL -> Véhicule N°
-bl_to_estafette = {}
-for idx, row in df_voyages.iterrows():
-    bls = str(row.get("BL inclus", "")).split(",")  # On suppose que les BL sont séparés par des virgules
-    vehicule = str(row.get("Véhicule N°", "UNKNOWN")).strip()
-    for bl in bls:
-        bl_clean = bl.strip()
-        if bl_clean:
-            bl_to_estafette[bl_clean] = vehicule
+# --- DEBUG : afficher les colonnes ---
+st.write("Colonnes disponibles dans df_voyages :", df_voyages.columns.tolist())
 
-# Ajouter la colonne 'Estafette' dans df_client_ville_zone
-df_client_ville_zone["Estafette"] = df_client_ville_zone["No livraison"].map(lambda x: bl_to_estafette.get(str(x).strip(), "UNKNOWN"))
-
-# Nettoyage
-df_client_ville_zone["Zone"] = df_client_ville_zone["Zone"].astype(str).str.strip()
-df_client_ville_zone["Estafette"] = df_client_ville_zone["Estafette"].astype(str).str.strip()
-
-# Sélection de la zone
-zones_dispo = df_client_ville_zone["Zone"].dropna().unique()
+# --- 1️⃣ Sélection de la zone ---
+zones_dispo = df_voyages["Zone"].dropna().unique()
 zone_sel = st.selectbox("Sélectionner la zone", zones_dispo)
 
-# Instanciation du gestionnaire
-transfer_manager = TruckTransferManager(df_client_ville_zone)
+# --- 2️⃣ Listes des estafettes dans la zone sélectionnée ---
+estafettes_dispo = df_voyages[df_voyages["Zone"] == zone_sel]["Véhicule N°"].dropna().astype(str).str.strip().unique().tolist()
 
-# Filtrer les estafettes disponibles dans la zone sélectionnée
-estafettes_dispo = sorted(
-    df_client_ville_zone[df_client_ville_zone["Zone"] == zone_sel]["Estafette"].dropna().unique().tolist()
-)
-
-if not estafettes_dispo:
-    st.warning("⚠️ Aucune estafette disponible dans cette zone.")
-    estafettes_dispo = ["UNKNOWN"]
-
-# Sélection des estafettes source et cible
 source_estafette = st.selectbox("Estafette source", estafettes_dispo)
-cible_estafette = st.selectbox(
-    "Estafette cible", [e for e in estafettes_dispo if e != source_estafette] or ["UNKNOWN"]
-)
+cible_estafette = st.selectbox("Estafette cible", [e for e in estafettes_dispo if e != source_estafette])
 
-# Sélection des BLs à transférer
-bls_source = transfer_manager.get_bls_of_estafette(zone_sel, source_estafette) if source_estafette != "UNKNOWN" else []
-bls_sel = st.multiselect("Sélectionner les BLs à transférer", bls_source)
+# --- 3️⃣ BLs disponibles pour l'estafette source ---
+bls_source = df_voyages[df_voyages["Véhicule N°"] == source_estafette]["BL inclus"].tolist()
+# Convertir la liste de BLs en une liste plate
+bls_list = []
+for bls in bls_source:
+    if pd.notna(bls):
+        bls_list.extend([b.strip() for b in str(bls).split(",") if b.strip()])
 
-# Bouton pour tester le transfert
-if st.button("Vérifier le transfert"):
+bls_sel = st.multiselect("Sélectionner les BLs à transférer", bls_list)
+
+# --- 4️⃣ Bouton pour effectuer le transfert ---
+if st.button("Effectuer le transfert"):
+
     if not bls_sel:
         st.warning("Sélectionnez au moins un BL à transférer")
     else:
-        valide, info = transfer_manager.check_transfer(zone_sel, source_estafette, cible_estafette, bls_sel)
-        if valide:
-            st.success("Transfert possible ✅")
-            st.json(info)
-        else:
-            st.error("Transfert impossible ❌")
-            st.json(info)
+        # Filtrer df_client_ville_zone pour récupérer les infos des BLs sélectionnés
+        df_bls_to_transfer = df_client_ville_zone[df_client_ville_zone["No livraison"].astype(str).isin(bls_sel)].copy()
+
+        # --- Mettre à jour l'estafette, le client et le représentant ---
+        df_client_ville_zone.loc[df_client_ville_zone["No livraison"].astype(str).isin(bls_sel), "Estafette"] = cible_estafette
+
+        # Mettre à jour les clients et représentants pour ces BLs dans le dataframe
+        # On peut regrouper par estafette cible si nécessaire
+        # Ici, on suppose que les clients et représentants sont simplement associés à l'estafette
+        # Vous pouvez ajuster selon vos règles métiers
+
+        st.success(f"✅ Transfert de {len(bls_sel)} BLs de {source_estafette} vers {cible_estafette} effectué !")
+
+        # --- Afficher le résultat pour vérification ---
+        st.subheader("Détails des BLs transférés")
+        st.dataframe(df_bls_to_transfer[[
+            "No livraison", "Client de l'estafette", "Représentant", "Poids total", "Volume total"
+        ]])
+
+        # --- Optionnel : mettre à jour df_optimized_estafettes pour refléter le transfert ---
+        for bl in bls_sel:
+            mask = df_voyages["BL inclus"].str.contains(bl, na=False)
+            df_voyages.loc[mask, "Véhicule N°"] = cible_estafette
+
+        st.session_state.df_optimized_estafettes = df_voyages
+        st.session_state.df_grouped_zone = df_client_ville_zone
