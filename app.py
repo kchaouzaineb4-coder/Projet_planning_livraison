@@ -267,124 +267,123 @@ if st.session_state.data_processed:
              file_name=path_optimized,
              mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-# ===================================================== 
-# 5️⃣ TRANSFERT DES BLs ENTRE ESTAFETTES
-# ===================================================== 
-st.markdown("## 🔁 Transfert de BLs entre Estafettes")
+# =====================================================
+# 5️⃣ TRANSFERT DES BLs ENTRE ESTAFETTES / CAMIONS
+# =====================================================
+st.markdown("## 🔁 Transfert de BLs entre Estafettes / Camions")
 
-# ✅ Recherche automatique du DataFrame final (résultat Section 3 / 4)
-df_voyages = None
-if "df_rental_final" in st.session_state:
-    df_voyages = st.session_state.df_rental_final.copy()
-elif "df_voyages" in st.session_state:
-    df_voyages = st.session_state.df_voyages.copy()
-elif "df_optimized_estafettes" in st.session_state:
-    df_voyages = st.session_state.df_optimized_estafettes.copy()
-
-if df_voyages is None:
-    st.warning("⚠️ Impossible de trouver le tableau final. Veuillez exécuter la section 3 (Location / Résultat final).")
+# --- Vérification que la cellule 4 a bien été exécutée ---
+if "df_voyages" not in st.session_state:
+    st.warning("⚠️ Vous devez d'abord exécuter la section 4 (résultat final après location).")
 else:
-    df_client_ville_zone = st.session_state.df_grouped_zone.copy()  # Détails BLs
+    # --- Chargement du DataFrame final (inclut camions loués) ---
+    df_voyages = st.session_state.df_voyages.copy()
 
-    # --- Sélection de la zone
-    zones_dispo = sorted(df_voyages["Zone"].dropna().unique().tolist())
-    zone_sel = st.selectbox("🌍 Sélectionner une zone", zones_dispo)
+    # --- Vérification minimale des colonnes ---
+    colonnes_requises = ["Zone", "Estafette N°", "Poids total (kg)", "Volume total (m3)", "BL inclus"]
+    if not all(col in df_voyages.columns for col in colonnes_requises):
+        st.error("❌ Le DataFrame de la section 4 ne contient pas toutes les colonnes nécessaires.")
+    else:
+        # --- Sélection des zones disponibles ---
+        zones = sorted(df_voyages["Zone"].dropna().unique().tolist())
+        selected_zone = st.selectbox("🌍 Sélectionner une zone", zones)
 
-    if zone_sel:
-        # --- Filtrer les estafettes/camions de cette zone
-        df_zone = df_voyages[df_voyages["Zone"] == zone_sel].copy()
-        estafettes_dispo = sorted(df_zone["Estafette N°"].astype(str).unique().tolist())
+        # --- Filtrage de la zone sélectionnée ---
+        df_zone = df_voyages[df_voyages["Zone"] == selected_zone]
 
-        # --- Sélection source et cible
+        # --- Liste des estafettes / camions disponibles ---
+        estafettes_disponibles = sorted(df_zone["Estafette N°"].dropna().unique().tolist())
+
+        # --- Sélection source et cible ---
         col1, col2 = st.columns(2)
         with col1:
-            source_estafette = st.selectbox("🚐 Estafette / Camion source", estafettes_dispo)
+            estafette_source = st.selectbox("🚐 Estafette / Camion source", estafettes_disponibles)
         with col2:
-            cible_estafette = st.selectbox("🎯 Estafette / Camion cible", estafettes_dispo)
+            estafette_cible = st.selectbox("🎯 Estafette / Camion cible", estafettes_disponibles)
 
-        # --- Empêcher transfert vers soi-même
-        if source_estafette == cible_estafette:
-            st.error("❌ Source et cible doivent être différentes.")
+        if estafette_source == estafette_cible:
+            st.warning("⚠️ L’estafette source et la cible doivent être différentes.")
         else:
-            # --- BLs de la source
-            source_bls_str = df_zone.loc[df_zone["Estafette N°"] == source_estafette, "BL inclus"].values
-            if len(source_bls_str) == 0 or pd.isna(source_bls_str[0]):
+            # --- Récupération des infos source et cible ---
+            source_data = df_zone[df_zone["Estafette N°"] == estafette_source].iloc[0]
+            cible_data = df_zone[df_zone["Estafette N°"] == estafette_cible].iloc[0]
+
+            bls_source = str(source_data["BL inclus"]).split(", ")
+            poids_source = float(source_data["Poids total (kg)"])
+            volume_source = float(source_data["Volume total (m3)"])
+
+            bls_cible = str(cible_data["BL inclus"]).split(", ")
+            poids_cible = float(cible_data["Poids total (kg)"])
+            volume_cible = float(cible_data["Volume total (m3)"])
+
+            if not bls_source or bls_source == [""]:
                 st.warning("⚠️ Aucun BL trouvé pour cette estafette source.")
             else:
-                source_bls_list = [b.strip() for b in source_bls_str[0].split(";") if b.strip()]
-                selected_bls = st.multiselect(
-                    f"📦 Sélectionnez les BLs à transférer de {source_estafette} vers {cible_estafette}",
-                    options=source_bls_list,
-                )
+                # --- Sélection des BLs à transférer ---
+                selected_bls = st.multiselect("📦 Sélectionnez les BLs à transférer :", bls_source)
 
                 if selected_bls:
-                    # --- Détails des BLs sélectionnés
-                    df_selected_bls = df_client_ville_zone[df_client_ville_zone["BL"].isin(selected_bls)]
-                    poids_transfert = df_selected_bls["Poids (kg)"].sum()
-                    volume_transfert = df_selected_bls["Volume (m3)"].sum()
+                    # --- Poids/Volume simulé du transfert ---
+                    poids_bls = poids_source / len(bls_source) * len(selected_bls)
+                    volume_bls = volume_source / len(bls_source) * len(selected_bls)
 
-                    # --- Capacité actuelle de la cible
-                    poids_cible = df_zone.loc[df_zone["Estafette N°"] == cible_estafette, "Poids total (kg)"].values[0]
-                    volume_cible = df_zone.loc[df_zone["Estafette N°"] == cible_estafette, "Volume total (m3)"].values[0]
+                    poids_cible_new = poids_cible + poids_bls
+                    volume_cible_new = volume_cible + volume_bls
 
-                    # --- Seuils max (identiques à la location)
-                    SEUIL_POIDS = 3000.0
-                    SEUIL_VOLUME = 9.216
+                    # --- Vérification des limites max ---
+                    MAX_POIDS = 1550
+                    MAX_VOLUME = 4.608
 
-                    # --- Vérification des capacités
-                    if poids_cible + poids_transfert > SEUIL_POIDS or volume_cible + volume_transfert > SEUIL_VOLUME:
-                        st.error("🚫 Dépassement de capacité ! (Poids ou volume)")
-                        st.info(f"Capacité actuelle : {poids_cible:.0f} kg / {volume_cible:.2f} m³")
-                        st.info(f"Transfert : +{poids_transfert:.0f} kg / +{volume_transfert:.2f} m³")
+                    if poids_cible_new > MAX_POIDS or volume_cible_new > MAX_VOLUME:
+                        st.error(f"🚫 Transfert impossible : dépassement de capacité maximale.\n\n"
+                                 f"**Poids après transfert :** {poids_cible_new:.1f} kg / {MAX_POIDS} kg\n"
+                                 f"**Volume après transfert :** {volume_cible_new:.3f} m³ / {MAX_VOLUME} m³")
                     else:
-                        # --- Comparatif avant / après
-                        colA, colB = st.columns(2)
-                        with colA:
-                            st.markdown("### 📊 Avant transfert")
-                            st.dataframe(df_zone[
-                                ["Estafette N°", "Poids total (kg)", "Volume total (m3)", "BL inclus"]
-                            ])
+                        # --- Mise à jour des BLs dans le DataFrame ---
+                        df_voyages.loc[df_voyages["Estafette N°"] == estafette_source, "BL inclus"] = ", ".join(
+                            [b for b in bls_source if b not in selected_bls]
+                        )
+                        df_voyages.loc[df_voyages["Estafette N°"] == estafette_cible, "BL inclus"] = ", ".join(
+                            bls_cible + selected_bls
+                        )
 
-                        # --- Mise à jour des BLs
-                        df_voyages.loc[df_voyages["Estafette N°"] == source_estafette, "BL inclus"] = df_voyages.loc[
-                            df_voyages["Estafette N°"] == source_estafette, "BL inclus"
-                        ].apply(lambda x: ";".join([b for b in str(x).split(";") if b.strip() not in selected_bls]))
+                        # --- Mise à jour des poids/volumes ---
+                        df_voyages.loc[df_voyages["Estafette N°"] == estafette_source, "Poids total (kg)"] = poids_source - poids_bls
+                        df_voyages.loc[df_voyages["Estafette N°"] == estafette_source, "Volume total (m3)"] = volume_source - volume_bls
+                        df_voyages.loc[df_voyages["Estafette N°"] == estafette_cible, "Poids total (kg)"] = poids_cible_new
+                        df_voyages.loc[df_voyages["Estafette N°"] == estafette_cible, "Volume total (m3)"] = volume_cible_new
 
-                        df_voyages.loc[df_voyages["Estafette N°"] == cible_estafette, "BL inclus"] = df_voyages.loc[
-                            df_voyages["Estafette N°"] == cible_estafette, "BL inclus"
-                        ].apply(lambda x: ";".join(
-                            list(set([b.strip() for b in (str(x) + ";" + ";".join(selected_bls)).split(";") if b.strip()]))
-                        ))
+                        st.success(f"✅ Transfert réussi de {len(selected_bls)} BL(s) "
+                                   f"de **{estafette_source}** vers **{estafette_cible}**.")
 
-                        # --- Recalcul des poids / volumes
-                        def recalculer_poids_volume(bl_str):
-                            if not isinstance(bl_str, str) or not bl_str.strip():
-                                return (0.0, 0.0)
-                            bl_list = [b.strip() for b in bl_str.split(";") if b.strip()]
-                            df_temp = df_client_ville_zone[df_client_ville_zone["BL"].isin(bl_list)]
-                            return (df_temp["Poids (kg)"].sum(), df_temp["Volume (m3)"].sum())
+                        # --- Sauvegarde du nouveau DataFrame ---
+                        st.session_state.df_voyages = df_voyages
 
-                        df_voyages[["Poids total (kg)", "Volume total (m3)"]] = df_voyages["BL inclus"].apply(
-                            recalculer_poids_volume
-                        ).apply(pd.Series)
+                        # --- Affichage comparatif avant / après ---
+                        st.markdown("### 📊 Comparatif avant / après transfert")
 
-                        # --- Taux d’occupation
-                        df_voyages["Taux_occupation_poids_%"] = (
-                            df_voyages["Poids total (kg)"] / SEUIL_POIDS * 100
-                        ).round(1)
-                        df_voyages["Taux_occupation_vol_%"] = (
-                            df_voyages["Volume total (m3)"] / SEUIL_VOLUME * 100
-                        ).round(1)
+                        comparaison = pd.DataFrame([
+                            {
+                                "Estafette": estafette_source,
+                                "Poids (Avant)": poids_source,
+                                "Poids (Après)": poids_source - poids_bls,
+                                "Volume (Avant)": volume_source,
+                                "Volume (Après)": volume_source - volume_bls,
+                                "BLs (Avant)": ", ".join(bls_source),
+                                "BLs (Après)": ", ".join([b for b in bls_source if b not in selected_bls])
+                            },
+                            {
+                                "Estafette": estafette_cible,
+                                "Poids (Avant)": poids_cible,
+                                "Poids (Après)": poids_cible_new,
+                                "Volume (Avant)": volume_cible,
+                                "Volume (Après)": volume_cible_new,
+                                "BLs (Avant)": ", ".join(bls_cible),
+                                "BLs (Après)": ", ".join(bls_cible + selected_bls)
+                            }
+                        ])
+                        st.dataframe(comparaison)
 
-                        with colB:
-                            st.markdown("### ✅ Après transfert")
-                            st.dataframe(df_voyages[df_voyages["Zone"] == zone_sel][
-                                ["Estafette N°", "Poids total (kg)", "Volume total (m3)",
-                                 "Taux_occupation_poids_%", "Taux_occupation_vol_%", "BL inclus"]
-                            ])
-
-                        # --- Sauvegarde mise à jour
-                        st.session_state.df_rental_final = df_voyages
-                        st.success("✅ Transfert effectué et tableau mis à jour avec succès.")
-                else:
-                    st.info("Sélectionnez au moins un BL pour effectuer un transfert.")
+                        # --- Affichage final mis à jour ---
+                        st.markdown("### 🚚 Tableau final mis à jour (après transfert)")
+                        st.dataframe(df_voyages)
