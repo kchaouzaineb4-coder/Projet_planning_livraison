@@ -90,6 +90,7 @@ with col_button:
                 
                 # Stockage des résultats dans l'état de session
                 st.session_state.df_optimized_estafettes = df_optimized_estafettes
+                st.session_state.df_voyages = df_optimized_estafettes.copy()
                 st.session_state.df_grouped = df_grouped
                 st.session_state.df_city = df_city
                 st.session_state.df_grouped_zone = df_grouped_zone
