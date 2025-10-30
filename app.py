@@ -277,8 +277,8 @@ df_voyages = st.session_state.df_voyages  # "Voyages par Estafette Optimisé"
 df_client_ville_zone = st.session_state.df_grouped_zone  # Client / Ville / Zone
 
 # --- DEBUG : afficher les colonnes ---
-st.write("Colonnes disponibles dans df_voyages :", df_voyages.columns.tolist())
-st.write("Colonnes disponibles dans df_client_ville_zone :", df_client_ville_zone.columns.tolist())
+#st.write("Colonnes disponibles dans df_voyages :", df_voyages.columns.tolist())
+#st.write("Colonnes disponibles dans df_client_ville_zone :", df_client_ville_zone.columns.tolist())
 
 # Sélection des zones disponibles
 zones_dispo = df_voyages["Zone"].dropna().unique()
