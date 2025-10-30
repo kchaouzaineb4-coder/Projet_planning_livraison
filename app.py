@@ -285,13 +285,13 @@ zones_dispo = df_voyages["Zone"].dropna().unique()
 zone_sel = st.selectbox("Sélectionner la zone", zones_dispo)
 
 # --- 2️⃣ Listes des estafettes dans la zone sélectionnée ---
-estafettes_dispo = df_voyages[df_voyages["Zone"] == zone_sel]["Véhicule N°"].dropna().astype(str).str.strip().unique().tolist()
+estafettes_dispo = df_voyages[df_voyages["Zone"] == zone_sel]["Estafette N°"].dropna().astype(str).str.strip().unique().tolist()
 
 source_estafette = st.selectbox("Estafette source", estafettes_dispo)
 cible_estafette = st.selectbox("Estafette cible", [e for e in estafettes_dispo if e != source_estafette])
 
 # --- 3️⃣ BLs disponibles pour l'estafette source ---
-bls_source = df_voyages[df_voyages["Véhicule N°"] == source_estafette]["BL inclus"].tolist()
+bls_source = df_voyages[df_voyages["Estafette N°"] == source_estafette]["BL inclus"].tolist()
 # Convertir la liste de BLs en une liste plate
 bls_list = []
 for bls in bls_source:
@@ -312,11 +312,6 @@ if st.button("Effectuer le transfert"):
         # --- Mettre à jour l'estafette, le client et le représentant ---
         df_client_ville_zone.loc[df_client_ville_zone["No livraison"].astype(str).isin(bls_sel), "Estafette"] = cible_estafette
 
-        # Mettre à jour les clients et représentants pour ces BLs dans le dataframe
-        # On peut regrouper par estafette cible si nécessaire
-        # Ici, on suppose que les clients et représentants sont simplement associés à l'estafette
-        # Vous pouvez ajuster selon vos règles métiers
-
         st.success(f"✅ Transfert de {len(bls_sel)} BLs de {source_estafette} vers {cible_estafette} effectué !")
 
         # --- Afficher le résultat pour vérification ---
@@ -328,7 +323,7 @@ if st.button("Effectuer le transfert"):
         # --- Optionnel : mettre à jour df_optimized_estafettes pour refléter le transfert ---
         for bl in bls_sel:
             mask = df_voyages["BL inclus"].str.contains(bl, na=False)
-            df_voyages.loc[mask, "Véhicule N°"] = cible_estafette
+            df_voyages.loc[mask, "Estafette N°"] = cible_estafette
 
         st.session_state.df_optimized_estafettes = df_voyages
         st.session_state.df_grouped_zone = df_client_ville_zone
