@@ -641,71 +641,72 @@ class DeliveryProcessor:
     # ============================================================
 
 
+# =====================================================
+# 🆕 CLASSE : Gestion du transfert de BLs entre estafettes
+# =====================================================
+
 class TruckTransferManager:
-    def __init__(self, df_client_ville_zone):
-        self.df = df_client_ville_zone.copy()
-        self.MAX_POIDS = 1550
-        self.MAX_VOLUME = 4.608
+    def __init__(self, df_livraisons):
+        """
+        df_livraisons : DataFrame contenant au moins les colonnes suivantes :
+        ['Zone', 'Estafette', 'BL', 'Poids (kg)', 'Volume (m³)']
+        """
+        self.df = df_livraisons.copy()
 
-    # Récupérer toutes les estafettes d'une zone donnée
     def get_estafettes_in_zone(self, zone):
-        estafettes = sorted(self.df[self.df["Zone"] == zone]["Estafette"].dropna().unique())
-        return estafettes
+        """Retourne la liste unique des estafettes dans une zone donnée."""
+        df_zone = self.df[self.df["Zone"] == zone]
+        return sorted(df_zone["Estafette"].dropna().unique().tolist())
 
-    # Obtenir les BLs appartenant à une estafette donnée
     def get_bls_of_estafette(self, zone, estafette):
-        bls = self.df[(self.df["Zone"] == zone) & (self.df["Estafette"] == estafette)]["BL"].unique().tolist()
-        return bls
+        """Retourne la liste des BLs associés à une estafette donnée dans une zone."""
+        df_filt = self.df[(self.df["Zone"] == zone) & (self.df["Estafette"] == estafette)]
+        return sorted(df_filt["BL"].dropna().astype(str).unique().tolist())
 
-    # Vérifier le transfert de BLs entre estafettes
-    def check_transfer(self, zone, source, cible, bls_to_transfer):
+    def check_transfer(self, zone, estafette_source, estafette_cible, bls_transfer):
+        """
+        Vérifie si le transfert est possible selon les contraintes :
+        - poids <= 1550 kg
+        - volume <= 4.608 m³
+        Retourne : (bool, dict)
+        """
+        SEUIL_POIDS = 1550
+        SEUIL_VOLUME = 4.608
+
         df_zone = self.df[self.df["Zone"] == zone]
 
-        # Calcul des poids et volumes actuels
-        source_data = df_zone[df_zone["Estafette"] == source]
-        cible_data = df_zone[df_zone["Estafette"] == cible]
+        # Données source et cible
+        df_src = df_zone[df_zone["Estafette"] == estafette_source]
+        df_dst = df_zone[df_zone["Estafette"] == estafette_cible]
 
-        poids_source = source_data["Poids (kg)"].sum()
-        volume_source = source_data["Volume (m3)"].sum()
-        poids_cible = cible_data["Poids (kg)"].sum()
-        volume_cible = cible_data["Volume (m3)"].sum()
+        # Calcul totaux actuels
+        poids_src, vol_src = df_src["Poids (kg)"].sum(), df_src["Volume (m³)"].sum()
+        poids_dst, vol_dst = df_dst["Poids (kg)"].sum(), df_dst["Volume (m³)"].sum()
 
-        # Calcul du total des BLs à transférer
-        bls_a_transférer = df_zone[df_zone["BL"].isin(bls_to_transfer)]
-        poids_transfert = bls_a_transférer["Poids (kg)"].sum()
-        volume_transfert = bls_a_transférer["Volume (m3)"].sum()
+        # BLs à transférer
+        df_bls = df_src[df_src["BL"].astype(str).isin(bls_transfer)]
+        poids_bls, vol_bls = df_bls["Poids (kg)"].sum(), df_bls["Volume (m³)"].sum()
 
-        # Nouveaux totaux après transfert simulé
-        nouveau_poids_cible = poids_cible + poids_transfert
-        nouveau_volume_cible = volume_cible + volume_transfert
-        nouveau_poids_source = poids_source - poids_transfert
-        nouveau_volume_source = volume_source - volume_transfert
+        # Simulation du transfert
+        poids_src_new = poids_src - poids_bls
+        vol_src_new = vol_src - vol_bls
+        poids_dst_new = poids_dst + poids_bls
+        vol_dst_new = vol_dst + vol_bls
 
-        # Vérification des contraintes
-        if nouveau_poids_cible <= self.MAX_POIDS and nouveau_volume_cible <= self.MAX_VOLUME:
-            return True, {
-                "Zone": zone,
-                "Source": {
-                    "Estafette": source,
-                    "Poids avant": poids_source,
-                    "Volume avant": volume_source,
-                    "Poids après": nouveau_poids_source,
-                    "Volume après": nouveau_volume_source,
-                },
-                "Cible": {
-                    "Estafette": cible,
-                    "Poids avant": poids_cible,
-                    "Volume avant": volume_cible,
-                    "Poids après": nouveau_poids_cible,
-                    "Volume après": nouveau_volume_cible,
-                },
-                "BLs transférés": len(bls_to_transfer),
-            }
-        else:
-            return False, {
-                "Message": "Capacité dépassée pour l'estafette cible.",
-                "Poids cible après transfert": nouveau_poids_cible,
-                "Volume cible après transfert": nouveau_volume_cible,
-                "Limite poids": self.MAX_POIDS,
-                "Limite volume": self.MAX_VOLUME,
-            }
+        # Vérification des seuils
+        transfert_autorise = (poids_dst_new <= SEUIL_POIDS) and (vol_dst_new <= SEUIL_VOLUME)
+
+        info = {
+            "Zone": zone,
+            "Estafette source": estafette_source,
+            "Estafette cible": estafette_cible,
+            "Poids transféré (kg)": poids_bls,
+            "Volume transféré (m³)": vol_bls,
+            "Poids source avant/après": f"{poids_src:.2f} → {poids_src_new:.2f}",
+            "Volume source avant/après": f"{vol_src:.3f} → {vol_src_new:.3f}",
+            "Poids cible avant/après": f"{poids_dst:.2f} → {poids_dst_new:.2f}",
+            "Volume cible avant/après": f"{vol_dst:.3f} → {vol_dst_new:.3f}",
+            "Résultat": "✅ TRANSFERT AUTORISÉ" if transfert_autorise else "❌ TRANSFERT REFUSÉ : CAPACITÉ DÉPASSÉE"
+        }
+
+        return transfert_autorise, info
