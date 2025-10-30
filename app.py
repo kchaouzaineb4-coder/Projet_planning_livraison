@@ -267,6 +267,8 @@ if st.session_state.data_processed:
              file_name=path_optimized,
              mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+# Cette ligne est essentielle pour que la section 5 sache que le tableau final est prêt
+st.session_state.df_voyages = df_optimized_estafettes
 # =====================================================
 # 5️⃣ TRANSFERT DES BLs ENTRE ESTAFETTES / CAMIONS
 # =====================================================
