@@ -269,13 +269,12 @@ if st.session_state.data_processed:
         )
 
 # =====================================================
-# 5. TRANSFERT DES BLs ENTRE ESTAFETTES (Nouvelle section)
+# 5. TRANSFERT DES BLs ENTRE ESTAFETTES
 # =====================================================
 st.markdown("## 🔁 Transfert de BLs entre Estafettes")
 
-# Récupération des DataFrames
-df_voyages = st.session_state.df_optimized_estafettes  # Tableau final des voyages
-df_client_ville_zone = st.session_state.df_grouped_zone  # Détails des BLs
+df_voyages = st.session_state.df_optimized_estafettes
+df_client_ville_zone = st.session_state.df_grouped_zone
 
 # --- DEBUG : afficher les colonnes pour vérifier ---
 st.write("Colonnes disponibles dans df_voyages :", df_voyages.columns.tolist())
@@ -285,12 +284,12 @@ st.write("Colonnes disponibles dans df_client_ville_zone :", df_client_ville_zon
 zones_dispo = df_voyages["Zone"].dropna().unique()
 zone_sel = st.selectbox("Sélectionner la zone", zones_dispo)
 
-# --- Estafettes disponibles dans la zone ---
+# Estafettes disponibles dans la zone
 estafettes_dispo = df_voyages[df_voyages["Zone"] == zone_sel]["Estafette N°"].dropna().astype(str).str.strip().unique().tolist()
 source_estafette = st.selectbox("Estafette source", estafettes_dispo)
 cible_estafette = st.selectbox("Estafette cible", [e for e in estafettes_dispo if e != source_estafette])
 
-# --- BLs disponibles pour l'estafette source ---
+# BLs disponibles pour l'estafette source
 df_bls_source = df_voyages[(df_voyages["Zone"] == zone_sel) &
                             (df_voyages["Estafette N°"] == source_estafette)]
 
@@ -312,39 +311,49 @@ if st.button("Transférer les BLs sélectionnés"):
         # Copier df_voyages pour modification
         df_voyages_mod = df_voyages.copy()
 
-        # 1️⃣ Mettre à jour BLs dans df_voyages
+        # 1️⃣ Mettre à jour BL inclus pour source et cible
         for idx, row in df_voyages_mod.iterrows():
-            if row["Zone"] == zone_sel and row["Estafette N°"] == source_estafette:
-                if pd.notna(row["BL inclus"]):
+            if row["Zone"] == zone_sel:
+                veh = str(row["Estafette N°"]).strip()
+                # Retirer BLs de l'estafette source
+                if veh == source_estafette and pd.notna(row["BL inclus"]):
                     bls_row = [b.strip() for b in str(row["BL inclus"]).split(";") if b.strip()]
-                    # Retirer les BLs transférés
                     bls_row = [b for b in bls_row if b not in bls_sel]
                     df_voyages_mod.at[idx, "BL inclus"] = ";".join(bls_row) if bls_row else None
 
-            if row["Zone"] == zone_sel and row["Estafette N°"] == cible_estafette:
-                if pd.notna(row["BL inclus"]):
-                    bls_row = [b.strip() for b in str(row["BL inclus"]).split(";") if b.strip()]
-                    bls_row.extend(bls_sel)
-                    df_voyages_mod.at[idx, "BL inclus"] = ";".join(sorted(set(bls_row)))
-                else:
-                    df_voyages_mod.at[idx, "BL inclus"] = ";".join(bls_sel)
+                # Ajouter BLs à l'estafette cible
+                if veh == cible_estafette:
+                    if pd.notna(row["BL inclus"]):
+                        bls_row = [b.strip() for b in str(row["BL inclus"]).split(";") if b.strip()]
+                        bls_row.extend(bls_sel)
+                        df_voyages_mod.at[idx, "BL inclus"] = ";".join(sorted(set(bls_row)))
+                    else:
+                        df_voyages_mod.at[idx, "BL inclus"] = ";".join(bls_sel)
 
-        # 2️⃣ Mettre à jour df_client_ville_zone pour poids, volume, client, représentant
-        for bl in bls_sel:
-            df_row = df_client_ville_zone[df_client_ville_zone["No livraison"] == bl]
-            if not df_row.empty:
-                # Poids et Volume
-                poids = df_row["Poids total"].values[0]
-                volume = df_row["Volume total"].values[0]
-                client = df_row["Client de l'estafette"].values[0]
-                representant = df_row["Représentant"].values[0]
+        # 2️⃣ Recalculer Poids total, Volume total, Client(s) inclus, Représentant(s) inclus
+        for veh in [source_estafette, cible_estafette]:
+            df_veh = df_voyages_mod[(df_voyages_mod["Zone"] == zone_sel) & (df_voyages_mod["Estafette N°"] == veh)]
+            bls_veh = []
+            if not df_veh.empty and pd.notna(df_veh.iloc[0]["BL inclus"]):
+                bls_veh = [b.strip() for b in str(df_veh.iloc[0]["BL inclus"]).split(";") if b.strip()]
 
-                # Mettre à jour dans df_voyages_mod (source et cible)
-                # Déjà géré par BL inclus, on pourrait recalculer Poids/Volume si nécessaire
+            # Filtrer df_client_ville_zone pour ces BLs
+            df_bls_detail = df_client_ville_zone[df_client_ville_zone["No livraison"].isin(bls_veh)]
 
+            # Mise à jour des totaux et listes
+            df_voyages_mod.loc[(df_voyages_mod["Zone"] == zone_sel) & 
+                               (df_voyages_mod["Estafette N°"] == veh), "Poids total chargé"] = df_bls_detail["Poids total"].sum()
+            df_voyages_mod.loc[(df_voyages_mod["Zone"] == zone_sel) & 
+                               (df_voyages_mod["Estafette N°"] == veh), "Volume total chargé"] = df_bls_detail["Volume total"].sum()
+            df_voyages_mod.loc[(df_voyages_mod["Zone"] == zone_sel) & 
+                               (df_voyages_mod["Estafette N°"] == veh), "Client(s) inclus"] = ";".join(sorted(df_bls_detail["Client de l'estafette"].dropna().astype(str).unique()))
+            df_voyages_mod.loc[(df_voyages_mod["Zone"] == zone_sel) & 
+                               (df_voyages_mod["Estafette N°"] == veh), "Représentant(s) inclus"] = ";".join(sorted(df_bls_detail["Représentant"].dropna().astype(str).unique()))
+
+        # Mettre à jour l'état de session
         st.session_state.df_optimized_estafettes = df_voyages_mod
         st.success(f"✅ Transfert de {len(bls_sel)} BL(s) de {source_estafette} vers {cible_estafette} effectué avec succès !")
 
-        # Rafraîchir l'interface pour refléter les changements
+        # Rafraîchir l'interface
         st.experimental_rerun()
 
