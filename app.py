@@ -289,16 +289,12 @@ estafettes_dispo = df_voyages[df_voyages["Zone"] == zone_sel]["Estafette N°"].d
 source_estafette = st.selectbox("Estafette source", estafettes_dispo)
 cible_estafette = st.selectbox("Estafette cible", [e for e in estafettes_dispo if e != source_estafette])
 
-# BLs disponibles pour l'estafette source
-df_bls_source = df_voyages[(df_voyages["Zone"] == zone_sel) &
-                            (df_voyages["Estafette N°"] == source_estafette)]
-
-# Extraire et aplatir tous les BLs séparés par ';'
+# --- DYNAMIQUE : BLs disponibles selon l'estafette source ---
 bls_list = []
-for bls in df_bls_source["BL inclus"].dropna():
-    bls_split = [b.strip() for b in str(bls).split(";") if b.strip()]
-    bls_list.extend(bls_split)
-bls_list = sorted(list(set(bls_list)))
+df_source = df_voyages[(df_voyages["Zone"] == zone_sel) & (df_voyages["Estafette N°"] == source_estafette)]
+
+if not df_source.empty and pd.notna(df_source.iloc[0]["BL inclus"]):
+    bls_list = [b.strip() for b in str(df_source.iloc[0]["BL inclus"]).split(";") if b.strip()]
 
 bls_sel = st.multiselect("Sélectionner les BLs à transférer", bls_list)
 
@@ -356,4 +352,3 @@ if st.button("Transférer les BLs sélectionnés"):
 
         # Rafraîchir l'interface
         st.experimental_rerun()
-
