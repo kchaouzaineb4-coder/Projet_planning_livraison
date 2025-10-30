@@ -372,6 +372,26 @@ if bls_sel:
     }, index=["Avant transfert", "Après transfert"])
     
     st.dataframe(comparatif)
+# --- Mettre à jour clients et représentants ---
+clients_transfert = df_bls["Client de l'estafette"].unique().tolist()
+representants_transfert = df_bls["Représentant"].unique().tolist()
+
+# Clients
+cible_clients = cible_row["Client(s) inclus"].values[0]
+cible_clients_list = cible_clients.split(";") if pd.notna(cible_clients) else []
+cible_clients_list += clients_transfert
+# ❌ Supprimer les doublons
+cible_clients_list = list(dict.fromkeys([cl.strip() for cl in cible_clients_list if cl.strip() != ""]))
+df_voyages.loc[df_voyages["Véhicule N°"] == cible_estafette, "Client(s) inclus"] = ";".join(cible_clients_list)
+
+# Représentants
+cible_reps = cible_row["Représentant(s) inclus"].values[0]
+cible_reps_list = cible_reps.split(";") if pd.notna(cible_reps) else []
+cible_reps_list += representants_transfert
+# ❌ Supprimer les doublons
+cible_reps_list = list(dict.fromkeys([r.strip() for r in cible_reps_list if r.strip() != ""]))
+df_voyages.loc[df_voyages["Véhicule N°"] == cible_estafette, "Représentant(s) inclus"] = ";".join(cible_reps_list)
+
 
 # --- Affichage final de toutes les estafettes dans un tableau ---
 st.markdown("### 📝 Tableau final des estafettes après transfert")
