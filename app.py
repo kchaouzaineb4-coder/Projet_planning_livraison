@@ -306,19 +306,20 @@ zones_dispo = df_voyages["Zone"].dropna().unique()
 zone_sel = st.selectbox("Sélectionner la zone", zones_dispo)
 
 # --- Liste des estafettes pour cette zone ---
-estafettes_dispo = df_voyages[df_voyages["Zone"] == zone_sel]["Estafette N°"].dropna().astype(str).str.strip().unique().tolist()
+estafettes_dispo = df_voyages[df_voyages["Zone"] == zone_sel]["Véhicule N°"].dropna().astype(str).str.strip().unique().tolist()
 
 source_estafette = st.selectbox("Estafette source", estafettes_dispo)
 cible_estafette_options = [e for e in estafettes_dispo if e != source_estafette]
 cible_estafette = st.selectbox("Estafette cible", cible_estafette_options)
 
 # --- BLs disponibles à transférer depuis l'estafette source ---
-bls_source_str = df_voyages.loc[df_voyages["Estafette N°"] == source_estafette, "BL inclus"].values
+bls_source_str = df_voyages.loc[df_voyages["Véhicule N°"] == source_estafette, "BL inclus"].values
 bls_source_list = []
 if len(bls_source_str) > 0 and pd.notna(bls_source_str[0]):
     bls_source_list = [bl.strip() for bl in bls_source_str[0].split(";")]
 
 bls_sel = st.multiselect("Sélectionner les BLs à transférer", bls_source_list)
+
 
 # --- Bouton pour effectuer le transfert ---
 if st.button("✅ Transférer les BLs"):
