@@ -379,7 +379,7 @@ else:
                                     output = BytesIO()
                                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
                                         df.to_excel(writer, index=False, sheet_name='Transfert BLs')
-                                        writer.save()
+                                        
                                     return output.getvalue()
 
                                 excel_data = to_excel(df_voyages)
