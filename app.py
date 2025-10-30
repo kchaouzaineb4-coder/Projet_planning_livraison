@@ -370,26 +370,25 @@ else:
                                 st.success(f"✅ Transfert réussi : {len(bls_selectionnes)} BL(s) déplacé(s) de {source} vers {cible}.")
                             
 
-                                # --- Affichage tableau mis à jour ---
-                                st.subheader("📊 Résumé après transfert")
-                                st.dataframe(df_voyages[df_voyages["Zone"] == zone_selectionnee][colonnes_requises])
+                                # --- Affichage de tous les voyages mis à jour ---
+                            st.subheader("📊 Voyages après transfert (toutes les zones)")
+                            st.dataframe(df_voyages.sort_values(by=["Zone", "Véhicule N°"])[colonnes_requises], use_container_width=True)
 
-                                # --- Téléchargement XLSX ---
-                                from io import BytesIO
-                                def to_excel(df):
-                                    output = BytesIO()
-                                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                                        df.to_excel(writer, index=False, sheet_name='Transfert BLs')
-                                        
-                                    return output.getvalue()
+                            # --- Téléchargement XLSX ---
+                            from io import BytesIO
+                            def to_excel(df):
+                                output = BytesIO()
+                                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                                    df.to_excel(writer, index=False, sheet_name='Transfert BLs')
+                                return output.getvalue()
 
-                                excel_data = to_excel(df_voyages)
-                                st.download_button(
-                                    label="💾 Télécharger le tableau mis à jour (XLSX)",
-                                    data=excel_data,
-                                    file_name="voyages_apres_transfert.xlsx",
-                                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                                )
+                            excel_data = to_excel(df_voyages)
+                            st.download_button(
+                                label="💾 Télécharger le tableau mis à jour (XLSX)",
+                                data=excel_data,
+                                file_name="voyages_apres_transfert.xlsx",
+                                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                            )
                     else:
                         st.info("ℹ️ Sélectionnez au moins un BL à transférer.")
 
