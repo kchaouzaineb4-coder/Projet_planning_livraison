@@ -618,7 +618,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             # Créer une copie formatée pour le PDF avec unités
             df_pdf = df.copy()
             if "Poids total chargé" in df_pdf.columns:
-                df_pdf["Poids total chargé"] = df_pdf["Poids total chargé"].map(lambda x: f"{x:.2f} kg")
+                df_pdf["Poids total chargé"] = df_pdf["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
             if "Volume total chargé" in df_pdf.columns:
                 df_pdf["Volume total chargé"] = df_pdf["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
 
