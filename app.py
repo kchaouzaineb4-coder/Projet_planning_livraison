@@ -35,7 +35,7 @@ def show_df_multiline(df, column_to_multiline):
         as_index=False
     ).agg({column_to_multiline: lambda x: "<br>".join(x.astype(str))})
 
-    # CSS pour forcer le retour à la ligne dans les cellules
+    # CSS pour forcer l’affichage des <br> sur plusieurs lignes
     css = """
     <style>
     table {
@@ -43,20 +43,25 @@ def show_df_multiline(df, column_to_multiline):
         border-collapse: collapse;
     }
     th, td {
-        border: 1px solid #444;
-        padding: 6px;
+        border: 1px solid #555;
+        padding: 8px;
         text-align: left;
         vertical-align: top;
-        white-space: pre-wrap; /* ✅ pour afficher les <br> comme sauts de ligne */
+        white-space: normal;
         word-wrap: break-word;
+    }
+    th {
+        background-color: #222;
+        color: white;
+    }
+    td {
+        color: #ddd;
     }
     </style>
     """
 
-    # Convertir en HTML et afficher avec CSS
     html = df_display.to_html(escape=False, index=False)
     st.markdown(css + html, unsafe_allow_html=True)
-
 # =====================================================
 # 📌 Constantes pour les véhicules et chauffeurs
 # =====================================================
@@ -210,7 +215,8 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 # --- Onglet Livraisons Client/Ville ---
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
-    show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), use_container_width=True)
+    show_df_multiline(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), column_to_multiline="Article")
+
     # Stockage du DataFrame pour la section 5 (transfert BLs)
     if "df_livraisons" not in st.session_state:
         st.session_state.df_livraisons = st.session_state.df_grouped.copy()
