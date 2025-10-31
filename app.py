@@ -486,8 +486,7 @@ else:
                                 mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                             )
 
-                    else:
-                        st.info("ℹ️ Sélectionnez au moins un BL à transférer.")
+                   
 
 # =====================================================
 # 6️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
