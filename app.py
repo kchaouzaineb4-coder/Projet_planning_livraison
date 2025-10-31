@@ -573,7 +573,7 @@ if st.button("🧮 Appliquer la validation"):
 # =====================================================
 # 7️⃣ ATTRIBUTION DES VÉHICULES ET CHAUFFEURS
 # =====================================================
-st.markdown("ATTRIBUTION DES VÉHICULES ET CHAUFFEURS")
+st.markdown("## ✅ ATTRIBUTION DES VÉHICULES ET CHAUFFEURS")
 
 if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_valides.empty:
 
