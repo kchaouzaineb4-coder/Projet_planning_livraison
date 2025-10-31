@@ -543,38 +543,34 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
 
 else:
     st.warning("⚠️ Aucun voyage validé trouvé. Veuillez d'abord valider les voyages.")
-# --- Génération PDF ---
+
+# --- Fonction pour générer un PDF à partir d'un DataFrame ---
 from fpdf import FPDF
 from io import BytesIO
 
-# --- Fonction pour générer un PDF à partir d'un DataFrame ---
 def to_pdf(df, title="Voyages Attribués"):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
+    pdf.set_font("Arial", 'B', 14)
     pdf.cell(0, 10, title, ln=True, align="C")
-    pdf.ln(10)
-    
-    # Largeurs de colonnes
-    col_widths = [40] * len(df.columns)
-    
-    pdf.set_font("Arial", "", 12)
-    # Header
+    pdf.ln(5)
+
+    pdf.set_font("Arial", '', 10)
+    # Ajout des entêtes
+    col_widths = [pdf.get_string_width(col)+4 for col in df.columns]
     for i, col in enumerate(df.columns):
-        pdf.cell(col_widths[i], 8, str(col), border=1, align="C")
+        pdf.cell(col_widths[i], 8, str(col), border=1, align='C')
     pdf.ln()
-    
-    # Données
-    for row in df.itertuples(index=False):
-        for i, value in enumerate(row):
-            pdf.cell(col_widths[i], 8, str(value), border=1, align="C")
+
+    # Ajout des lignes
+    for idx, row in df.iterrows():
+        for i, col in enumerate(df.columns):
+            pdf.cell(col_widths[i], 8, str(row[col]), border=1)
         pdf.ln()
-    
-    # Sauvegarde dans un buffer
-    pdf_buffer = BytesIO()
-    pdf.output(pdf_buffer)
-    pdf_buffer.seek(0)
-    return pdf_buffer
+
+    # Retourne le PDF sous forme de bytes
+    return pdf.output(dest='S').encode('latin1')  # <- très important pour Streamlit
+
 
 # --- Bouton pour télécharger le PDF ---
 pdf_data = to_pdf(df_attribution)
@@ -582,5 +578,6 @@ st.download_button(
     label="📄 Télécharger le tableau final (PDF)",
     data=pdf_data,
     file_name="Voyages_attribues.pdf",
-    mime="application/pdf"
+    mime='application/pdf'
 )
+
