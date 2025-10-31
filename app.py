@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME 
 import plotly.express as px
+
+
 # =====================================================
 # === Fonction show_df pour arrondir à 3 décimales ===
 # =====================================================
@@ -16,20 +18,25 @@ def show_df(df, **kwargs):
         st.dataframe(df_to_display, **kwargs)
     else:
         st.dataframe(df, **kwargs)
+
+# =====================================================
+# === Fonction show_df_multiline (affichage articles) ==
+# =====================================================
 def show_df_multiline(df, column_to_multiline):
     """
     Affiche un DataFrame en fusionnant les articles pour le même No livraison,
-    avec un saut de ligne dans la colonne spécifiée.
+    avec un affichage multilignes (un article par ligne dans la même cellule).
     """
     df_display = df.copy()
 
-    # Grouper par No livraison et concaténer les articles avec un saut de ligne
+    # Grouper par les colonnes fixes
     df_display = df_display.groupby(
         ['No livraison', 'Client', 'Ville', 'Représentant', 'Poids total', 'Volume total'],
         as_index=False
-    ).agg({column_to_multiline: lambda x: "\n".join(x.astype(str))})
+    ).agg({column_to_multiline: lambda x: "<br>".join(x.astype(str))})
 
-    st.dataframe(df_display)
+    # Convertir le DataFrame en HTML avec gestion des sauts de ligne
+    st.markdown(df_display.to_html(escape=False, index=False), unsafe_allow_html=True)
 
 # =====================================================
 # 📌 Constantes pour les véhicules et chauffeurs
