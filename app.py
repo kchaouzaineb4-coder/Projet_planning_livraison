@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 import pandas as pd
 from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME 
@@ -201,7 +199,7 @@ if st.session_state.data_processed:
     # Récupération du DF mis à jour à chaque fois
     df_optimized_estafettes = st.session_state.rental_processor.get_df_result() 
     
-    # =====================================================
+# =====================================================
 # 2. ANALYSE DE LIVRAISON DÉTAILLÉE (Section 2)
 # =====================================================
 st.header("2. 🔍 Analyse de Livraison Détaillée")
@@ -217,7 +215,7 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 # --- Onglet Livraisons Client/Ville ---
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
-    show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), use_container_width=True)
+    show_df_multiline(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), column_to_multiline="Article")
     # Stockage du DataFrame pour la section 5 (transfert BLs)
     if "df_livraisons" not in st.session_state:
         st.session_state.df_livraisons = st.session_state.df_grouped.copy()
