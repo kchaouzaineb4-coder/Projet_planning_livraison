@@ -3,6 +3,19 @@ import pandas as pd
 from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME 
 import plotly.express as px
 
+# =====================================================
+# 📌 Constantes pour les véhicules et chauffeurs
+# =====================================================
+VEHICULES_DISPONIBLES = [
+    'SLG-VEH11', 'SLG-VEH14', 'SLG-VEH22', 'SLG-VEH19',
+    'SLG-VEH10', 'SLG-VEH16', 'SLG-VEH23', 'SLG-VEH08', 'SLG-VEH20'
+]
+
+CHAUFFEURS_DETAILS = {
+    '09254': 'DAMMAK Karim', '06002': 'MAAZOUN Bassem', '11063': 'SASSI Ramzi',
+    '10334': 'BOUJELBENE Mohamed', '15144': 'GADDOUR Rami', '08278': 'DAMMAK Wissem',
+    '18339': 'REKIK Ahmed', '07250': 'BARKIA Mustapha', '13321': 'BADRI Moez'
+}
 
 # Configuration page
 st.set_page_config(page_title="Planning Livraisons", layout="wide")
@@ -448,6 +461,12 @@ if st.button("🧮 Appliquer la validation"):
         file_name="Voyages_valides.xlsx",
         mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
+    # --- Création du tableau des voyages validés si il n'existe pas encore ---
+    if "df_voyages_valides" not in locals() and "df_voyages_valides" not in st.session_state:
+        if "df_voyages" in st.session_state:
+            df_voyages_valides = st.session_state.df_voyages.copy()  # copie du tableau final
+        else:
+            st.warning("⚠️ Aucun voyage disponible pour la validation.")
 
 # =====================================================
 # 7️⃣ ATTRIBUTION DES VÉHICULES ET CHAUFFEURS
