@@ -491,7 +491,7 @@ else:
 # =====================================================
 # 6️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
 # =====================================================
-st.markdown("## ✅ Validation des Voyages après Transfert")
+
 
 from io import BytesIO
 
@@ -515,7 +515,7 @@ df_validation = voyages_apres_transfert.copy()
 if "validations" not in st.session_state:
     st.session_state.validations = {}
 
-st.markdown("### 🧾 Liste des Voyages à Valider")
+
 
 
 # --- Affichage interactif des voyages ---
@@ -579,7 +579,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
     if "attributions" not in st.session_state:
         st.session_state.attributions = {}
 
-    st.info("👉 Pour chaque voyage validé, sélectionnez un **Véhicule** et un **Chauffeur**.")
+    
 
     for idx, row in df_attribution.iterrows():
         with st.expander(f"🚚 Voyage {row['Véhicule N°']} | Zone : {row['Zone']}"):
