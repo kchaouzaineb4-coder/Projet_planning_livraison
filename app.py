@@ -293,7 +293,7 @@ else:
 
 st.markdown("---")
 
-    # =====================================================
+# =====================================================
 # 4. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 4 - Résultat final)
 # =====================================================
 st.header("4. 🚛 Voyages par Estafette Optimisé (Inclut Camions Loués)")
@@ -302,21 +302,17 @@ st.info(
     "y compris les commandes pour lesquelles un camion loué (Code Véhicule : CAMION-LOUE) a été accepté ou refusé."
 )
 
-# Affichage du DataFrame avec show_df pour uniformiser le format numérique
-show_df(
-    df_optimized_estafettes,
-    use_container_width=True,
-    float_format="{:.3f}",  # 3 décimales pour toutes les colonnes numériques
-    column_formats={
-        "Poids total chargé": "{:.2f} kg",
-        "Volume total chargé": "{:.3f} m³",
-        "Taux d'occupation (%)": "{:.2f}%"
-    }
-)
+# --- Création d'une copie formatée pour l'affichage ---
+df_display = df_optimized_estafettes.copy()
+df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.2f} kg")
+df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.2f}%")
 
-# Bouton de téléchargement
+# Affichage avec show_df
+show_df(df_display, use_container_width=True)
+
+# --- Bouton de téléchargement Excel (DataFrame non formaté pour garder les valeurs numériques) ---
 path_optimized = "Voyages_Estafette_Optimises.xlsx"
-# Export Excel avec DataFrame non formaté
 df_optimized_estafettes.to_excel(path_optimized, index=False)
 with open(path_optimized, "rb") as f:
     st.download_button(
@@ -326,8 +322,9 @@ with open(path_optimized, "rb") as f:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-# Mise à jour dans session_state pour la section 5
+# --- Mise à jour dans session_state pour la section 5 ---
 st.session_state.df_voyages = df_optimized_estafettes
+
 
 
 # =====================================================
