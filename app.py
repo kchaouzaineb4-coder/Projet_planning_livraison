@@ -8,20 +8,23 @@ import plotly.express as px
 def show_df(df, multi_line_columns=None, **kwargs):
     """
     Affiche un DataFrame avec tous les nombres arrondis à 3 décimales.
-    multi_line_columns : liste des colonnes où les virgules doivent être remplacées par un saut de ligne.
+    multi_line_columns : liste des colonnes où les valeurs séparées par une virgule seront explosées en lignes distinctes.
     """
-    if isinstance(df, pd.DataFrame):
-        df_to_display = df.copy()
-        df_to_display = df_to_display.round(3)
-        
-        if multi_line_columns:
-            for col in multi_line_columns:
-                if col in df_to_display.columns:
-                    df_to_display[col] = df_to_display[col].astype(str).str.replace(',', '\n')
-        
-        st.dataframe(df_to_display, **kwargs)
-    else:
+    if not isinstance(df, pd.DataFrame):
         st.dataframe(df, **kwargs)
+        return
+
+    df_to_display = df.copy()
+    df_to_display = df_to_display.round(3)  # arrondi à 3 décimales
+
+    if multi_line_columns:
+        for col in multi_line_columns:
+            if col in df_to_display.columns:
+                # Transformer en liste puis exploser
+                df_to_display[col] = df_to_display[col].astype(str).str.split(",")
+                df_to_display = df_to_display.explode(col).reset_index(drop=True)
+
+    st.dataframe(df_to_display, **kwargs)
 #=================
 # 📌 Constantes pour les véhicules et chauffeurs
 # =====================================================
