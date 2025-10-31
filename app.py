@@ -344,7 +344,7 @@ st.markdown("---")
 # =====================================================
 # 4. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 4 - Résultat final)
 # =====================================================
-st.header("4. 🚛 Voyages par Estafette Optimisé (Inclut Camions Loués)")
+st.header("4. 🚐 Voyages par Estafette Optimisé (Inclut Camions Loués)")
 
 
 # --- Création d'une copie pour l'affichage (avec unités) ---
@@ -358,7 +358,7 @@ show_df(df_display, use_container_width=True)
 
 # --- Préparer un DataFrame pour export Excel ---
 df_export = df_optimized_estafettes.copy()
-df_export["Poids total chargé"] = df_export["Poids total chargé"].round(2)
+df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
 df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
 
 # --- Bouton de téléchargement Excel ---
