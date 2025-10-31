@@ -570,8 +570,6 @@ if st.button("🧮 Appliquer la validation"):
 # =====================================================
 # 7️⃣ ATTRIBUTION DES VÉHICULES ET CHAUFFEURS
 # =====================================================
-st.markdown("## 🚛 Attribution des Véhicules et Chauffeurs")
-
 if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_valides.empty:
 
     df_attribution = st.session_state.df_voyages_valides.copy()
@@ -614,7 +612,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
         df_attribution["Véhicule attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Véhicule"])
         df_attribution["Chauffeur attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Chauffeur"])
 
-        st.success("🚀 Attributions appliquées avec succès !")
+        
         st.markdown("### 📦 Voyages avec Véhicule et Chauffeur")
 
         # --- Affichage formaté ---
