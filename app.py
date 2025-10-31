@@ -215,8 +215,7 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 # --- Onglet Livraisons Client/Ville ---
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
-    show_df_multiline(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), column_to_multiline="Article")
-
+    show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), use_container_width=True)
     # Stockage du DataFrame pour la section 5 (transfert BLs)
     if "df_livraisons" not in st.session_state:
         st.session_state.df_livraisons = st.session_state.df_grouped.copy()
