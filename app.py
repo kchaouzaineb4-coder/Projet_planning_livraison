@@ -20,23 +20,42 @@ def show_df(df, **kwargs):
         st.dataframe(df, **kwargs)
 
 # =====================================================
-# === Fonction show_df_multiline (affichage articles) ==
+# === Fonction show_df_multiline avec affichage HTML ===
 # =====================================================
 def show_df_multiline(df, column_to_multiline):
     """
-    Affiche un DataFrame en fusionnant les articles pour le même No livraison,
-    avec un affichage multilignes (un article par ligne dans la même cellule).
+    Affiche un DataFrame avec les articles multilignes dans la même cellule.
+    Chaque 'No livraison' reste sur une seule ligne.
     """
     df_display = df.copy()
 
-    # Grouper par les colonnes fixes
+    # Grouper les lignes par livraison et concaténer les articles avec des <br>
     df_display = df_display.groupby(
         ['No livraison', 'Client', 'Ville', 'Représentant', 'Poids total', 'Volume total'],
         as_index=False
     ).agg({column_to_multiline: lambda x: "<br>".join(x.astype(str))})
 
-    # Convertir le DataFrame en HTML avec gestion des sauts de ligne
-    st.markdown(df_display.to_html(escape=False, index=False), unsafe_allow_html=True)
+    # CSS pour forcer le retour à la ligne dans les cellules
+    css = """
+    <style>
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    th, td {
+        border: 1px solid #444;
+        padding: 6px;
+        text-align: left;
+        vertical-align: top;
+        white-space: pre-wrap; /* ✅ pour afficher les <br> comme sauts de ligne */
+        word-wrap: break-word;
+    }
+    </style>
+    """
+
+    # Convertir en HTML et afficher avec CSS
+    html = df_display.to_html(escape=False, index=False)
+    st.markdown(css + html, unsafe_allow_html=True)
 
 # =====================================================
 # 📌 Constantes pour les véhicules et chauffeurs
