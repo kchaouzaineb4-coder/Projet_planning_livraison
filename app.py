@@ -5,27 +5,33 @@ import plotly.express as px
 # =====================================================
 # === Fonction show_df pour arrondir à 3 décimales ===
 # =====================================================
-def show_df(df, multi_line_columns=None, **kwargs):
+def show_df(df, **kwargs):
     """
     Affiche un DataFrame avec tous les nombres arrondis à 3 décimales.
-    multi_line_columns : liste des colonnes où les valeurs séparées par une virgule seront explosées en lignes distinctes.
+    kwargs sont transmis à st.dataframe.
     """
-    if not isinstance(df, pd.DataFrame):
+    if isinstance(df, pd.DataFrame):
+        df_to_display = df.copy()
+        df_to_display = df_to_display.round(3)
+        st.dataframe(df_to_display, **kwargs)
+    else:
         st.dataframe(df, **kwargs)
-        return
+def show_df_multiline(df, column_to_multiline):
+    """
+    Affiche un DataFrame en fusionnant les articles pour le même No livraison,
+    avec un saut de ligne dans la colonne spécifiée.
+    """
+    df_display = df.copy()
 
-    df_to_display = df.copy()
-    df_to_display = df_to_display.round(3)  # arrondi à 3 décimales
+    # Grouper par No livraison et concaténer les articles avec un saut de ligne
+    df_display = df_display.groupby(
+        ['No livraison', 'Client', 'Ville', 'Représentant', 'Poids total', 'Volume total'],
+        as_index=False
+    ).agg({column_to_multiline: lambda x: "\n".join(x.astype(str))})
 
-    if multi_line_columns:
-        for col in multi_line_columns:
-            if col in df_to_display.columns:
-                # Transformer en liste puis exploser
-                df_to_display[col] = df_to_display[col].astype(str).str.split(",")
-                df_to_display = df_to_display.explode(col).reset_index(drop=True)
+    st.dataframe(df_display)
 
-    st.dataframe(df_to_display, **kwargs)
-#=================
+# =====================================================
 # 📌 Constantes pour les véhicules et chauffeurs
 # =====================================================
 VEHICULES_DISPONIBLES = [
@@ -178,11 +184,7 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 # --- Onglet Livraisons Client/Ville ---
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
-    # On transforme la colonne "Article" pour afficher chaque article sur une ligne
-    show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), 
-            multi_line_columns=["Article"],
-            use_container_width=True)
-
+    show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), use_container_width=True)
     # Stockage du DataFrame pour la section 5 (transfert BLs)
     if "df_livraisons" not in st.session_state:
         st.session_state.df_livraisons = st.session_state.df_grouped.copy()
