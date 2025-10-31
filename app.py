@@ -302,29 +302,37 @@ st.info(
     "y compris les commandes pour lesquelles un camion loué (Code Véhicule : CAMION-LOUE) a été accepté ou refusé."
 )
 
-# --- Création d'une copie formatée pour l'affichage ---
+# --- Création d'une copie pour l'affichage (avec unités) ---
 df_display = df_optimized_estafettes.copy()
-df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.2f} kg")
+df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
 df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.2f}%")
+df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
 
-# Affichage avec show_df
+# --- Affichage avec show_df ---
 show_df(df_display, use_container_width=True)
 
-# --- Bouton de téléchargement Excel (DataFrame non formaté pour garder les valeurs numériques) ---
+# --- Préparer un DataFrame pour export Excel ---
+df_export = df_optimized_estafettes.copy()
+df_export["Poids total chargé"] = df_export["Poids total chargé"].round(2)
+df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
+
+# --- Bouton de téléchargement Excel ---
+from io import BytesIO
 path_optimized = "Voyages_Estafette_Optimises.xlsx"
-df_optimized_estafettes.to_excel(path_optimized, index=False)
-with open(path_optimized, "rb") as f:
-    st.download_button(
-        label="💾 Télécharger Voyages Estafette Optimisés",
-        data=f,
-        file_name=path_optimized,
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+excel_buffer = BytesIO()
+with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+    df_export.to_excel(writer, index=False, sheet_name="Voyages Optimisés")
+excel_buffer.seek(0)
+
+st.download_button(
+    label="💾 Télécharger Voyages Estafette Optimisés",
+    data=excel_buffer,
+    file_name=path_optimized,
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
 
 # --- Mise à jour dans session_state pour la section 5 ---
 st.session_state.df_voyages = df_optimized_estafettes
-
 
 
 # =====================================================
