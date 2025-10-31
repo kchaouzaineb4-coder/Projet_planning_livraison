@@ -690,5 +690,3 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             mime='application/pdf'
         )
 
-else:
-    st.warning("⚠️ Aucun voyage validé trouvé. Veuillez d'abord valider les voyages.")
