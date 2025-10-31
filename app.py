@@ -376,10 +376,13 @@ else:
                     st.warning("⚠️ Aucun BL trouvé pour ce véhicule source.")
                 else:
                     st.subheader(f"📦 BLs actuellement assignés à {source}")
-                    show_df(
-                        df_source[["Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]],
-                        use_container_width=True
-                    )
+
+                    # Formatage des colonnes numériques pour l'affichage
+                    df_source_display = df_source[["Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]].copy()
+                    df_source_display["Poids total chargé"] = df_source_display["Poids total chargé"].map(lambda x: f"{x:.2f} kg")
+                    df_source_display["Volume total chargé"] = df_source_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+
+                    show_df(df_source_display, use_container_width=True)
 
                     # --- Sélection des BLs à transférer ---
                     bls_disponibles = df_source["BL inclus"].iloc[0].split(";")
@@ -429,11 +432,13 @@ else:
 
                                 # --- Affichage de tous les voyages mis à jour ---
                                 st.subheader("📊 Voyages après transfert (toutes les zones)")
-                                show_df(
-                                    df_voyages.sort_values(by=["Zone", "Véhicule N°"])[colonnes_requises],
-                                    use_container_width=True,
-                                    float_format="{:.3f}"
-                                )
+
+                                # Création d'une copie formatée pour l'affichage
+                                df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
+                                df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.2f} kg")
+                                df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+
+                                show_df(df_display[colonnes_requises], use_container_width=True)
 
                                 # --- Téléchargement XLSX ---
                                 from io import BytesIO
