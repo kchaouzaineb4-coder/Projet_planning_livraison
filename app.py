@@ -22,7 +22,7 @@ def show_df(df, multi_line_columns=None, **kwargs):
         st.dataframe(df_to_display, **kwargs)
     else:
         st.dataframe(df, **kwargs)
-=================
+#=================
 # 📌 Constantes pour les véhicules et chauffeurs
 # =====================================================
 VEHICULES_DISPONIBLES = [
