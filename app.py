@@ -340,27 +340,22 @@ st.session_state.df_voyages = df_optimized_estafettes
 # =====================================================
 st.markdown("## 🔁 Transfert de BLs entre Estafettes / Camions")
 
-# --- Limites des véhicules ---
 MAX_POIDS = 1550  # kg
 MAX_VOLUME = 4.608  # m³
 
-# --- Vérification : le tableau final doit être disponible ---
 if "df_voyages" not in st.session_state:
     st.warning("⚠️ Vous devez d'abord exécuter la section 3 (résultat final après location).")
 elif "df_livraisons" not in st.session_state:
-    st.warning("⚠️ Le DataFrame des livraisons détaillées n'est pas disponible. Assurez-vous que la section 2 a été exécutée.")
+    st.warning("⚠️ Le DataFrame des livraisons détaillées n'est pas disponible.")
 else:
-    # --- Récupération des DataFrames ---
     df_voyages = st.session_state.df_voyages.copy()
     df_livraisons = st.session_state.df_livraisons.copy()
 
-    # --- Colonnes requises pour l'affichage ---
     colonnes_requises = ["Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]
 
     if not all(col in df_voyages.columns for col in colonnes_requises):
         st.error(f"❌ Le DataFrame ne contient pas toutes les colonnes nécessaires : {', '.join(colonnes_requises)}")
     else:
-        # --- Sélection de la zone ---
         zones_disponibles = sorted(df_voyages["Zone"].dropna().unique().tolist())
         zone_selectionnee = st.selectbox("🌍 Sélectionner une zone", zones_disponibles)
 
@@ -368,101 +363,86 @@ else:
             df_zone = df_voyages[df_voyages["Zone"] == zone_selectionnee]
             vehicules = sorted(df_zone["Véhicule N°"].dropna().unique().tolist())
 
-            # --- Sélection véhicule source et cible ---
             col1, col2 = st.columns(2)
             with col1:
                 source = st.selectbox("🚐 Estafette / Camion source", vehicules)
             with col2:
                 cible = st.selectbox("🎯 Estafette / Camion cible", [v for v in vehicules if v != source])
 
-            if not source or not cible:
-                st.info("ℹ️ Sélectionnez un véhicule source et un véhicule cible pour continuer.")
-            else:
-                # --- BLs du véhicule source ---
+            if source and cible:
                 df_source = df_zone[df_zone["Véhicule N°"] == source]
                 if df_source.empty or df_source["BL inclus"].isna().all():
                     st.warning("⚠️ Aucun BL trouvé pour ce véhicule source.")
                 else:
                     st.subheader(f"📦 BLs actuellement assignés à {source}")
 
-                    # Formatage des colonnes numériques pour l'affichage
+                    # --- Affichage formaté pour Streamlit ---
                     df_source_display = df_source[["Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]].copy()
                     df_source_display["Poids total chargé"] = df_source_display["Poids total chargé"].map(lambda x: f"{x:.2f} kg")
                     df_source_display["Volume total chargé"] = df_source_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-
                     show_df(df_source_display, use_container_width=True)
 
-                    # --- Sélection des BLs à transférer ---
                     bls_disponibles = df_source["BL inclus"].iloc[0].split(";")
                     bls_selectionnes = st.multiselect("📋 Sélectionner les BLs à transférer :", bls_disponibles)
 
-                    if bls_selectionnes:
-                        if st.button("🔁 Exécuter le transfert"):
+                    if bls_selectionnes and st.button("🔁 Exécuter le transfert"):
 
-                            # --- BLs sélectionnés depuis le DataFrame des livraisons ---
-                            df_bls_selection = df_livraisons[
-                                df_livraisons["No livraison"].isin(bls_selectionnes)
-                            ]
-    
-                            poids_bls = df_bls_selection["Poids total"].sum()
-                            volume_bls = df_bls_selection["Volume total"].sum()
+                        df_bls_selection = df_livraisons[df_livraisons["No livraison"].isin(bls_selectionnes)]
+                        poids_bls = df_bls_selection["Poids total"].sum()
+                        volume_bls = df_bls_selection["Volume total"].sum()
 
-                            # --- Vérification limites pour le véhicule cible ---
-                            df_cible = df_zone[df_zone["Véhicule N°"] == cible]
-                            poids_cible = df_cible["Poids total chargé"].sum()
-                            volume_cible = df_cible["Volume total chargé"].sum()
+                        df_cible = df_zone[df_zone["Véhicule N°"] == cible]
+                        poids_cible = df_cible["Poids total chargé"].sum()
+                        volume_cible = df_cible["Volume total chargé"].sum()
 
-                            if (poids_cible + poids_bls) > MAX_POIDS or (volume_cible + volume_bls) > MAX_VOLUME:
-                                st.warning("⚠️ Le transfert dépasse les limites de poids ou volume du véhicule cible.")
-                            else:
-                                # --- Transfert effectif ---
-                                def transfer_bl(row):
-                                    bls = row["BL inclus"].split(";") if pd.notna(row["BL inclus"]) else []
-                                    bls_to_move = [b for b in bls if b in bls_selectionnes]
+                        if (poids_cible + poids_bls) > MAX_POIDS or (volume_cible + volume_bls) > MAX_VOLUME:
+                            st.warning("⚠️ Le transfert dépasse les limites de poids ou volume du véhicule cible.")
+                        else:
+                            def transfer_bl(row):
+                                bls = row["BL inclus"].split(";") if pd.notna(row["BL inclus"]) else []
+                                bls_to_move = [b for b in bls if b in bls_selectionnes]
 
-                                    if row["Véhicule N°"] == source:
-                                        new_bls = [b for b in bls if b not in bls_to_move]
-                                        row["BL inclus"] = ";".join(new_bls)
-                                        row["Poids total chargé"] -= poids_bls
-                                        row["Volume total chargé"] -= volume_bls
-                                        row["Poids total chargé"] = max(0, row["Poids total chargé"])
-                                        row["Volume total chargé"] = max(0, row["Volume total chargé"])
-                                    elif row["Véhicule N°"] == cible:
-                                        new_bls = bls + bls_to_move
-                                        row["BL inclus"] = ";".join(new_bls)
-                                        row["Poids total chargé"] += poids_bls
-                                        row["Volume total chargé"] += volume_bls
-                                    return row
+                                if row["Véhicule N°"] == source:
+                                    new_bls = [b for b in bls if b not in bls_to_move]
+                                    row["BL inclus"] = ";".join(new_bls)
+                                    row["Poids total chargé"] = max(0, row["Poids total chargé"] - poids_bls)
+                                    row["Volume total chargé"] = max(0, row["Volume total chargé"] - volume_bls)
+                                elif row["Véhicule N°"] == cible:
+                                    new_bls = bls + bls_to_move
+                                    row["BL inclus"] = ";".join(new_bls)
+                                    row["Poids total chargé"] += poids_bls
+                                    row["Volume total chargé"] += volume_bls
+                                return row
 
-                                df_voyages = df_voyages.apply(transfer_bl, axis=1)
-                                st.session_state.df_voyages = df_voyages
-                                st.success(f"✅ Transfert réussi : {len(bls_selectionnes)} BL(s) déplacé(s) de {source} vers {cible}.")
+                            df_voyages = df_voyages.apply(transfer_bl, axis=1)
+                            st.session_state.df_voyages = df_voyages
+                            st.success(f"✅ Transfert réussi : {len(bls_selectionnes)} BL(s) déplacé(s) de {source} vers {cible}.")
 
-                                # --- Affichage de tous les voyages mis à jour ---
-                                st.subheader("📊 Voyages après transfert (toutes les zones)")
+                            # --- Affichage Streamlit ---
+                            st.subheader("📊 Voyages après transfert (toutes les zones)")
+                            df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
+                            df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.2f} kg")
+                            df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+                            show_df(df_display[colonnes_requises], use_container_width=True)
 
-                                # Création d'une copie formatée pour l'affichage
-                                df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
-                                df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.2f} kg")
-                                df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+                            # --- Export Excel arrondi ---
+                            df_export = df_voyages.copy()
+                            df_export["Poids total chargé"] = df_export["Poids total chargé"].round(2)
+                            df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
 
-                                show_df(df_display[colonnes_requises], use_container_width=True)
+                            from io import BytesIO
+                            excel_buffer = BytesIO()
+                            with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                                df_export.to_excel(writer, index=False, sheet_name='Transfert BLs')
+                            excel_buffer.seek(0)
 
-                                # --- Téléchargement XLSX ---
-                                from io import BytesIO
-                                def to_excel(df):
-                                    output = BytesIO()
-                                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                                        df.to_excel(writer, index=False, sheet_name='Transfert BLs')
-                                    return output.getvalue()
+                            st.download_button(
+                                label="💾 Télécharger le tableau mis à jour (XLSX)",
+                                data=excel_buffer,
+                                file_name="voyages_apres_transfert.xlsx",
+                                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                            )
 
-                                excel_data = to_excel(df_voyages)
-                                st.download_button(
-                                    label="💾 Télécharger le tableau mis à jour (XLSX)",
-                                    data=excel_data,
-                                    file_name="voyages_apres_transfert.xlsx",
-                                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                                )
                     else:
                         st.info("ℹ️ Sélectionnez au moins un BL à transférer.")
 
