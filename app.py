@@ -449,6 +449,9 @@ if st.button("🧮 Appliquer la validation"):
     valid_indexes = [i for i, v in st.session_state.validations.items() if v == "Oui"]
     df_voyages_valides = df_validation.loc[valid_indexes].reset_index(drop=True)
 
+    # --- Stockage dans session_state pour qu'il soit accessible globalement ---
+    st.session_state.df_voyages_valides = df_voyages_valides
+
     st.success(f"✅ {len(df_voyages_valides)} voyage(s) validé(s).")
     st.markdown("### 📦 Voyages Validés")
     st.dataframe(df_voyages_valides, use_container_width=True)
@@ -461,6 +464,7 @@ if st.button("🧮 Appliquer la validation"):
         file_name="Voyages_valides.xlsx",
         mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
+
     # --- Création du tableau des voyages validés si il n'existe pas encore ---
     if "df_voyages_valides" not in locals() and "df_voyages_valides" not in st.session_state:
         if "df_voyages" in st.session_state:
@@ -473,10 +477,10 @@ if st.button("🧮 Appliquer la validation"):
 # =====================================================
 st.markdown("## 🚛 Attribution des Véhicules et Chauffeurs")
 
-# --- Vérification que df_voyages_valides existe ---
-if 'df_voyages_valides' in locals() or 'df_voyages_valides' in globals():
+# --- Vérification que df_voyages_valides existe dans st.session_state ---
+if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_valides.empty:
     
-    df_attribution = df_voyages_valides.copy()
+    df_attribution = st.session_state.df_voyages_valides.copy()
 
     # --- Création d'un dictionnaire pour stocker les attributions ---
     if "attributions" not in st.session_state:
@@ -541,4 +545,3 @@ if 'df_voyages_valides' in locals() or 'df_voyages_valides' in globals():
 
 else:
     st.warning("⚠️ Aucun voyage validé trouvé. Veuillez d'abord valider les voyages.")
-    
