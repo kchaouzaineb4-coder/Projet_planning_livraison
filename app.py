@@ -378,7 +378,7 @@ else:
 
                     # --- Affichage formaté pour Streamlit ---
                     df_source_display = df_source[["Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]].copy()
-                    df_source_display["Poids total chargé"] = df_source_display["Poids total chargé"].map(lambda x: f"{x:.2f} kg")
+                    df_source_display["Poids total chargé"] = df_source_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                     df_source_display["Volume total chargé"] = df_source_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     show_df(df_source_display, use_container_width=True)
 
@@ -421,7 +421,7 @@ else:
                             # --- Affichage Streamlit ---
                             st.subheader("📊 Voyages après transfert (toutes les zones)")
                             df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
-                            df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.2f} kg")
+                            df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                             df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                             show_df(df_display[colonnes_requises], use_container_width=True)
 
@@ -453,18 +453,23 @@ st.markdown("## ✅ Validation des Voyages après Transfert")
 
 from io import BytesIO
 
-# --- Fonction pour exporter DataFrame en Excel ---
+# --- Fonction pour exporter DataFrame en Excel avec arrondi ---
 def to_excel(df, sheet_name="Voyages Validés"):
+    df_export = df.copy()
+    if "Poids total chargé" in df_export.columns:
+        df_export["Poids total chargé"] = df_export["Poids total chargé"].round(2)
+    if "Volume total chargé" in df_export.columns:
+        df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
+
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name=sheet_name)
+        df_export.to_excel(writer, index=False, sheet_name=sheet_name)
     return output.getvalue()
 
-# --- On crée voyages_apres_transfert à partir du df_voyages final ---
+# --- Création du DataFrame de validation à partir du df_voyages ---
 voyages_apres_transfert = st.session_state.df_voyages.copy()
 df_validation = voyages_apres_transfert.copy()
 
-# --- Création d'une clé unique pour l'état de validation ---
 if "validations" not in st.session_state:
     st.session_state.validations = {}
 
@@ -475,10 +480,9 @@ st.info("👉 Pour chaque voyage, sélectionnez **Oui** pour valider ou **Non** 
 for idx, row in df_validation.iterrows():
     with st.expander(f"🚚 Voyage {row['Véhicule N°']} | Zone : {row['Zone']}"):
         st.write("**Informations du voyage :**")
-        # Formatage des colonnes numériques pour l'affichage
         row_display = row.to_frame().T.copy()
         if "Poids total chargé" in row_display.columns:
-            row_display["Poids total chargé"] = row_display["Poids total chargé"].map(lambda x: f"{x:.2f} kg")
+            row_display["Poids total chargé"] = row_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
         if "Volume total chargé" in row_display.columns:
             row_display["Volume total chargé"] = row_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
         show_df(row_display, use_container_width=True)
@@ -495,30 +499,24 @@ for idx, row in df_validation.iterrows():
 
 # --- Bouton pour appliquer les validations ---
 if st.button("🧮 Appliquer la validation"):
-    # --- Extraction des voyages validés ---
     valid_indexes = [i for i, v in st.session_state.validations.items() if v == "Oui"]
-
-    # --- Filtrer seulement les indices existants dans df_validation ---
     valid_indexes = [i for i in valid_indexes if i in df_validation.index]
 
-    # --- Création du DataFrame final ---
     df_voyages_valides = df_validation.loc[valid_indexes].reset_index(drop=True)
-
-    # --- Stockage dans session_state pour qu'il soit accessible globalement ---
     st.session_state.df_voyages_valides = df_voyages_valides
 
     st.success(f"✅ {len(df_voyages_valides)} voyage(s) validé(s).")
     st.markdown("### 📦 Voyages Validés")
 
-    # Formatage pour affichage
+    # --- Affichage Streamlit avec unités ---
     df_display = df_voyages_valides.copy()
     if "Poids total chargé" in df_display.columns:
-        df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.2f} kg")
+        df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
     if "Volume total chargé" in df_display.columns:
         df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
     show_df(df_display, use_container_width=True)
 
-    # --- Téléchargement Excel ---
+    # --- Export Excel arrondi ---
     excel_data = to_excel(df_voyages_valides)
     st.download_button(
         label="💾 Télécharger les voyages validés (XLSX)",
@@ -534,7 +532,7 @@ st.markdown("## 🚛 Attribution des Véhicules et Chauffeurs")
 
 # --- Vérification que df_voyages_valides existe ---
 if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_valides.empty:
-    
+
     df_attribution = st.session_state.df_voyages_valides.copy()
 
     # --- Dictionnaire pour stocker les attributions ---
@@ -596,12 +594,17 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
         show_df(df_display, use_container_width=True)
 
-        # --- Téléchargement XLSX ---
+        # --- Fonction pour export Excel avec arrondi ---
         from io import BytesIO
         def to_excel(df):
+            df_export = df.copy()
+            if "Poids total chargé" in df_export.columns:
+                df_export["Poids total chargé"] = df_export["Poids total chargé"].round(2)
+            if "Volume total chargé" in df_export.columns:
+                df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df.to_excel(writer, index=False, sheet_name='Voyages_Attribués')
+                df_export.to_excel(writer, index=False, sheet_name='Voyages_Attribués')
             return output.getvalue()
 
         excel_data = to_excel(df_attribution)
