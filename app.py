@@ -394,3 +394,55 @@ else:
                     else:
                         st.info("ℹ️ Sélectionnez au moins un BL à transférer.")
 
+# =====================================================
+# ✅ 6. VALIDATION DES VOYAGES APRÈS TRANSFERT
+# =====================================================
+st.markdown("## ✅ Validation des Voyages après Transfert")
+
+# On suppose que le tableau "voyages_apres_transfert" existe déjà
+if "voyages_apres_transfert" in locals() or "voyages_apres_transfert" in globals():
+
+    df_validation = voyages_apres_transfert.copy()
+
+    # Ajout d'une colonne de choix de validation pour chaque ligne
+    st.markdown("### 🧾 Liste des Voyages à Valider")
+    st.info("👉 Pour chaque voyage, sélectionnez **Oui** pour valider ou **Non** pour supprimer.")
+
+    # Création d'une clé unique pour l'état de validation
+    if "validations" not in st.session_state:
+        st.session_state.validations = {}
+
+    # Affichage interactif des voyages
+    for idx, row in df_validation.iterrows():
+        with st.expander(f"🚚 Voyage {row['Estafette']} | Zone : {row['Zone']}"):
+            st.write("**Informations du voyage :**")
+            st.dataframe(row.to_frame().T, use_container_width=True)
+            
+            choix = st.radio(
+                f"Valider ce voyage ? (Estafette {row['Estafette']})",
+                ["Oui", "Non"],
+                index=0 if st.session_state.validations.get(idx) == "Oui" else 1 if st.session_state.validations.get(idx) == "Non" else 0,
+                key=f"validation_{idx}"
+            )
+            st.session_state.validations[idx] = choix
+
+    # Bouton pour appliquer les validations
+    if st.button("🧮 Appliquer la validation"):
+        valid_indexes = [i for i, v in st.session_state.validations.items() if v == "Oui"]
+        df_voyages_valides = df_validation.loc[valid_indexes].reset_index(drop=True)
+
+        st.success(f"✅ {len(df_voyages_valides)} voyage(s) validé(s).")
+        st.markdown("### 📦 Voyages Validés")
+        st.dataframe(df_voyages_valides, use_container_width=True)
+
+        # Bouton pour télécharger le tableau final validé
+        csv_valid = df_voyages_valides.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="⬇️ Télécharger les voyages validés (CSV)",
+            data=csv_valid,
+            file_name="Voyages_valides.csv",
+            mime="text/csv",
+        )
+
+else:
+    st.warning("⚠️ Aucun tableau 'voyages_apres_transfert' trouvé. Vérifiez la section précédente.")
