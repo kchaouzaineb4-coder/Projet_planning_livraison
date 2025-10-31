@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-# Assurez-vous que le fichier backend.py est dans le même dossier
 from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME 
 import plotly.express as px
 
