@@ -472,7 +472,7 @@ else:
 
                             # --- Export Excel arrondi ---
                             df_export = df_voyages.copy()
-                            df_export["Poids total chargé"] = df_export["Poids total chargé"].round(2)
+                            df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
                             df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
 
                             from io import BytesIO
@@ -502,7 +502,7 @@ from io import BytesIO
 def to_excel(df, sheet_name="Voyages Validés"):
     df_export = df.copy()
     if "Poids total chargé" in df_export.columns:
-        df_export["Poids total chargé"] = df_export["Poids total chargé"].round(2)
+        df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
     if "Volume total chargé" in df_export.columns:
         df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
 
@@ -623,7 +623,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
         # --- Affichage formaté ---
         df_display = df_attribution.copy()
         if "Poids total chargé" in df_display.columns:
-            df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.2f} kg")
+            df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
         if "Volume total chargé" in df_display.columns:
             df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
         show_df(df_display, use_container_width=True)
@@ -633,7 +633,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
         def to_excel(df):
             df_export = df.copy()
             if "Poids total chargé" in df_export.columns:
-                df_export["Poids total chargé"] = df_export["Poids total chargé"].round(2)
+                df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
             if "Volume total chargé" in df_export.columns:
                 df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
             output = BytesIO()
