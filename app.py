@@ -5,18 +5,24 @@ import plotly.express as px
 # =====================================================
 # === Fonction show_df pour arrondir à 3 décimales ===
 # =====================================================
-def show_df(df, **kwargs):
+def show_df(df, multi_line_columns=None, **kwargs):
     """
     Affiche un DataFrame avec tous les nombres arrondis à 3 décimales.
-    kwargs sont transmis à st.dataframe.
+    multi_line_columns : liste des colonnes où les virgules doivent être remplacées par un saut de ligne.
     """
     if isinstance(df, pd.DataFrame):
         df_to_display = df.copy()
         df_to_display = df_to_display.round(3)
+        
+        if multi_line_columns:
+            for col in multi_line_columns:
+                if col in df_to_display.columns:
+                    df_to_display[col] = df_to_display[col].astype(str).str.replace(',', '\n')
+        
         st.dataframe(df_to_display, **kwargs)
     else:
         st.dataframe(df, **kwargs)
-# =====================================================
+=================
 # 📌 Constantes pour les véhicules et chauffeurs
 # =====================================================
 VEHICULES_DISPONIBLES = [
@@ -169,7 +175,11 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 # --- Onglet Livraisons Client/Ville ---
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
-    show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), use_container_width=True)
+    # On transforme la colonne "Article" pour afficher chaque article sur une ligne
+    show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), 
+            multi_line_columns=["Article"],
+            use_container_width=True)
+
     # Stockage du DataFrame pour la section 5 (transfert BLs)
     if "df_livraisons" not in st.session_state:
         st.session_state.df_livraisons = st.session_state.df_grouped.copy()
