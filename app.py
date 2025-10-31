@@ -2,7 +2,20 @@ import streamlit as st
 import pandas as pd
 from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME 
 import plotly.express as px
-
+# =====================================================
+# === Fonction show_df pour arrondir à 3 décimales ===
+# =====================================================
+def show_df(df, **kwargs):
+    """
+    Affiche un DataFrame avec tous les nombres arrondis à 3 décimales.
+    kwargs sont transmis à st.dataframe.
+    """
+    if isinstance(df, pd.DataFrame):
+        df_to_display = df.copy()
+        df_to_display = df_to_display.round(3)
+        st.dataframe(df_to_display, **kwargs)
+    else:
+        st.dataframe(df, **kwargs)
 # =====================================================
 # 📌 Constantes pour les véhicules et chauffeurs
 # =====================================================
@@ -141,149 +154,181 @@ if st.session_state.data_processed:
     df_optimized_estafettes = st.session_state.rental_processor.get_df_result() 
     
     # =====================================================
-    # 2. ANALYSE DE LIVRAISON DÉTAILLÉE (Section 2)
+# 2. ANALYSE DE LIVRAISON DÉTAILLÉE (Section 2)
+# =====================================================
+st.header("2. 🔍 Analyse de Livraison Détaillée")
+
+tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
+    "Livraisons Client/Ville", 
+    "Besoin Estafette par Ville", 
+    "Livraisons Client/Zone", 
+    "Besoin Estafette par Zone",
+    "Graphiques"
+])
+
+# --- Onglet Livraisons Client/Ville ---
+with tab_grouped:
+    st.subheader("Livraisons par Client & Ville")
+    show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), use_container_width=True)
+    # Stockage du DataFrame pour la section 5 (transfert BLs)
+    if "df_livraisons" not in st.session_state:
+        st.session_state.df_livraisons = st.session_state.df_grouped.copy()
+
+# --- Onglet Besoin Estafette par Ville ---
+with tab_city:
+    st.subheader("Besoin Estafette par Ville")
+    show_df(st.session_state.df_city, use_container_width=True)
+
+# --- Onglet Livraisons Client & Ville + Zone ---
+with tab_zone_group:
+    st.subheader("Livraisons par Client & Ville + Zone")
+    show_df(st.session_state.df_grouped_zone, use_container_width=True)
+
+# --- Onglet Besoin Estafette par Zone ---
+with tab_zone_summary:
+    st.subheader("Besoin Estafette par Zone")
+    show_df(st.session_state.df_zone, use_container_width=True)
+
+# --- Onglet Graphiques ---
+with tab_charts:
+    st.subheader("Statistiques par Ville")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.plotly_chart(
+            px.bar(st.session_state.df_city, x="Ville", y="Poids total",
+                   title="Poids total livré par ville"),
+            use_container_width=True
+        )
+    with col2:
+        st.plotly_chart(
+            px.bar(st.session_state.df_city, x="Ville", y="Volume total",
+                   title="Volume total livré par ville (m³)"),
+            use_container_width=True
+        )
+
+    col3, col4 = st.columns(2)
+    with col3:
+        st.plotly_chart(
+            px.bar(st.session_state.df_city, x="Ville", y="Nombre livraisons",
+                   title="Nombre de livraisons par ville"),
+            use_container_width=True
+        )
+    with col4:
+        st.plotly_chart(
+            px.bar(st.session_state.df_city, x="Ville", y="Besoin estafette réel",
+                   title="Besoin en Estafettes par ville"),
+            use_container_width=True
+        )
+
+st.markdown("---")
+
     # =====================================================
-    st.header("2. 🔍 Analyse de Livraison Détaillée")
-    tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
-        "Livraisons Client/Ville", 
-        "Besoin Estafette par Ville", 
-        "Livraisons Client/Zone", 
-        "Besoin Estafette par Zone",
-        "Graphiques"
-    ])
+# 3. PROPOSITION DE LOCATION DE CAMION (Section 3)
+# =====================================================
+st.header("3. 🚚 Proposition de location de camion")
+st.markdown(f"🔸 Si un client dépasse **{SEUIL_POIDS} kg** ou **{SEUIL_VOLUME} m³**, une location est proposée (si non déjà décidée).")
+
+if st.session_state.propositions is not None and not st.session_state.propositions.empty:
+    col_prop, col_details = st.columns([2, 3])
     
-    with tab_grouped:
-        st.subheader("Livraisons par Client & Ville")
-        st.dataframe(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), use_container_width=True)
-        # --- Stockage du DataFrame pour la section 5 (transfert BLs) ---
-        if "df_livraisons" not in st.session_state:
-            st.session_state.df_livraisons = st.session_state.df_grouped.copy()
+    with col_prop:
+        st.markdown("### Propositions ouvertes")
+        # Affichage des propositions ouvertes avec show_df
+        show_df(
+            st.session_state.propositions,
+            use_container_width=True,
+            column_order=["Client", "Poids total (kg)", "Volume total (m³)", "Raison"],
+            hide_index=True
+        )
         
-    with tab_city:
-        st.subheader("Besoin Estafette par Ville")
-        st.dataframe(st.session_state.df_city, use_container_width=True)
-
-    with tab_zone_group:
-        st.subheader("Livraisons par Client & Ville + Zone")
-        st.dataframe(st.session_state.df_grouped_zone, use_container_width=True)
+        # Sélection du client (assure qu'un client non None est sélectionné par défaut si possible)
+        client_options = st.session_state.propositions['Client'].astype(str).tolist()
+        client_options_with_empty = [""] + client_options
         
-    with tab_zone_summary:
-        st.subheader("Besoin Estafette par Zone")
-        st.dataframe(st.session_state.df_zone, use_container_width=True)
+        # Index de sélection par défaut
+        default_index = 0
+        if st.session_state.selected_client in client_options:
+             default_index = client_options_with_empty.index(st.session_state.selected_client)
+        elif len(client_options) > 0:
+             default_index = 1  # Sélectionne le premier client par défaut s'il y en a
+
+        st.session_state.selected_client = st.selectbox(
+            "Client à traiter :", 
+            options=client_options_with_empty, 
+            index=default_index,
+            key='client_select' 
+        )
+
+        col_btn_acc, col_btn_ref = st.columns(2)
+        is_client_selected = st.session_state.selected_client != ""
         
-    with tab_charts:
-        st.subheader("Statistiques par Ville")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.plotly_chart(px.bar(st.session_state.df_city, x="Ville", y="Poids total",
-                                   title="Poids total livré par ville"),
-                            use_container_width=True)
-        with col2:
-            st.plotly_chart(px.bar(st.session_state.df_city, x="Ville", y="Volume total",
-                                   title="Volume total livré par ville (m³)"),
-                            use_container_width=True)
-
-        col3, col4 = st.columns(2)
-        with col3:
-            st.plotly_chart(px.bar(st.session_state.df_city, x="Ville", y="Nombre livraisons",
-                                   title="Nombre de livraisons par ville"),
-                            use_container_width=True)
-        with col4:
-            st.plotly_chart(px.bar(st.session_state.df_city, x="Ville", y="Besoin estafette réel",
-                                   title="Besoin en Estafettes par ville"),
-                            use_container_width=True)
-
-    st.markdown("---")
-    
-    # =====================================================
-    # 3. PROPOSITION DE LOCATION DE CAMION (Section 3)
-    # =====================================================
-    st.header("3. 🚚 Proposition de location de camion")
-    st.markdown(f"🔸 Si un client dépasse **{SEUIL_POIDS} kg** ou **{SEUIL_VOLUME} m³**, une location est proposée (si non déjà décidée).")
-
-    if st.session_state.propositions is not None and not st.session_state.propositions.empty:
-        col_prop, col_details = st.columns([2, 3])
-        
-        with col_prop:
-            st.markdown("### Propositions ouvertes")
-            # Affichage des propositions ouvertes
-            st.dataframe(st.session_state.propositions, 
-                         use_container_width=True,
-                         column_order=["Client", "Poids total (kg)", "Volume total (m³)", "Raison"],
-                         hide_index=True)
-            
-            # Sélection du client (assure qu'un client non None est sélectionné par défaut si possible)
-            client_options = st.session_state.propositions['Client'].astype(str).tolist()
-            client_options_with_empty = [""] + client_options
-            
-            # Index de sélection par défaut
-            default_index = 0
-            if st.session_state.selected_client in client_options:
-                 default_index = client_options_with_empty.index(st.session_state.selected_client)
-            elif len(client_options) > 0:
-                 default_index = 1 # Sélectionne le premier client par défaut s'il y en a
-
-            st.session_state.selected_client = st.selectbox(
-                "Client à traiter :", 
-                options=client_options_with_empty, 
-                index=default_index,
-                key='client_select' 
+        with col_btn_acc:
+            st.button(
+                "✅ Accepter la location", 
+                on_click=accept_location_callback, 
+                disabled=not is_client_selected,
+                use_container_width=True
+            )
+        with col_btn_ref:
+            st.button(
+                "❌ Refuser la proposition", 
+                on_click=refuse_location_callback, 
+                disabled=not is_client_selected,
+                use_container_width=True
             )
 
-            col_btn_acc, col_btn_ref = st.columns(2)
-            is_client_selected = st.session_state.selected_client != ""
-            
-            with col_btn_acc:
-                st.button("✅ Accepter la location", 
-                          on_click=accept_location_callback, 
-                          disabled=not is_client_selected,
-                          use_container_width=True)
-            with col_btn_ref:
-                st.button("❌ Refuser la proposition", 
-                          on_click=refuse_location_callback, 
-                          disabled=not is_client_selected,
-                          use_container_width=True)
+    with col_details:
+        st.markdown("### Détails de la commande client")
+        if is_client_selected:
+            resume, details_df_styled = st.session_state.rental_processor.get_details_client(
+                st.session_state.selected_client
+            )
+            st.text(resume)
+            # Affichage du DataFrame stylisé avec show_df pour 3 décimales
+            show_df(details_df_styled, use_container_width=True, hide_index=True)
+        else:
+            st.info("Sélectionnez un client pour afficher les détails de la commande/estafettes.")
+else:
+    st.success("🎉 Aucune proposition de location de camion en attente de décision.")
 
-        with col_details:
-            st.markdown("### Détails de la commande client")
-            if is_client_selected:
-                resume, details_df_styled = st.session_state.rental_processor.get_details_client(st.session_state.selected_client)
-                st.text(resume)
-                # Affichage du DataFrame stylisé
-                st.dataframe(details_df_styled, use_container_width=True, hide_index=True)
-            else:
-                st.info("Sélectionnez un client pour afficher les détails de la commande/estafettes.")
-    else:
-        st.success("🎉 Aucune proposition de location de camion en attente de décision.")
-        
-    st.markdown("---")
-    
-    # =====================================================
-    # 4. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 4 - Résultat final)
-    # =====================================================
-    st.header("4.Voyages par Estafette Optimisé (Inclut Camions Loués)")
-    st.info("Ce tableau représente l'ordonnancement final des livraisons, y compris les commandes pour lesquelles un camion loué (Code Véhicule : CAMION-LOUE) a été accepté ou refusé.")
-    
-    # Affichage du DataFrame avec formatage
-    st.dataframe(df_optimized_estafettes.style.format({
-         "Poids total chargé": "{:.2f} kg",
-         "Volume total chargé": "{:.3f} m³",
-         "Taux d'occupation (%)": "{:.2f}%"
-    }), use_container_width=True)
+st.markdown("---")
 
-    # Bouton de téléchargement
-    path_optimized = "Voyages_Estafette_Optimises.xlsx"
-    # Note: On utilise le DataFrame non formaté en string pour l'export Excel
-    df_optimized_estafettes.to_excel(path_optimized, index=False)
-    with open(path_optimized, "rb") as f:
-        st.download_button(
-             label="💾 Télécharger Voyages Estafette Optimisés",
-             data=f,
-             file_name=path_optimized,
-             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-# Cette ligne est essentielle pour que la section 5 sache que le tableau final est prêt
+    # =====================================================
+# 4. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 4 - Résultat final)
+# =====================================================
+st.header("4. 🚛 Voyages par Estafette Optimisé (Inclut Camions Loués)")
+st.info(
+    "Ce tableau représente l'ordonnancement final des livraisons, "
+    "y compris les commandes pour lesquelles un camion loué (Code Véhicule : CAMION-LOUE) a été accepté ou refusé."
+)
+
+# Affichage du DataFrame avec show_df pour uniformiser le format numérique
+show_df(
+    df_optimized_estafettes,
+    use_container_width=True,
+    float_format="{:.3f}",  # 3 décimales pour toutes les colonnes numériques
+    column_formats={
+        "Poids total chargé": "{:.2f} kg",
+        "Volume total chargé": "{:.3f} m³",
+        "Taux d'occupation (%)": "{:.2f}%"
+    }
+)
+
+# Bouton de téléchargement
+path_optimized = "Voyages_Estafette_Optimises.xlsx"
+# Export Excel avec DataFrame non formaté
+df_optimized_estafettes.to_excel(path_optimized, index=False)
+with open(path_optimized, "rb") as f:
+    st.download_button(
+        label="💾 Télécharger Voyages Estafette Optimisés",
+        data=f,
+        file_name=path_optimized,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+# Mise à jour dans session_state pour la section 5
 st.session_state.df_voyages = df_optimized_estafettes
+
 
 # =====================================================
 # 5️⃣ TRANSFERT DES BLs ENTRE ESTAFETTES / CAMIONS
@@ -334,7 +379,10 @@ else:
                     st.warning("⚠️ Aucun BL trouvé pour ce véhicule source.")
                 else:
                     st.subheader(f"📦 BLs actuellement assignés à {source}")
-                    st.dataframe(df_source[["Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]])
+                    show_df(
+                        df_source[["Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]],
+                        use_container_width=True
+                    )
 
                     # --- Sélection des BLs à transférer ---
                     bls_disponibles = df_source["BL inclus"].iloc[0].split(";")
@@ -350,6 +398,7 @@ else:
     
                             poids_bls = df_bls_selection["Poids total"].sum()
                             volume_bls = df_bls_selection["Volume total"].sum()
+
                             # --- Vérification limites pour le véhicule cible ---
                             df_cible = df_zone[df_zone["Véhicule N°"] == cible]
                             poids_cible = df_cible["Poids total chargé"].sum()
@@ -383,8 +432,11 @@ else:
 
                                 # --- Affichage de tous les voyages mis à jour ---
                                 st.subheader("📊 Voyages après transfert (toutes les zones)")
-                                st.dataframe(df_voyages.sort_values(by=["Zone", "Véhicule N°"])[colonnes_requises],
-                                            use_container_width=True)
+                                show_df(
+                                    df_voyages.sort_values(by=["Zone", "Véhicule N°"])[colonnes_requises],
+                                    use_container_width=True,
+                                    float_format="{:.3f}"
+                                )
 
                                 # --- Téléchargement XLSX ---
                                 from io import BytesIO
@@ -433,7 +485,7 @@ st.info("👉 Pour chaque voyage, sélectionnez **Oui** pour valider ou **Non** 
 for idx, row in df_validation.iterrows():
     with st.expander(f"🚚 Voyage {row['Véhicule N°']} | Zone : {row['Zone']}"):
         st.write("**Informations du voyage :**")
-        st.dataframe(row.to_frame().T, use_container_width=True)
+        show_df(row.to_frame().T, use_container_width=True)
 
         choix = st.radio(
             f"Valider ce voyage ? (Estafette {row['Véhicule N°']})",
@@ -459,7 +511,7 @@ if st.button("🧮 Appliquer la validation"):
 
     st.success(f"✅ {len(df_voyages_valides)} voyage(s) validé(s).")
     st.markdown("### 📦 Voyages Validés")
-    st.dataframe(df_voyages_valides, use_container_width=True)
+    show_df(df_voyages_valides, use_container_width=True, float_format="{:.3f}")
 
     # --- Téléchargement Excel ---
     excel_data = to_excel(df_voyages_valides)
@@ -469,6 +521,7 @@ if st.button("🧮 Appliquer la validation"):
         file_name="Voyages_valides.xlsx",
         mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
+
 
 # =====================================================
 # 7️⃣ ATTRIBUTION DES VÉHICULES ET CHAUFFEURS
@@ -490,7 +543,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
     for idx, row in df_attribution.iterrows():
         with st.expander(f"🚚 Voyage {row['Véhicule N°']} | Zone : {row['Zone']}"):
             st.write("**Informations du voyage :**")
-            st.dataframe(row.to_frame().T, use_container_width=True)
+            show_df(row.to_frame().T, use_container_width=True)
 
             # Sélection véhicule
             vehicule_selectionne = st.selectbox(
