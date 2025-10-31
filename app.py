@@ -396,6 +396,15 @@ else:
 # =====================================================
 st.markdown("## ✅ Validation des Voyages après Transfert")
 
+from io import BytesIO
+
+# --- Fonction pour exporter DataFrame en Excel ---
+def to_excel(df, sheet_name="Voyages Validés"):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name=sheet_name)
+    return output.getvalue()
+
 # --- On crée voyages_apres_transfert à partir du df_voyages final ---
 voyages_apres_transfert = st.session_state.df_voyages.copy()
 df_validation = voyages_apres_transfert.copy()
@@ -423,6 +432,7 @@ for idx, row in df_validation.iterrows():
 
 # --- Bouton pour appliquer les validations ---
 if st.button("🧮 Appliquer la validation"):
+    # --- Extraction des voyages validés ---
     valid_indexes = [i for i, v in st.session_state.validations.items() if v == "Oui"]
     df_voyages_valides = df_validation.loc[valid_indexes].reset_index(drop=True)
 
@@ -430,11 +440,13 @@ if st.button("🧮 Appliquer la validation"):
     st.markdown("### 📦 Voyages Validés")
     st.dataframe(df_voyages_valides, use_container_width=True)
 
-    
+    # --- Téléchargement Excel ---
     excel_data = to_excel(df_voyages_valides)
     st.download_button(
-            label="💾 Télécharger le tableau mis à jour (XLSX)",
-            data=excel_data,
-            file_name="Voyages_valides.xlsx",
-            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                                )
+        label="💾 Télécharger les voyages validés (XLSX)",
+        data=excel_data,
+        file_name="Voyages_valides.xlsx",
+        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+    
