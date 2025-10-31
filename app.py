@@ -449,4 +449,77 @@ if st.button("🧮 Appliquer la validation"):
         mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
+# =====================================================
+# 7️⃣ ATTRIBUTION DES VÉHICULES ET CHAUFFEURS
+# =====================================================
+st.markdown("## 🚛 Attribution des Véhicules et Chauffeurs")
+
+# --- Vérification que df_voyages_valides existe ---
+if 'df_voyages_valides' in locals() or 'df_voyages_valides' in globals():
+    
+    df_attribution = df_voyages_valides.copy()
+
+    # --- Création d'un dictionnaire pour stocker les attributions ---
+    if "attributions" not in st.session_state:
+        st.session_state.attributions = {}
+
+    st.info("👉 Pour chaque voyage validé, sélectionnez un **Véhicule** et un **Chauffeur**.")
+
+    # --- Affichage interactif pour chaque voyage ---
+    for idx, row in df_attribution.iterrows():
+        with st.expander(f"🚚 Voyage {row['Véhicule N°']} | Zone : {row['Zone']}"):
+            st.write("**Informations du voyage :**")
+            st.dataframe(row.to_frame().T, use_container_width=True)
+
+            # Sélection véhicule
+            vehicule_selectionne = st.selectbox(
+                f"Véhicule pour le voyage {row['Véhicule N°']}",
+                VEHICULES_DISPONIBLES,
+                index=0 if st.session_state.attributions.get(idx, {}).get("Véhicule") else 0,
+                key=f"vehicule_{idx}"
+            )
+
+            # Sélection chauffeur
+            chauffeur_selectionne = st.selectbox(
+                f"Chauffeur pour le voyage {row['Véhicule N°']}",
+                list(CHAUFFEURS_DETAILS.values()),
+                index=0 if st.session_state.attributions.get(idx, {}).get("Chauffeur") else 0,
+                key=f"chauffeur_{idx}"
+            )
+
+            # Sauvegarde dans st.session_state
+            st.session_state.attributions[idx] = {
+                "Véhicule": vehicule_selectionne,
+                "Chauffeur": chauffeur_selectionne
+            }
+
+    # --- Bouton pour appliquer les attributions ---
+    if st.button("✅ Appliquer les attributions"):
+
+        # Création des colonnes Véhicule attribué et Chauffeur attribué
+        df_attribution["Véhicule attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Véhicule"])
+        df_attribution["Chauffeur attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Chauffeur"])
+
+        st.success("🚀 Attributions appliquées avec succès !")
+        st.markdown("### 📦 Voyages avec Véhicule et Chauffeur")
+        st.dataframe(df_attribution, use_container_width=True)
+
+        # --- Téléchargement XLSX ---
+        from io import BytesIO
+        def to_excel(df):
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='Voyages_Attribués')
+            return output.getvalue()
+
+        excel_data = to_excel(df_attribution)
+        st.download_button(
+            label="💾 Télécharger le tableau final (XLSX)",
+            data=excel_data,
+            file_name="Voyages_attribues.xlsx",
+            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
+else:
+    st.warning("⚠️ Aucun voyage validé trouvé. Veuillez d'abord valider les voyages.")
     
