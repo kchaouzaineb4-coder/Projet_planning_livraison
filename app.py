@@ -447,6 +447,11 @@ for idx, row in df_validation.iterrows():
 if st.button("🧮 Appliquer la validation"):
     # --- Extraction des voyages validés ---
     valid_indexes = [i for i, v in st.session_state.validations.items() if v == "Oui"]
+
+    # --- Filtrer seulement les indices existants dans df_validation ---
+    valid_indexes = [i for i in valid_indexes if i in df_validation.index]
+
+    # --- Création du DataFrame final ---
     df_voyages_valides = df_validation.loc[valid_indexes].reset_index(drop=True)
 
     # --- Stockage dans session_state pour qu'il soit accessible globalement ---
@@ -464,13 +469,6 @@ if st.button("🧮 Appliquer la validation"):
         file_name="Voyages_valides.xlsx",
         mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-
-    # --- Création du tableau des voyages validés si il n'existe pas encore ---
-    if "df_voyages_valides" not in locals() and "df_voyages_valides" not in st.session_state:
-        if "df_voyages" in st.session_state:
-            df_voyages_valides = st.session_state.df_voyages.copy()  # copie du tableau final
-        else:
-            st.warning("⚠️ Aucun voyage disponible pour la validation.")
 
 # =====================================================
 # 7️⃣ ATTRIBUTION DES VÉHICULES ET CHAUFFEURS
