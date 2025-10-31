@@ -520,7 +520,7 @@ if "validations" not in st.session_state:
     st.session_state.validations = {}
 
 st.markdown("### 🧾 Liste des Voyages à Valider")
-st.info("👉 Pour chaque voyage, sélectionnez **Oui** pour valider ou **Non** pour supprimer.")
+
 
 # --- Affichage interactif des voyages ---
 for idx, row in df_validation.iterrows():
