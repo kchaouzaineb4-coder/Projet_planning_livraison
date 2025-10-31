@@ -343,10 +343,7 @@ st.markdown("---")
 # 4. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 4 - Résultat final)
 # =====================================================
 st.header("4. 🚛 Voyages par Estafette Optimisé (Inclut Camions Loués)")
-st.info(
-    "Ce tableau représente l'ordonnancement final des livraisons, "
-    "y compris les commandes pour lesquelles un camion loué (Code Véhicule : CAMION-LOUE) a été accepté ou refusé."
-)
+
 
 # --- Création d'une copie pour l'affichage (avec unités) ---
 df_display = df_optimized_estafettes.copy()
