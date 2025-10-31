@@ -493,7 +493,8 @@ else:
 # =====================================================
 # 6️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
 # =====================================================
-st.markdown("##✅ VALIDATION DES VOYAGES APRÈS TRANSFERT")
+st.markdown("## ✅ VALIDATION DES VOYAGES APRÈS TRANSFERT")
+
 
 from io import BytesIO
 
