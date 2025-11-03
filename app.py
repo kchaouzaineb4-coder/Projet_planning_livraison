@@ -216,7 +216,8 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
 
-    df_liv = st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').copy()
+    df_liv = st.session_state.df_grouped_zone.drop(columns=["Zone"], errors='ignore').copy()
+
 
     # Transformer les articles en liste avec retour à la ligne
     if "Article" in df_liv.columns:
