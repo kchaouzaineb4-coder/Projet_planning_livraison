@@ -58,28 +58,50 @@ class TruckRentalProcessor:
 
     def detecter_propositions(self):
         """
-        Regroupe les données par Client commande pour déterminer si le SEUIL est dépassé.
-        Retourne un DataFrame des clients proposables.
+        Regroupe les données par Zone + Client pour déterminer 
+        si le SEUIL (poids ou volume) est dépassé.
+        Retourne un DataFrame des clients à proposer pour location de camion.
         """
-        # Exclure les clients déjà traités (ceux où Location_proposee est True)
-        # On utilise le 'Client commande' qui est l'agrégation du client
-        processed_clients = self.df_base[self.df_base["Location_proposee"]]["Client commande"].unique()
-        
-        # Filtrer toutes les lignes de df_base pour exclure les commandes des clients déjà traités
-        df_pending = self.df_base[~self.df_base["Client commande"].isin(processed_clients)].copy()
+        SEUIL_POIDS = 3000.0
+        SEUIL_VOLUME = 9.216
+
+        df = self.df_base.copy()
+
+        # 🔸 Exclure les clients déjà traités (Location_proposee = True)
+        processed_clients = df[df["Location_proposee"]]["Client commande"].unique()
+        df_pending = df[~df["Client commande"].isin(processed_clients)].copy()
 
         if df_pending.empty:
-            return pd.DataFrame() # Retourne un DataFrame vide si tout est déjà traité
+            return pd.DataFrame()  # Aucun client à proposer
 
-        # Utiliser df_pending pour l'agrégation
-        grouped = df_pending.groupby("Client commande").agg(
-            Poids_sum=pd.NamedAgg(column="Poids total", aggfunc="sum"),
-            Volume_sum=pd.NamedAgg(column="Volume total", aggfunc="sum"),
-            Zones=pd.NamedAgg(column="Zone", aggfunc=lambda s: ", ".join(sorted(set(s.astype(str).tolist()))))
-        ).reset_index()
+        # 🔸 Regrouper les données par Zone + Client
+        df_clients_zone = df_pending.groupby(["Zone", "Client commande"], as_index=False).agg({
+            "Poids total": "sum",
+            "Volume total": "sum",
+            "Estafette N°": lambda x: ", ".join(sorted(map(str, x.unique()))),
+            "BL inclus": lambda x: ";".join(sorted(set(";".join(x).split(";"))))
+        })
 
-        # Filtrage : Poids ou Volume dépasse le seuil
-        propositions = grouped[(grouped["Poids_sum"] >= SEUIL_POIDS) | (grouped["Volume_sum"] >= SEUIL_VOLUME)].copy()
+        # 🔸 Renommer pour plus de clarté
+        df_clients_zone.rename(columns={
+            "Client commande": "Client",
+            "Poids total": "Poids total (kg)",
+            "Volume total": "Volume total (m³)"
+        }, inplace=True)
+
+        # 🔸 Déterminer la raison de la proposition
+        df_clients_zone["Raison"] = ""
+        df_clients_zone.loc[df_clients_zone["Poids total (kg)"] > SEUIL_POIDS, "Raison"] += "Poids élevé; "
+        df_clients_zone.loc[df_clients_zone["Volume total (m³)"] > SEUIL_VOLUME, "Raison"] += "Volume élevé; "
+        df_clients_zone["Raison"] = df_clients_zone["Raison"].str.strip("; ")
+
+        # 🔸 Filtrer uniquement les clients dépassant le seuil
+        propositions = df_clients_zone[df_clients_zone["Raison"] != ""].copy()
+
+        # 🔸 Tri pour affichage propre
+        propositions.sort_values(["Zone", "Client"], inplace=True)
+
+        return propositions
 
         # Création de la colonne Raison
         def get_raison(row):
