@@ -284,7 +284,7 @@ class TruckRentalProcessor:
         # Sélection des colonnes dans l'ordre final
         return df_result[[col for col in final_cols_display if col in df_result.columns]]
 
-        detecter_propositions = get_propositions
+    detecter_propositions = get_propositions
 
 
 class DeliveryProcessor:
