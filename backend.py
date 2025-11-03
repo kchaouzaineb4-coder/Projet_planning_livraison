@@ -56,49 +56,56 @@ class TruckRentalProcessor:
 
         return df
 
-    def detecter_propositions(self):
+    def get_propositions(self):
         """
-        Regroupe les données par Zone + Client pour déterminer 
-        si le SEUIL (poids ou volume) est dépassé.
-        Retourne un DataFrame des clients à proposer pour location de camion.
+        Analyse les données globales par client et par zone.
+        Si le total des BLs dépasse les seuils (poids ou volume),
+        une proposition de location de camion est générée.
+        ⚠️ Cette fonction ne bloque pas le remplissage des estafettes.
         """
-        SEUIL_POIDS = 3000.0
-        SEUIL_VOLUME = 9.216
 
         df = self.df_base.copy()
 
-        # 🔸 Exclure les clients déjà traités (Location_proposee = True)
-        processed_clients = df[df["Location_proposee"]]["Client commande"].unique()
-        df_pending = df[~df["Client commande"].isin(processed_clients)].copy()
+        # 🔸 Exclure les clients déjà traités (location déjà proposée)
+        if "Location_proposee" in df.columns:
+            processed_clients = df[df["Location_proposee"]]["Client commande"].unique()
+            df = df[~df["Client commande"].isin(processed_clients)]
 
-        if df_pending.empty:
-            return pd.DataFrame()  # Aucun client à proposer
+        # 🔸 Sécurité : vérifier les colonnes nécessaires
+        required_cols = ["Zone", "Client commande", "Poids total", "Volume total", "Estafette N°", "BL inclus"]
+        for col in required_cols:
+            if col not in df.columns:
+                raise KeyError(f"Colonne manquante dans df_base : {col}")
 
-        # 🔸 Regrouper les données par Zone + Client
-        df_clients_zone = df_pending.groupby(["Zone", "Client commande"], as_index=False).agg({
+        # 🔸 Regrouper toutes les estafettes d’un même client dans une même zone
+        df_clients_zone = df.groupby(["Zone", "Client commande"], as_index=False).agg({
             "Poids total": "sum",
             "Volume total": "sum",
             "Estafette N°": lambda x: ", ".join(sorted(map(str, x.unique()))),
             "BL inclus": lambda x: ";".join(sorted(set(";".join(x).split(";"))))
         })
 
-        # 🔸 Renommer pour plus de clarté
+        # 🔸 Renommer pour lisibilité
         df_clients_zone.rename(columns={
             "Client commande": "Client",
             "Poids total": "Poids total (kg)",
             "Volume total": "Volume total (m³)"
         }, inplace=True)
 
-        # 🔸 Déterminer la raison de la proposition
+        # 🔸 Seuils de déclenchement
+        SEUIL_POIDS = 3000.0
+        SEUIL_VOLUME = 9.216
+
+        # 🔸 Déterminer les raisons de proposition
         df_clients_zone["Raison"] = ""
         df_clients_zone.loc[df_clients_zone["Poids total (kg)"] > SEUIL_POIDS, "Raison"] += "Poids élevé; "
         df_clients_zone.loc[df_clients_zone["Volume total (m³)"] > SEUIL_VOLUME, "Raison"] += "Volume élevé; "
         df_clients_zone["Raison"] = df_clients_zone["Raison"].str.strip("; ")
 
-        # 🔸 Filtrer uniquement les clients dépassant le seuil
+        # 🔸 Garder uniquement les propositions valides
         propositions = df_clients_zone[df_clients_zone["Raison"] != ""].copy()
 
-        # 🔸 Tri pour affichage propre
+        # 🔸 Tri pour affichage clair
         propositions.sort_values(["Zone", "Client"], inplace=True)
 
         return propositions
