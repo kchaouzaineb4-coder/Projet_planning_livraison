@@ -16,8 +16,7 @@ class TruckRentalProcessor:
     def __init__(self, df_optimized):
         """Initialise le processeur avec le DataFrame de base pour la gestion des propositions."""
         self.df_base = self._initialize_rental_columns(df_optimized.copy())
-        # Initialiser le compteur de camions loués pour générer C1, C2, etc.
-        # On commence à 1 + le nombre de camions loués déjà présents si on chargeait un état
+        # Compteur pour générer C1, C2, etc.
         self._next_camion_num = self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE].shape[0] + 1
 
     def _initialize_rental_columns(self, df):
@@ -56,35 +55,25 @@ class TruckRentalProcessor:
 
         return df
 
-    def detecter_propositions(df):
-        # Regrouper toutes les commandes d’un client par zone
+    def detecter_propositions(self):
+        df = self.df_base.copy()
         grouped = df.groupby(["Client commande", "Zone"]).agg(
             Poids_total=pd.NamedAgg(column="Poids total", aggfunc="sum"),
             Volume_total=pd.NamedAgg(column="Volume total", aggfunc="sum"),
             BLs_concernees=pd.NamedAgg(column="No BL", aggfunc=lambda x: ", ".join(x.astype(str)))
         ).reset_index()
 
-        # Garder uniquement les clients qui dépassent au moins un seuil
         propositions = grouped[
             (grouped["Poids_total"] >= SEUIL_POIDS) | (grouped["Volume_total"] >= SEUIL_VOLUME)
         ].copy()
 
-        # Ajouter la colonne Raison
         propositions["Raison"] = propositions.apply(
-            lambda row: f"Poids ≥ {SEUIL_POIDS} kg"*(row["Poids_total"]>=SEUIL_POIDS) + 
-                        f" & Volume ≥ {SEUIL_VOLUME:.3f} m³"*(row["Volume_total"]>=SEUIL_VOLUME)
+            lambda row: ("Poids ≥ " + str(SEUIL_POIDS) + " kg " if row["Poids_total"]>=SEUIL_POIDS else "") +
+                        ("Volume ≥ " + str(SEUIL_VOLUME) + " m³" if row["Volume_total"]>=SEUIL_VOLUME else "")
             , axis=1
         )
 
-        # Renommer pour affichage
-        propositions.rename(columns={
-            "Client commande": "Client",
-            "Poids_total": "Poids total (kg)",
-            "Volume_total": "Volume total (m³)",
-            "BLs_concernees": "BLs concernées"
-        }, inplace=True)
-
-        return propositions.reset_index(drop=True)
+        return propositions
 
 
     def get_details_client(self, client):

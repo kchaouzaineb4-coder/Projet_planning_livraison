@@ -97,6 +97,20 @@ if 'data_processed' not in st.session_state:
     st.session_state.message = "" # Message de résultat d'opération
 
 # =====================================================
+# SI LES DONNÉES SONT PRÊTES, INITIALISER LE PROCESSEUR
+# =====================================================
+if st.session_state.df_optimized_estafettes is not None and st.session_state.rental_processor is None:
+    # Initialiser le processeur de location
+    st.session_state.rental_processor = TruckRentalProcessor(st.session_state.df_optimized_estafettes)
+
+    # Détecter les propositions de location
+    st.session_state.propositions = st.session_state.rental_processor.detecter_propositions()
+
+    # Afficher les propositions dans Streamlit
+    st.subheader("Propositions de location de camions")
+    st.dataframe(st.session_state.propositions)
+
+# =====================================================
 # Fonctions de Callback pour la Location
 # =====================================================
 
