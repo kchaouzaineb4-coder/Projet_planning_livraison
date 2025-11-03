@@ -61,32 +61,23 @@ class TruckRentalProcessor:
 
         return df
 
-    def detecter_propositions(self):
-        """
-        Regroupe les données par client en agrégeant TOUS les voyages (toutes les zones)
-        et propose la location si le total client dépasse les seuils.
-        Exclut les lignes déjà en camion loué ou déjà proposées.
-        """
+        def detecter_propositions(self):
+            """
+            Agrège TOUS les voyages (toutes zones) par client et propose la location
+            si le total client dépasse les seuils.
+            Exclut uniquement les lignes déjà consolidées dans un camion loué.
+            (Ne PAS exclure les lignes où Location_proposee == True pour prendre
+            en compte tous les BLs du client.)
+            """
         df = self.df_base.copy()
 
-        # Masques robustes si colonnes absentes
+        # Filtre : exclure uniquement les lignes déjà en camion loué
         if "Code Véhicule" in df.columns:
-            mask_code_not_camion = df["Code Véhicule"] != CAMION_CODE
+            mask_not_camion = df["Code Véhicule"] != CAMION_CODE
         else:
-            mask_code_not_camion = pd.Series(True, index=df.index)
+            mask_not_camion = pd.Series(True, index=df.index)
 
-        if "Location_camion" in df.columns:
-            mask_not_loc_camion = ~df["Location_camion"].astype(bool)
-        else:
-            mask_not_loc_camion = pd.Series(True, index=df.index)
-
-        if "Location_proposee" in df.columns:
-            mask_not_proposee = ~df["Location_proposee"].astype(bool)
-        else:
-            mask_not_proposee = pd.Series(True, index=df.index)
-
-        # Ne considérer que les lignes non déjà consolidées/proposées
-        df_considered = df[mask_code_not_camion & mask_not_loc_camion & mask_not_proposee].copy()
+        df_considered = df[mask_not_camion].copy()
         if df_considered.empty:
             return pd.DataFrame()
 
@@ -97,9 +88,26 @@ class TruckRentalProcessor:
             Zones=pd.NamedAgg(column="Zone", aggfunc=lambda s: ", ".join(sorted(set(s.dropna().astype(str).tolist()))))
         ).reset_index()
 
-        # Filtrer par seuils
+        # Filtrer selon les seuils globaux
         propositions = grouped[(grouped["Poids_sum"] >= SEUIL_POIDS) | (grouped["Volume_sum"] >= SEUIL_VOLUME)].copy()
 
+        def get_raison(row):
+            raisons = []
+            if row["Poids_sum"] >= SEUIL_POIDS:
+                raisons.append(f"Poids ≥ {SEUIL_POIDS} kg")
+            if row["Volume_sum"] >= SEUIL_VOLUME:
+                raisons.append(f"Volume ≥ {SEUIL_VOLUME:.3f} m³")
+            return " & ".join(raisons)
+
+        propositions["Raison"] = propositions.apply(get_raison, axis=1)
+        propositions.rename(columns={
+             "Client commande": "Client",
+             "Poids_sum": "Poids total (kg)",
+             "Volume_sum": "Volume total (m³)",
+             "Zones": "Zones concernées"
+          }, inplace=True)
+
+        return propositions.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False).reset_index(drop=True)
         def get_raison(row):
             raisons = []
             if row["Poids_sum"] >= SEUIL_POIDS:
