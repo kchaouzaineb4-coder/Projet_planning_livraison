@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME 
@@ -216,25 +215,10 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 # --- Onglet Livraisons Client/Ville ---
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
-
-    df_liv = st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').copy()
-
-    # Transformer les articles en liste avec retour à la ligne
-    if "Article" in df_liv.columns:
-        df_liv["Article"] = df_liv["Article"].astype(str).apply(lambda x: "<br>".join(a.strip() for a in x.split(",")))
-
-    # Affichage avec HTML dans st.markdown
-    st.markdown(
-        df_liv.to_html(escape=False, index=False),
-        unsafe_allow_html=True
-    )
-
-    # Stockage pour la section 5
+    show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), use_container_width=True)
+    # Stockage du DataFrame pour la section 5 (transfert BLs)
     if "df_livraisons" not in st.session_state:
-        st.session_state.df_livraisons = df_liv.copy()
-
-
-
+        st.session_state.df_livraisons = st.session_state.df_grouped.copy()
 
 # --- Onglet Besoin Estafette par Ville ---
 with tab_city:
@@ -284,7 +268,7 @@ with tab_charts:
 
 st.markdown("---")
 
-# =====================================================
+    # =====================================================
 # 3. PROPOSITION DE LOCATION DE CAMION (Section 3)
 # =====================================================
 st.header("3. 🚚 Proposition de location de camion")
@@ -702,3 +686,5 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             file_name="Voyages_attribues.pdf",
             mime='application/pdf'
         )
+
+
