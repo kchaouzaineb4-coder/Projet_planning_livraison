@@ -16,13 +16,10 @@ class TruckRentalProcessor:
     def __init__(self, df_optimized):
         """Initialise le processeur avec le DataFrame de base pour la gestion des propositions."""
         self.df_base = self._initialize_rental_columns(df_optimized.copy())
-        # Initialiser le compteur de camions loués pour générer C1, C2, etc.
         self._next_camion_num = self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE].shape[0] + 1
 
     def _initialize_rental_columns(self, df):
         """Ajoute les colonnes d'état de location si elles n'existent pas et les renomme."""
-        
-        # Colonnes à renommer pour la cohérence interne et la gestion des décisions
         df.rename(columns={
             "Poids total chargé": "Poids total",
             "Volume total chargé": "Volume total",
@@ -30,48 +27,38 @@ class TruckRentalProcessor:
             "Représentant(s) inclus": "Représentant"
         }, inplace=True)
 
-        # Assurer que les colonnes de décision existent
         if "Location_camion" not in df.columns:
             df["Location_camion"] = False
         if "Location_proposee" not in df.columns:
             df["Location_proposee"] = False
         if "Code Véhicule" not in df.columns:
-            df["Code Véhicule"] = "ESTAFETTE" # Valeur par défaut
+            df["Code Véhicule"] = "ESTAFETTE"
         if "Camion N°" not in df.columns:
-            # Ce Camion N° initial sera écrasé par le N° d'Estafette pour les lignes optimisées
             df["Camion N°"] = df.get("Estafette N°", pd.Series(["À Optimiser"] * len(df))).apply(
                 lambda x: f"E{int(x)}" if pd.notna(x) and str(x).strip() != "" and str(x) != "0" else "À Optimiser"
             )
-        
-        # Mettre à jour les "Camion N°" pour les lignes de location (si déjà là)
+
         mask_camion_loue = df["Code Véhicule"] == CAMION_CODE
         if mask_camion_loue.any():
-            # Assigner C1, C2, C3... en fonction de l'ordre d'apparition
             df.loc[mask_camion_loue, "Camion N°"] = [f"C{i+1}" for i in range(mask_camion_loue.sum())]
 
-        # S'assurer que les BLs sont bien des chaînes
         if "BL inclus" in df.columns:
             df['BL inclus'] = df['BL inclus'].astype(str)
         else:
             df['BL inclus'] = ""
 
-        # Correction: s'assurer que 'Estafette N°' est numérique pour le tri (si existante)
         if "Estafette N°" in df.columns:
             df["Estafette N°"] = pd.to_numeric(df["Estafette N°"], errors='coerce').fillna(99999).astype(int)
 
         return df
 
-        def detecter_propositions(self):
-            """
-            Agrège TOUS les voyages (toutes zones) par client et propose la location
-            si le total client dépasse les seuils.
-            Exclut uniquement les lignes déjà consolidées dans un camion loué.
-            (Ne PAS exclure les lignes où Location_proposee == True pour prendre
-            en compte tous les BLs du client.)
-            """
+    def detecter_propositions(self):
+        """
+        Agrège tous les voyages par client et propose une location
+        si le total client dépasse les seuils globaux.
+        """
         df = self.df_base.copy()
 
-        # Filtre : exclure uniquement les lignes déjà en camion loué
         if "Code Véhicule" in df.columns:
             mask_not_camion = df["Code Véhicule"] != CAMION_CODE
         else:
@@ -81,15 +68,15 @@ class TruckRentalProcessor:
         if df_considered.empty:
             return pd.DataFrame()
 
-        # Agrégation par client sur toutes les zones/voyages restants
         grouped = df_considered.groupby("Client commande", dropna=False).agg(
             Poids_sum=pd.NamedAgg(column="Poids total", aggfunc="sum"),
             Volume_sum=pd.NamedAgg(column="Volume total", aggfunc="sum"),
             Zones=pd.NamedAgg(column="Zone", aggfunc=lambda s: ", ".join(sorted(set(s.dropna().astype(str).tolist()))))
         ).reset_index()
 
-        # Filtrer selon les seuils globaux
-        propositions = grouped[(grouped["Poids_sum"] >= SEUIL_POIDS) | (grouped["Volume_sum"] >= SEUIL_VOLUME)].copy()
+        propositions = grouped[
+            (grouped["Poids_sum"] >= SEUIL_POIDS) | (grouped["Volume_sum"] >= SEUIL_VOLUME)
+        ].copy()
 
         def get_raison(row):
             raisons = []
@@ -101,31 +88,13 @@ class TruckRentalProcessor:
 
         propositions["Raison"] = propositions.apply(get_raison, axis=1)
         propositions.rename(columns={
-             "Client commande": "Client",
-             "Poids_sum": "Poids total (kg)",
-             "Volume_sum": "Volume total (m³)",
-             "Zones": "Zones concernées"
-          }, inplace=True)
-
+            "Client commande": "Client",
+            "Poids_sum": "Poids total (kg)",
+            "Volume_sum": "Volume total (m³)",
+            "Zones": "Zones concernées"
+        }, inplace=True)
         return propositions.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False).reset_index(drop=True)
-        def get_raison(row):
-            raisons = []
-            if row["Poids_sum"] >= SEUIL_POIDS:
-                raisons.append(f"Poids ≥ {SEUIL_POIDS} kg")
-            if row["Volume_sum"] >= SEUIL_VOLUME:
-                raisons.append(f"Volume ≥ {SEUIL_VOLUME:.3f} m³")
-            return " & ".join(raisons)
-
-        propositions["Raison"] = propositions.apply(get_raison, axis=1)
-        propositions.rename(columns={
-             "Client commande": "Client",
-             "Poids_sum": "Poids total (kg)",
-             "Volume_sum": "Volume total (m³)",
-             "Zones": "Zones concernées"
-          }, inplace=True)
-
-        return propositions.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False).reset_index(drop=True)
-
+    
     def get_details_client(self, client):
         """Récupère et formate les détails de tous les BLs/voyages pour un client."""
         # Filtrer en s'assurant que 'Client commande' est bien dans le df
