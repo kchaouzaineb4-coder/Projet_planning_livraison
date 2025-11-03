@@ -706,3 +706,4 @@ class TruckTransferManager:
         }
 
         return transfert_autorise, info
+
