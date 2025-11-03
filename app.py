@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME 
@@ -165,20 +166,10 @@ with col_button:
                 st.session_state.df_city = df_city
                 st.session_state.df_grouped_zone = df_grouped_zone
                 st.session_state.df_zone = df_zone 
-                # 🆕 Initialisation du processeur de location et des propositions
-                # on passe df_grouped_zone pour que le processor puisse agréger par zone+client
-                st.session_state.rental_processor = TruckRentalProcessor(
-                    df_optimized_estafettes, 
-                    st.session_state.df_grouped_zone
-                )
-                update_propositions_view()
-
                 
                 # 🆕 Initialisation du processeur de location et des propositions
-                # on passe df_grouped_zone pour que le processor puisse agréger par zone+client
-                st.session_state.rental_processor = TruckRentalProcessor(df_optimized_estafettes, st.session_state.df_grouped_zone)
+                st.session_state.rental_processor = TruckRentalProcessor(df_optimized_estafettes)
                 update_propositions_view()
-
                 
                 st.session_state.data_processed = True
                 st.session_state.message = "Traitement terminé avec succès ! Les résultats s'affichent ci-dessous."
@@ -711,4 +702,3 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             file_name="Voyages_attribues.pdf",
             mime='application/pdf'
         )
-
