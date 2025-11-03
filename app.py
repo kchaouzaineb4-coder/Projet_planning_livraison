@@ -167,8 +167,10 @@ with col_button:
                 st.session_state.df_zone = df_zone 
                 
                 # 🆕 Initialisation du processeur de location et des propositions
-                st.session_state.rental_processor = TruckRentalProcessor(df_optimized_estafettes)
+                # on passe df_grouped_zone pour que le processor puisse agréger par zone+client
+                st.session_state.rental_processor = TruckRentalProcessor(df_optimized_estafettes, st.session_state.df_grouped_zone)
                 update_propositions_view()
+
                 
                 st.session_state.data_processed = True
                 st.session_state.message = "Traitement terminé avec succès ! Les résultats s'affichent ci-dessous."
