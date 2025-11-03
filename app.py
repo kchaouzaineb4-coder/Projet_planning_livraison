@@ -283,35 +283,59 @@ with tab_charts:
 
 st.markdown("---")
 
-    # =====================================================
+# =====================================================
 # 3. PROPOSITION DE LOCATION DE CAMION (Section 3)
 # =====================================================
 st.header("3. 🚚 Proposition de location de camion")
 st.markdown(f"🔸 Si un client dépasse **{SEUIL_POIDS} kg** ou **{SEUIL_VOLUME} m³**, une location est proposée (si non déjà décidée).")
 
+# 🔁 Nouvelle logique : détection sur toutes les zones et estafettes confondues
+if "df_grouped_zone" in st.session_state and not st.session_state.df_grouped_zone.empty:
+    df_grouped_zone = st.session_state.df_grouped_zone.copy()
+
+    # Agrégation par client sur l'ensemble du dataset (toutes zones & estafettes)
+    df_client_total = (
+        df_grouped_zone.groupby("Client", as_index=False)
+        .agg({
+            "Poids total chargé": "sum",
+            "Volume total chargé": "sum",
+            "Zone": lambda x: ', '.join(sorted(x.astype(str).unique())),
+            "Véhicule N°": lambda x: ', '.join(sorted(x.astype(str).unique())),
+            "No livraison": lambda x: ', '.join(sorted(x.astype(str).unique())),
+        })
+    )
+
+    # Détection des clients dépassant les seuils
+    propositions_globales = df_client_total[
+        (df_client_total["Poids total chargé"] > SEUIL_POIDS) |
+        (df_client_total["Volume total chargé"] > SEUIL_VOLUME)
+    ].copy()
+
+    # Sauvegarde dans la session pour cohérence avec l’ancien fonctionnement
+    st.session_state.propositions = propositions_globales
+
+# === Interface des propositions ===
 if st.session_state.propositions is not None and not st.session_state.propositions.empty:
     col_prop, col_details = st.columns([2, 3])
     
     with col_prop:
-        st.markdown("### Propositions ouvertes")
-        # Affichage des propositions ouvertes avec show_df
+        st.markdown("### Propositions ouvertes (toutes zones confondues)")
         show_df(
             st.session_state.propositions,
             use_container_width=True,
-            column_order=["Client", "Poids total (kg)", "Volume total (m³)", "Raison"],
+            column_order=["Client", "Poids total chargé", "Volume total chargé", "Zone", "Véhicule N°"],
             hide_index=True
         )
-        
-        # Sélection du client (assure qu'un client non None est sélectionné par défaut si possible)
+
+        # Sélection du client à traiter
         client_options = st.session_state.propositions['Client'].astype(str).tolist()
         client_options_with_empty = [""] + client_options
         
-        # Index de sélection par défaut
         default_index = 0
         if st.session_state.selected_client in client_options:
              default_index = client_options_with_empty.index(st.session_state.selected_client)
         elif len(client_options) > 0:
-             default_index = 1  # Sélectionne le premier client par défaut s'il y en a
+             default_index = 1  # premier client par défaut
 
         st.session_state.selected_client = st.selectbox(
             "Client à traiter :", 
@@ -320,9 +344,9 @@ if st.session_state.propositions is not None and not st.session_state.propositio
             key='client_select' 
         )
 
-        col_btn_acc, col_btn_ref = st.columns(2)
         is_client_selected = st.session_state.selected_client != ""
-        
+
+        col_btn_acc, col_btn_ref = st.columns(2)
         with col_btn_acc:
             st.button(
                 "✅ Accepter la location", 
@@ -341,12 +365,22 @@ if st.session_state.propositions is not None and not st.session_state.propositio
     with col_details:
         st.markdown("### Détails de la commande client")
         if is_client_selected:
-            resume, details_df_styled = st.session_state.rental_processor.get_details_client(
-                st.session_state.selected_client
-            )
-            st.text(resume)
-            # Affichage du DataFrame stylisé avec show_df pour 3 décimales
-            show_df(details_df_styled, use_container_width=True, hide_index=True)
+            # 🔍 Récupère les détails de TOUS les BLs de ce client sur toutes les estafettes
+            client = st.session_state.selected_client
+            df_details = df_grouped_zone[df_grouped_zone["Client"] == client].copy()
+
+            if not df_details.empty:
+                resume = (
+                    f"Client : {client}\n"
+                    f"Poids total : {df_details['Poids total chargé'].sum():.2f} kg\n"
+                    f"Volume total : {df_details['Volume total chargé'].sum():.3f} m³\n"
+                    f"Zones : {', '.join(sorted(df_details['Zone'].astype(str).unique()))}\n"
+                    f"Véhicules : {', '.join(sorted(df_details['Véhicule N°'].astype(str).unique()))}"
+                )
+                st.text(resume)
+                show_df(df_details, use_container_width=True, hide_index=True)
+            else:
+                st.info("Aucune donnée trouvée pour ce client.")
         else:
             st.info("Sélectionnez un client pour afficher les détails de la commande/estafettes.")
 else:

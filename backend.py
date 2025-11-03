@@ -636,11 +636,7 @@ class DeliveryProcessor:
         # Mettre à jour le DataFrame
         self.df_base = df
         return True, f"✅ BLs transférés de {source_estafette_num} vers {target_estafette_num} avec succès."
-    # ============================================================
-    # 🔁 NOUVELLE CLASSE : Gestion du transfert de BLs entre estafettes
-    # ============================================================
-
-
+    
 # =====================================================
 # 🆕 CLASSE : Gestion du transfert de BLs entre estafettes
 # =====================================================
@@ -710,3 +706,5 @@ class TruckTransferManager:
         }
 
         return transfert_autorise, info
+
+
