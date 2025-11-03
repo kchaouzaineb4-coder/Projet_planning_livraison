@@ -95,49 +95,43 @@ class TruckRentalProcessor:
         }, inplace=True)
         return propositions.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False).reset_index(drop=True)
     
-    def get_details_client(self, client):
-        """Récupère et formate les détails de tous les BLs/voyages pour un client."""
-        # Filtrer en s'assurant que 'Client commande' est bien dans le df
-        if "Client commande" not in self.df_base.columns:
-             return "Erreur: Colonne 'Client commande' manquante.", pd.DataFrame()
-             
-        data = self.df_base[self.df_base["Client commande"] == client].copy()
-        
-        if data.empty:
-            return f"Aucune donnée pour {client}", pd.DataFrame()
+    def get_details_client(self, client_nom):
+        """
+        Retourne les détails complets (toutes zones et estafettes)
+        pour un client donné, afin que la location prenne toutes ses commandes.
+        """
+        df_client = self.df_base[self.df_base["Client commande"] == client_nom].copy()
 
-        total_poids = data["Poids total"].sum()
-        total_volume = data["Volume total"].sum()
-        
-        # Déterminer l'état actuel pour ce client
-        etat = "Non décidée" 
-        
-        if (data["Location_camion"]).any():
-            etat = "Location ACCEPTÉE"
-        elif (data["Location_proposee"]).any() and not (data["Location_camion"]).any():
-            etat = "Proposition REFUSÉE"
-        
-        # Colonnes pour l'affichage des détails (adaptées au DataFrame optimisé)
-        colonnes_affichage = [
-             "Zone", "Camion N°", "Poids total", "Volume total", "BL inclus", "Taux d'occupation (%)",
-             "Client commande", "Représentant", "Location_camion", "Location_proposee", "Code Véhicule"
-           ]
-        
-        # Réorganiser et sélectionner les colonnes
-        data_display = data[[col for col in colonnes_affichage if col in data.columns]]
-        
-        resume = f"Client {client} — Poids total : {total_poids:.1f} kg ; Volume total : {total_volume:.3f} m³ | État : {etat}"
-        
-        # Formater les colonnes pour l'affichage (retourne style si possible)
-        try:
-            data_display_styled = data_display.style.format({
-                "Poids total": "{:.2f} kg",
-                "Volume total": "{:.3f} m³",
-                "Taux d'occupation (%)": "{:.2f}%"
-            }).set_table_attributes('data-table-name="details-client-table"')
-            return resume, data_display_styled
-        except Exception:
-            return resume, data_display
+        # ✅ Recherche sur toutes les zones et estafettes
+        if df_client.empty:
+            resume = f"Aucune donnée trouvée pour le client : {client_nom}"
+            return resume, pd.DataFrame()
+
+        # Agrégation globale sur toutes les estafettes / zones du client
+        total_poids = df_client["Poids total"].sum()
+        total_volume = df_client["Volume total"].sum()
+        zones = ", ".join(sorted(df_client["Zone"].dropna().unique()))
+        estafettes = ", ".join(sorted(df_client["Estafette N°"].dropna().astype(str).unique()))
+        bls = ", ".join(sorted(df_client["BL inclus"].dropna().unique()))
+
+        resume = (
+            f"Client : {client_nom}\n"
+            f"Zones concernées : {zones}\n"
+            f"Estafettes concernées : {estafettes}\n"
+            f"Nombre de BLs : {len(bls.split(','))}\n"
+            f"Poids total : {total_poids:.2f} kg\n"
+            f"Volume total : {total_volume:.3f} m³"
+        )
+
+        df_details = df_client[[
+            "Zone", "Estafette N°", "No livraison", "BL inclus",
+            "Poids total", "Volume total"
+        ]].copy()
+
+        df_details = df_details.sort_values(by=["Zone", "Estafette N°"]).reset_index(drop=True)
+
+        return resume, df_details
+
 
     def appliquer_location(self, client, accepter):
         """Applique ou refuse la location pour un client et met à jour le DataFrame de base.
