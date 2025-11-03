@@ -56,49 +56,57 @@ class TruckRentalProcessor:
 
         return df
 
-    def detecter_propositions(self):
+    def detecter_propositions(df):
         """
-        Regroupe les données par Client commande pour déterminer si le SEUIL est dépassé.
-        Retourne un DataFrame des clients proposables.
-        """
-        # Exclure les clients déjà traités (ceux où Location_proposee est True)
-        # On utilise le 'Client commande' qui est l'agrégation du client
-        processed_clients = self.df_base[self.df_base["Location_proposee"]]["Client commande"].unique()
+        Identifie les clients dont le poids ou le volume total dépasse les seuils
+        pour proposer la location d'un camion, en incluant toutes les commandes
+        dans la zone, toutes estafettes confondues.
         
-        # Filtrer toutes les lignes de df_base pour exclure les commandes des clients déjà traités
-        df_pending = self.df_base[~self.df_base["Client commande"].isin(processed_clients)].copy()
+        df : DataFrame contenant au minimum les colonnes :
+            - 'Client commande'
+            - 'Zone'
+            - 'Poids total'
+            - 'Volume total'
+            - 'No BL'
+        """
 
-        if df_pending.empty:
-            return pd.DataFrame() # Retourne un DataFrame vide si tout est déjà traité
-
-        # Utiliser df_pending pour l'agrégation
-        grouped = df_pending.groupby("Client commande").agg(
-            Poids_sum=pd.NamedAgg(column="Poids total", aggfunc="sum"),
-            Volume_sum=pd.NamedAgg(column="Volume total", aggfunc="sum"),
-            Zones=pd.NamedAgg(column="Zone", aggfunc=lambda s: ", ".join(sorted(set(s.astype(str).tolist()))))
+        # Regrouper toutes les commandes par client et par zone
+        grouped = df.groupby(["Client commande", "Zone"]).agg(
+            Poids_total=pd.NamedAgg(column="Poids total", aggfunc="sum"),
+            Volume_total=pd.NamedAgg(column="Volume total", aggfunc="sum"),
+            BLs_concernees=pd.NamedAgg(column="No BL", aggfunc=lambda x: ", ".join(x.astype(str)))
         ).reset_index()
 
-        # Filtrage : Poids ou Volume dépasse le seuil
-        propositions = grouped[(grouped["Poids_sum"] >= SEUIL_POIDS) | (grouped["Volume_sum"] >= SEUIL_VOLUME)].copy()
+        # Filtrer les clients dépassant au moins un seuil
+        propositions = grouped[
+            (grouped["Poids_total"] >= SEUIL_POIDS) | (grouped["Volume_total"] >= SEUIL_VOLUME)
+        ].copy()
 
-        # Création de la colonne Raison
+        # Ajouter la colonne "Raison" pour préciser quel seuil est dépassé
         def get_raison(row):
             raisons = []
-            if row["Poids_sum"] >= SEUIL_POIDS:
+            if row["Poids_total"] >= SEUIL_POIDS:
                 raisons.append(f"Poids ≥ {SEUIL_POIDS} kg")
-            if row["Volume_sum"] >= SEUIL_VOLUME:
+            if row["Volume_total"] >= SEUIL_VOLUME:
                 raisons.append(f"Volume ≥ {SEUIL_VOLUME:.3f} m³")
             return " & ".join(raisons)
 
         propositions["Raison"] = propositions.apply(get_raison, axis=1)
-        propositions.rename(columns={
-             "Client commande": "Client",
-             "Poids_sum": "Poids total (kg)",
-             "Volume_sum": "Volume total (m³)",
-             "Zones": "Zones concernées"
-          }, inplace=True)
 
-        return propositions.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False).reset_index(drop=True)
+        # Renommer les colonnes pour affichage
+        propositions.rename(columns={
+            "Client commande": "Client",
+            "Poids_total": "Poids total (kg)",
+            "Volume_total": "Volume total (m³)",
+            "Zone": "Zone",
+            "BLs_concernees": "BLs concernées"
+        }, inplace=True)
+
+        # Trier par poids décroissant puis volume
+        propositions.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False, inplace=True)
+
+        return propositions.reset_index(drop=True)
+
 
     def get_details_client(self, client):
         """Récupère et formate les détails de tous les BLs/voyages pour un client."""
