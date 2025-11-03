@@ -57,53 +57,32 @@ class TruckRentalProcessor:
         return df
 
     def detecter_propositions(df):
-        """
-        Identifie les clients dont le poids ou le volume total dépasse les seuils
-        pour proposer la location d'un camion, en incluant toutes les commandes
-        dans la zone, toutes estafettes confondues.
-        
-        df : DataFrame contenant au minimum les colonnes :
-            - 'Client commande'
-            - 'Zone'
-            - 'Poids total'
-            - 'Volume total'
-            - 'No BL'
-        """
-
-        # Regrouper toutes les commandes par client et par zone
+        # Regrouper toutes les commandes d’un client par zone
         grouped = df.groupby(["Client commande", "Zone"]).agg(
             Poids_total=pd.NamedAgg(column="Poids total", aggfunc="sum"),
             Volume_total=pd.NamedAgg(column="Volume total", aggfunc="sum"),
             BLs_concernees=pd.NamedAgg(column="No BL", aggfunc=lambda x: ", ".join(x.astype(str)))
         ).reset_index()
 
-        # Filtrer les clients dépassant au moins un seuil
+        # Garder uniquement les clients qui dépassent au moins un seuil
         propositions = grouped[
             (grouped["Poids_total"] >= SEUIL_POIDS) | (grouped["Volume_total"] >= SEUIL_VOLUME)
         ].copy()
 
-        # Ajouter la colonne "Raison" pour préciser quel seuil est dépassé
-        def get_raison(row):
-            raisons = []
-            if row["Poids_total"] >= SEUIL_POIDS:
-                raisons.append(f"Poids ≥ {SEUIL_POIDS} kg")
-            if row["Volume_total"] >= SEUIL_VOLUME:
-                raisons.append(f"Volume ≥ {SEUIL_VOLUME:.3f} m³")
-            return " & ".join(raisons)
+        # Ajouter la colonne Raison
+        propositions["Raison"] = propositions.apply(
+            lambda row: f"Poids ≥ {SEUIL_POIDS} kg"*(row["Poids_total"]>=SEUIL_POIDS) + 
+                        f" & Volume ≥ {SEUIL_VOLUME:.3f} m³"*(row["Volume_total"]>=SEUIL_VOLUME)
+            , axis=1
+        )
 
-        propositions["Raison"] = propositions.apply(get_raison, axis=1)
-
-        # Renommer les colonnes pour affichage
+        # Renommer pour affichage
         propositions.rename(columns={
             "Client commande": "Client",
             "Poids_total": "Poids total (kg)",
             "Volume_total": "Volume total (m³)",
-            "Zone": "Zone",
             "BLs_concernees": "BLs concernées"
         }, inplace=True)
-
-        # Trier par poids décroissant puis volume
-        propositions.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False, inplace=True)
 
         return propositions.reset_index(drop=True)
 
