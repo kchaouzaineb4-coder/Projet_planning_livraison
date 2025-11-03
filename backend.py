@@ -251,7 +251,54 @@ class TruckRentalProcessor:
                 df.loc[mask_to_consider, "Camion N°"] = df.loc[mask_to_consider, "Estafette N°"].apply(lambda x: f"E{int(x)}" if pd.notna(x) and str(x).strip() != "" else "À Optimiser")
             self.df_base = df
             return True, f"❌ Proposition REFUSÉE pour {client}. Les commandes restent réparties en Estafettes.", self.detecter_propositions()
+    
+    def detecter_propositions(self):
 
+            # Vérification
+            df = getattr(self, "df_base", None)
+            if df is None:
+                raise AttributeError("self.df_base manquant dans TruckRentalProcessor")
+
+            # Seuils (utilise les globals si disponibles)
+            SEUIL_POIDS = globals().get("SEUIL_POIDS", 3000.0)
+            SEUIL_VOLUME = globals().get("SEUIL_VOLUME", 9.216)
+            CAMION_CODE = globals().get("CAMION_CODE", "CAMION-LOUE")
+
+            # Exclure uniquement les lignes déjà consolidées dans un camion loué
+            if "Code Véhicule" in df.columns:
+                mask_not_camion = df["Code Véhicule"] != CAMION_CODE
+            else:
+                mask_not_camion = pd.Series(True, index=df.index)
+
+            df_considered = df[mask_not_camion].copy()
+            if df_considered.empty:
+                return pd.DataFrame()
+
+            grouped = df_considered.groupby("Client commande", dropna=False).agg(
+                Poids_sum=pd.NamedAgg(column="Poids total", aggfunc="sum"),
+                Volume_sum=pd.NamedAgg(column="Volume total", aggfunc="sum"),
+                Zones=pd.NamedAgg(column="Zone", aggfunc=lambda s: ", ".join(sorted(set(s.dropna().astype(str).tolist()))))
+            ).reset_index()
+
+            propositions = grouped[(grouped["Poids_sum"] >= SEUIL_POIDS) | (grouped["Volume_sum"] >= SEUIL_VOLUME)].copy()
+
+            def _raison(row):
+                raisons = []
+                if row["Poids_sum"] >= SEUIL_POIDS:
+                    raisons.append(f"Poids ≥ {SEUIL_POIDS} kg")
+                if row["Volume_sum"] >= SEUIL_VOLUME:
+                    raisons.append(f"Volume ≥ {SEUIL_VOLUME:.3f} m³")
+                return " & ".join(raisons)
+
+            propositions["Raison"] = propositions.apply(_raison, axis=1)
+            propositions.rename(columns={
+                "Client commande": "Client",
+                "Poids_sum": "Poids total (kg)",
+                "Volume_sum": "Volume total (m³)",
+                "Zones": "Zones concernées"
+            }, inplace=True)
+
+            return propositions.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False).reset_index(drop=True)
     def get_df_result(self):
         """
         Retourne le DataFrame optimisé final avec les modifications de location.
