@@ -65,26 +65,41 @@ class TruckRentalProcessor:
         """
         Regroupe les données par client en agrégeant TOUS les voyages (toutes les zones)
         et propose la location si le total client dépasse les seuils.
-        - Exclut uniquement les lignes déjà dans un camion loué (__Code Véhicule__ == CAMION_CODE)
-        - Agrégation sur toutes les estafettes / zones restantes pour chaque client.
+        Exclut les lignes déjà en camion loué ou déjà proposées.
         """
-        # Considérer toutes les lignes qui ne sont pas déjà affectées à un camion loué
-        df_considered = self.df_base[~((self.df_base.get("Code Véhicule", "") == CAMION_CODE) | (self.df_base.get("Location_camion", False) == True))].copy()
-        
+        df = self.df_base.copy()
+
+        # Masques robustes si colonnes absentes
+        if "Code Véhicule" in df.columns:
+            mask_code_not_camion = df["Code Véhicule"] != CAMION_CODE
+        else:
+            mask_code_not_camion = pd.Series(True, index=df.index)
+
+        if "Location_camion" in df.columns:
+            mask_not_loc_camion = ~df["Location_camion"].astype(bool)
+        else:
+            mask_not_loc_camion = pd.Series(True, index=df.index)
+
+        if "Location_proposee" in df.columns:
+            mask_not_proposee = ~df["Location_proposee"].astype(bool)
+        else:
+            mask_not_proposee = pd.Series(True, index=df.index)
+
+        # Ne considérer que les lignes non déjà consolidées/proposées
+        df_considered = df[mask_code_not_camion & mask_not_loc_camion & mask_not_proposee].copy()
         if df_considered.empty:
             return pd.DataFrame()
 
-        # Agréger par client sur l'ensemble des voyages (toutes zones)
+        # Agrégation par client sur toutes les zones/voyages restants
         grouped = df_considered.groupby("Client commande", dropna=False).agg(
             Poids_sum=pd.NamedAgg(column="Poids total", aggfunc="sum"),
             Volume_sum=pd.NamedAgg(column="Volume total", aggfunc="sum"),
-            Zones=pd.NamedAgg(column="Zone", aggfunc=lambda s: ", ".join(sorted(set(s.astype(str).tolist()))))
+            Zones=pd.NamedAgg(column="Zone", aggfunc=lambda s: ", ".join(sorted(set(s.dropna().astype(str).tolist()))))
         ).reset_index()
 
-        # Filtrer selon les seuils globaux
+        # Filtrer par seuils
         propositions = grouped[(grouped["Poids_sum"] >= SEUIL_POIDS) | (grouped["Volume_sum"] >= SEUIL_VOLUME)].copy()
 
-        # Création de la colonne Raison
         def get_raison(row):
             raisons = []
             if row["Poids_sum"] >= SEUIL_POIDS:
