@@ -58,47 +58,47 @@ class TruckRentalProcessor:
 
     def detecter_propositions(self):
         """
-        Regroupe les données par Client commande pour déterminer si le SEUIL est dépassé.
-        Retourne un DataFrame des clients proposables.
-        """
-        # Exclure les clients déjà traités (ceux où Location_proposee est True)
-        # On utilise le 'Client commande' qui est l'agrégation du client
-        processed_clients = self.df_base[self.df_base["Location_proposee"]]["Client commande"].unique()
+        Détecte les clients pour lesquels une proposition de location doit être faite.
+        Une proposition est déclenchée si le poids total ou le volume total d'un client
+        dépasse les seuils définis (SEUIL_POIDS ou SEUIL_VOLUME).
         
-        # Filtrer toutes les lignes de df_base pour exclure les commandes des clients déjà traités
-        df_pending = self.df_base[~self.df_base["Client commande"].isin(processed_clients)].copy()
+        Retourne un DataFrame avec les colonnes :
+        - Client
+        - Poids total (kg)
+        - Volume total (m³)
+        - Raison
+        """
+        if self.df_estafettes is None or self.df_estafettes.empty:
+            return pd.DataFrame(columns=["Client", "Poids total (kg)", "Volume total (m³)", "Raison"])
+        
+        # Grouper par client et calculer le poids et le volume total
+        df_clients = self.df_estafettes.groupby("Client", as_index=False).agg({
+            "Poids total chargé": "sum",
+            "Volume total chargé": "sum"
+        })
 
-        if df_pending.empty:
-            return pd.DataFrame() # Retourne un DataFrame vide si tout est déjà traité
+        # Renommer les colonnes pour l'affichage
+        df_clients.rename(columns={
+            "Poids total chargé": "Poids total (kg)",
+            "Volume total chargé": "Volume total (m³)"
+        }, inplace=True)
 
-        # Utiliser df_pending pour l'agrégation
-        grouped = df_pending.groupby("Client commande").agg(
-            Poids_sum=pd.NamedAgg(column="Poids total", aggfunc="sum"),
-            Volume_sum=pd.NamedAgg(column="Volume total", aggfunc="sum"),
-            Zones=pd.NamedAgg(column="Zone", aggfunc=lambda s: ", ".join(sorted(set(s.astype(str).tolist()))))
-        ).reset_index()
-
-        # Filtrage : Poids ou Volume dépasse le seuil
-        propositions = grouped[(grouped["Poids_sum"] >= SEUIL_POIDS) | (grouped["Volume_sum"] >= SEUIL_VOLUME)].copy()
-
-        # Création de la colonne Raison
-        def get_raison(row):
+        # Déterminer la raison pour laquelle chaque client déclenche une proposition
+        def raison(row):
             raisons = []
-            if row["Poids_sum"] >= SEUIL_POIDS:
-                raisons.append(f"Poids ≥ {SEUIL_POIDS} kg")
-            if row["Volume_sum"] >= SEUIL_VOLUME:
-                raisons.append(f"Volume ≥ {SEUIL_VOLUME:.3f} m³")
+            if row["Poids total (kg)"] >= SEUIL_POIDS:
+                raisons.append("Poids élevé")
+            if row["Volume total (m³)"] >= SEUIL_VOLUME:
+                raisons.append("Volume élevé")
             return " & ".join(raisons)
 
-        propositions["Raison"] = propositions.apply(get_raison, axis=1)
-        propositions.rename(columns={
-             "Client commande": "Client",
-             "Poids_sum": "Poids total (kg)",
-             "Volume_sum": "Volume total (m³)",
-             "Zones": "Zones concernées"
-          }, inplace=True)
+        df_clients["Raison"] = df_clients.apply(raison, axis=1)
 
-        return propositions.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False).reset_index(drop=True)
+        # Ne conserver que les clients qui dépassent au moins un seuil
+        df_propositions = df_clients[df_clients["Raison"] != ""].reset_index(drop=True)
+        
+        return df_propositions
+
 
     def get_details_client(self, client):
         """Récupère et formate les détails de tous les BLs/voyages pour un client."""
