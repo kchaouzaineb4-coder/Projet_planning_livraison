@@ -16,7 +16,7 @@ class TruckRentalProcessor:
     
     def __init__(self, df_optimized):
         """Initialise le processeur avec le DataFrame de base pour la gestion des propositions."""
-        self.df_base = self._initialize_rental_columns(df_optimized.copy())
+        self.df_estafettes = self._initialize_rental_columns(df_optimized_estafettes.copy())
         
         # Initialiser le compteur de camions loués pour générer C1, C2, etc.
         self._next_camion_num = self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE].shape[0] + 1
@@ -28,44 +28,39 @@ class TruckRentalProcessor:
         st.write("Colonnes df_estafettes :", self.df_estafettes.columns.tolist())
 
     def _initialize_rental_columns(self, df):
-        """Ajoute les colonnes d'état de location si elles n'existent pas et les renomme."""
-        
-        # Renommer les colonnes pour cohérence
+        """
+        Ajoute les colonnes nécessaires pour la gestion des propositions de location.
+        """
+        # Renommer certaines colonnes pour cohérence
         df.rename(columns={
             "Poids total chargé": "Poids total",
             "Volume total chargé": "Volume total",
-            "Client(s) inclus": "Client",  # On renomme ici pour correspondre à detecter_propositions
+            "Client(s) inclus": "Client",
             "Représentant(s) inclus": "Représentant"
         }, inplace=True)
 
-        # Assurer que les colonnes de décision existent
-        df["Location_camion"] = df.get("Location_camion", False)
-        df["Location_proposee"] = df.get("Location_proposee", False)
-        df["Code Véhicule"] = df.get("Code Véhicule", "ESTAFETTE")
-        
-        # Création du numéro de camion pour les estafettes
+        # Colonnes de décision
+        if "Location_camion" not in df.columns:
+            df["Location_camion"] = False
+        if "Location_proposee" not in df.columns:
+            df["Location_proposee"] = False
+        if "Code Véhicule" not in df.columns:
+            df["Code Véhicule"] = "ESTAFETTE"
         if "Camion N°" not in df.columns:
-            df["Camion N°"] = df["Estafette N°"].apply(
-                lambda x: f"E{int(x)}" if pd.notna(x) and x != 0 else "À Optimiser"
-            )
-        
-        # Pour les camions déjà loués
-        mask_camion_loue = df["Code Véhicule"] == CAMION_CODE
-        if mask_camion_loue.any():
-            df.loc[mask_camion_loue, "Camion N°"] = [
-                f"C{i+1}" for i in range(mask_camion_loue.sum())
-            ]
+            df["Camion N°"] = df["Estafette N°"].apply(lambda x: f"E{int(x)}" if pd.notna(x) and x != 0 else "À Optimiser")
 
-        # S'assurer que les BLs sont bien des chaînes
+        # S'assurer que les BLs sont des chaînes
         df['BL inclus'] = df['BL inclus'].astype(str)
-        
-        # S'assurer que 'Estafette N°' est numérique
+
+        # Estafette N° numérique
         df["Estafette N°"] = pd.to_numeric(df["Estafette N°"], errors='coerce').fillna(99999).astype(int)
 
         return df
 
     def detecter_propositions(self):
-        """Détecte les clients dépassant les seuils pour proposer une location de camion."""
+        """
+        Détecte les clients qui dépassent les seuils et génère un DataFrame de propositions.
+        """
         propositions = []
 
         # On travaille par client
@@ -86,7 +81,6 @@ class TruckRentalProcessor:
                 })
 
         return pd.DataFrame(propositions)
-
 
     def get_details_client(self, client):
         """Récupère et formate les détails de tous les BLs/voyages pour un client."""
