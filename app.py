@@ -113,21 +113,28 @@ def update_propositions_view():
     else:
         st.session_state.propositions = pd.DataFrame()
 
-def handle_location_action(accepter):
-    """Gère l'acceptation ou le refus de la proposition de location."""
-    if st.session_state.rental_processor and st.session_state.selected_client:
-        # Assurer que le client est une chaîne valide
-        client_to_process = str(st.session_state.selected_client)
-        ok, msg, _ = st.session_state.rental_processor.appliquer_location(
-            client_to_process, accepter=accepter
-        )
-        st.session_state.message = msg
-        update_propositions_view()
-        # st.rerun() # Pas besoin de rerun ici car le on_click est déjà dans un bloc de rerender
-    elif not st.session_state.selected_client:
-        st.session_state.message = "⚠️ Veuillez sélectionner un client à traiter."
+def handle_location_action(is_accept):
+    client = st.session_state.selected_client
+
+    if not client or client == "":
+        st.warning("⚠️ Aucun client sélectionné")
+        return
+
+    if is_accept:
+        st.session_state.rental_processor.accept_location(client)
+        st.success(f"✅ Location acceptée pour le client : {client}")
     else:
-        st.session_state.message = "⚠️ Le processeur de location n'est pas initialisé."
+        st.session_state.rental_processor.refuse_location(client)
+        st.warning(f"❌ Location refusée pour le client : {client}")
+
+    # Supprimer la proposition de la liste
+    st.session_state.propositions = st.session_state.propositions[
+        st.session_state.propositions["Client"] != client
+    ]
+
+    # Réinitialiser la sélection
+    st.session_state.selected_client = ""
+
 
 def accept_location_callback():
     handle_location_action(True)
@@ -295,15 +302,16 @@ st.markdown(f"🔸 Si un client dépasse **{SEUIL_POIDS} kg** ou **{SEUIL_VOLUME
 
 if st.session_state.propositions is not None and not st.session_state.propositions.empty:
     col_prop, col_details = st.columns([2, 3])
-    
+
     with col_prop:
         st.markdown("### Propositions ouvertes")
 
-        # ✅ Normalisation du nom "Client" AVANT utilisation
-        if 'Client de l\'estafette' in st.session_state.propositions.columns:
-            st.session_state.propositions.rename(columns={
-                "Client de l'estafette": "Client"
-            }, inplace=True)
+        # ✅ Normaliser la colonne Client
+        if "Client de l'estafette" in st.session_state.propositions.columns:
+            st.session_state.propositions.rename(
+                columns={"Client de l'estafette": "Client"},
+                inplace=True
+            )
 
         # ✅ Affichage des propositions
         show_df(
@@ -313,11 +321,10 @@ if st.session_state.propositions is not None and not st.session_state.propositio
             hide_index=True
         )
 
-        # ✅ Liste des clients
-        client_options = st.session_state.propositions['Client'].astype(str).tolist()
+        # ✅ Liste des clients à décider
+        client_options = st.session_state.propositions["Client"].astype(str).tolist()
         client_options_with_empty = [""] + client_options
 
-        # index par défaut
         default_index = 0
         if st.session_state.selected_client in client_options:
             default_index = client_options_with_empty.index(st.session_state.selected_client)
@@ -328,43 +335,45 @@ if st.session_state.propositions is not None and not st.session_state.propositio
             "Client à traiter :",
             options=client_options_with_empty,
             index=default_index,
-            key='client_select'
+            key="client_select"
         )
 
+        is_client_selected = st.session_state.selected_client != ""
 
         col_btn_acc, col_btn_ref = st.columns(2)
-        is_client_selected = st.session_state.selected_client != ""
-        
         with col_btn_acc:
             st.button(
-                "✅ Accepter la location", 
-                on_click=accept_location_callback, 
+                "✅ Accepter la location",
+                on_click=accept_location_callback,
                 disabled=not is_client_selected,
                 use_container_width=True
             )
         with col_btn_ref:
             st.button(
-                "❌ Refuser la proposition", 
-                on_click=refuse_location_callback, 
+                "❌ Refuser la proposition",
+                on_click=refuse_location_callback,
                 disabled=not is_client_selected,
                 use_container_width=True
             )
 
+    # ✅ Détails du client sélectionné
     with col_details:
         st.markdown("### Détails de la commande client")
+
         if is_client_selected:
             resume, details_df_styled = st.session_state.rental_processor.get_details_client(
                 st.session_state.selected_client
             )
             st.text(resume)
-            # Affichage du DataFrame stylisé avec show_df pour 3 décimales
             show_df(details_df_styled, use_container_width=True, hide_index=True)
         else:
             st.info("Sélectionnez un client pour afficher les détails de la commande/estafettes.")
+
 else:
     st.success("🎉 Aucune proposition de location de camion en attente de décision.")
 
 st.markdown("---")
+
 
 # =====================================================
 # 4. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 4 - Résultat final)
