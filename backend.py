@@ -57,29 +57,31 @@ class TruckRentalProcessor:
         return df
 
     def detecter_propositions(self):
-        # Clients déjà traités pour éviter duplications
+        """
+        Regroupe les données par Client commande pour déterminer si le SEUIL est dépassé.
+        Retourne un DataFrame des clients proposables.
+        """
+        # Exclure les clients déjà traités (ceux où Location_proposee est True)
+        # On utilise le 'Client commande' qui est l'agrégation du client
         processed_clients = self.df_base[self.df_base["Location_proposee"]]["Client commande"].unique()
-
-        # Garder toutes les lignes dont le client n'a pas encore reçu de proposition
+        
+        # Filtrer toutes les lignes de df_base pour exclure les commandes des clients déjà traités
         df_pending = self.df_base[~self.df_base["Client commande"].isin(processed_clients)].copy()
-         # === DÉBOGAGE : affiche le contenu du DataFrame pour STQ ===
-        print("Clients en attente dans df_pending:", df_pending["Client commande"].unique())
-        print("Nombre de lignes dans df_pending:", len(df_pending))
-        print(df_pending[df_pending["Client commande"] == "STQ"])
-        if df_pending.empty:
-            return pd.DataFrame()
 
-        # Regrouper globalement par client, en incluant TOUTES leurs lignes (BLs sur toutes estafettes)
+        if df_pending.empty:
+            return pd.DataFrame() # Retourne un DataFrame vide si tout est déjà traité
+
+        # Utiliser df_pending pour l'agrégation
         grouped = df_pending.groupby("Client commande").agg(
             Poids_sum=pd.NamedAgg(column="Poids total", aggfunc="sum"),
             Volume_sum=pd.NamedAgg(column="Volume total", aggfunc="sum"),
             Zones=pd.NamedAgg(column="Zone", aggfunc=lambda s: ", ".join(sorted(set(s.astype(str).tolist()))))
         ).reset_index()
 
-        # Filtrage selon seuil - se déclenche si poids OU volume dépasse le seuil
+        # Filtrage : Poids ou Volume dépasse le seuil
         propositions = grouped[(grouped["Poids_sum"] >= SEUIL_POIDS) | (grouped["Volume_sum"] >= SEUIL_VOLUME)].copy()
 
-        # Raison pour affichage
+        # Création de la colonne Raison
         def get_raison(row):
             raisons = []
             if row["Poids_sum"] >= SEUIL_POIDS:
@@ -89,15 +91,56 @@ class TruckRentalProcessor:
             return " & ".join(raisons)
 
         propositions["Raison"] = propositions.apply(get_raison, axis=1)
-
         propositions.rename(columns={
-            "Client commande": "Client",
-            "Poids_sum": "Poids total (kg)",
-            "Volume_sum": "Volume total (m³)",
-            "Zones": "Zones concernées"
-        }, inplace=True)
+             "Client commande": "Client",
+             "Poids_sum": "Poids total (kg)",
+             "Volume_sum": "Volume total (m³)",
+             "Zones": "Zones concernées"
+          }, inplace=True)
 
         return propositions.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False).reset_index(drop=True)
+
+    def get_details_client(self, client):
+        """Récupère et formate les détails de tous les BLs/voyages pour un client."""
+        # Filtrer en s'assurant que 'Client commande' est bien dans le df
+        if "Client commande" not in self.df_base.columns:
+             return "Erreur: Colonne 'Client commande' manquante.", pd.DataFrame()
+             
+        data = self.df_base[self.df_base["Client commande"] == client].copy()
+        
+        if data.empty:
+            return f"Aucune donnée pour {client}", pd.DataFrame()
+
+        total_poids = data["Poids total"].sum()
+        total_volume = data["Volume total"].sum()
+        
+        # Déterminer l'état actuel pour ce client
+        etat = "Non décidée" 
+        
+        if (data["Location_camion"]).any():
+            etat = "Location ACCEPTÉE"
+        elif (data["Location_proposee"]).any():
+            etat = "Proposition REFUSÉE"
+        
+        # Colonnes pour l'affichage des détails (adaptées au DataFrame optimisé)
+        colonnes_affichage = [
+             "Zone", "Camion N°", "Poids total", "Volume total", "BL inclus", "Taux d'occupation (%)",
+             "Client commande", "Représentant", "Location_camion", "Location_proposee", "Code Véhicule"
+           ]
+        
+        # Réorganiser et sélectionner les colonnes
+        data_display = data[[col for col in colonnes_affichage if col in data.columns]]
+        
+        resume = f"Client {client} — Poids total : {total_poids:.1f} kg ; Volume total : {total_volume:.3f} m³ | État : {etat}"
+        
+        # Formater les colonnes pour l'affichage
+        data_display_styled = data_display.style.format({
+            "Poids total": "{:.2f} kg",
+            "Volume total": "{:.3f} m³",
+            "Taux d'occupation (%)": "{:.2f}%"
+        }).set_table_attributes('data-table-name="details-client-table"')
+
+        return resume, data_display_styled
 
     def appliquer_location(self, client, accepter):
         """Applique ou refuse la location pour un client et met à jour le DataFrame de base."""

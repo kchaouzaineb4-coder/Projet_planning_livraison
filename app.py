@@ -686,3 +686,5 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             file_name="Voyages_attribues.pdf",
             mime='application/pdf'
         )
+
+
