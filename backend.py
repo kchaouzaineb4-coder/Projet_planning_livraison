@@ -209,22 +209,13 @@ class TruckRentalProcessor:
         ]
         return df_result[[c for c in final_cols if c in df_result.columns]]
     def accept_location(self, client):
-        # ✅ Marquer le client comme accepté
-        if "Accepted" not in self.df_propositions.columns:
-            self.df_propositions["Accepted"] = False
-
-        self.df_propositions.loc[
-            self.df_propositions["Client"] == client, "Accepted"
-        ] = True
+        """Accepter une location et appliquer la décision"""
+        return self.appliquer_location(client, accepter=True)
 
     def refuse_location(self, client):
-        # ✅ Marquer le client comme refusé
-        if "Refused" not in self.df_propositions.columns:
-            self.df_propositions["Refused"] = False
+        """Refuser une location et appliquer la décision"""
+        return self.appliquer_location(client, accepter=False)
 
-        self.df_propositions.loc[
-            self.df_propositions["Client"] == client, "Refused"
-        ] = True
 
 
 class DeliveryProcessor:

@@ -113,27 +113,16 @@ def update_propositions_view():
     else:
         st.session_state.propositions = pd.DataFrame()
 
-def handle_location_action(is_accept):
+def handle_location_action(accept):
     client = st.session_state.selected_client
-
-    if not client or client == "":
-        st.warning("⚠️ Aucun client sélectionné")
+    if not client:
         return
-
-    if is_accept:
-        st.session_state.rental_processor.accept_location(client)
-        st.success(f"✅ Location acceptée pour le client : {client}")
-    else:
-        st.session_state.rental_processor.refuse_location(client)
-        st.warning(f"❌ Location refusée pour le client : {client}")
-
-    # Supprimer la proposition de la liste
-    st.session_state.propositions = st.session_state.propositions[
-        st.session_state.propositions["Client"] != client
-    ]
-
+        
+    st.session_state.rental_processor.appliquer_location(client, accept)
+    
     # Réinitialiser la sélection
     st.session_state.selected_client = ""
+
 
 
 def accept_location_callback():
