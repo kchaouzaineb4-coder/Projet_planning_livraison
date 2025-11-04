@@ -236,7 +236,10 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 # --- Onglet Livraisons Client/Ville ---
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
-    show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), use_container_width=True)
+    if st.session_state.df_grouped is not None:
+        show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), use_container_width=True)
+    else:
+        st.info("⚠️ Aucun DataFrame disponible. Veuillez uploader les fichiers et exécuter le traitement.")
     # Stockage du DataFrame pour la section 5 (transfert BLs)
     if "df_livraisons" not in st.session_state:
         st.session_state.df_livraisons = st.session_state.df_grouped.copy()
