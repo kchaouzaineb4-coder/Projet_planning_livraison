@@ -271,8 +271,23 @@ with tab_charts:
         )
 
 st.markdown("---")
+# =====================================================
+# 🔧 Initialisation du processeur de location
+# =====================================================
+from backend import TruckRentalProcessor
 
-    # =====================================================
+# Vérifie si le processeur n’est pas encore initialisé
+if "rental_processor" not in st.session_state:
+    try:
+        st.session_state.rental_processor = TruckRentalProcessor(
+            df_optimized_estafettes=st.session_state.df_optimized_estafettes,
+            df_grouped_zone=st.session_state.df_grouped_zone
+        )
+        st.success("✅ Processeur de location initialisé avec succès.")
+    except Exception as e:
+        st.error(f"❌ Erreur lors de l’initialisation du processeur de location : {e}")
+
+# =====================================================
 # 3. PROPOSITION DE LOCATION DE CAMION (Section 3)
 # =====================================================
 st.header("3. 🚚 Proposition de location de camion")
