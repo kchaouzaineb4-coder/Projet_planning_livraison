@@ -298,31 +298,39 @@ if st.session_state.propositions is not None and not st.session_state.propositio
     
     with col_prop:
         st.markdown("### Propositions ouvertes")
-        # Affichage des propositions ouvertes avec show_df
+
+        # ✅ Normalisation du nom "Client" AVANT utilisation
+        if 'Client de l\'estafette' in st.session_state.propositions.columns:
+            st.session_state.propositions.rename(columns={
+                "Client de l'estafette": "Client"
+            }, inplace=True)
+
+        # ✅ Affichage des propositions
         show_df(
             st.session_state.propositions,
             use_container_width=True,
             column_order=["Client", "Poids total (kg)", "Volume total (m³)", "Raison"],
             hide_index=True
         )
-        
-        # Sélection du client (assure qu'un client non None est sélectionné par défaut si possible)
+
+        # ✅ Liste des clients
         client_options = st.session_state.propositions['Client'].astype(str).tolist()
         client_options_with_empty = [""] + client_options
-        
-        # Index de sélection par défaut
+
+        # index par défaut
         default_index = 0
         if st.session_state.selected_client in client_options:
-             default_index = client_options_with_empty.index(st.session_state.selected_client)
+            default_index = client_options_with_empty.index(st.session_state.selected_client)
         elif len(client_options) > 0:
-             default_index = 1  # Sélectionne le premier client par défaut s'il y en a
+            default_index = 1
 
         st.session_state.selected_client = st.selectbox(
-            "Client à traiter :", 
-            options=client_options_with_empty, 
+            "Client à traiter :",
+            options=client_options_with_empty,
             index=default_index,
-            key='client_select' 
+            key='client_select'
         )
+
 
         col_btn_acc, col_btn_ref = st.columns(2)
         is_client_selected = st.session_state.selected_client != ""
