@@ -1,6 +1,7 @@
 import pandas as pd
 import math
 import numpy as np # Import pour gérer les NaN plus efficacement
+import streamlit as st 
 
 # --- Constantes pour la location de camion ---
 SEUIL_POIDS = 3000.0    # kg
@@ -16,57 +17,64 @@ class TruckRentalProcessor:
     def __init__(self, df_optimized):
         """Initialise le processeur avec le DataFrame de base pour la gestion des propositions."""
         self.df_base = self._initialize_rental_columns(df_optimized.copy())
+        
         # Initialiser le compteur de camions loués pour générer C1, C2, etc.
-        # On commence à 1 + le nombre de camions loués déjà présents si on chargeait un état
         self._next_camion_num = self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE].shape[0] + 1
+        
+        # df_estafettes sera utilisé pour le traitement par client
         self.df_estafettes = self.df_base.copy()
+        
+        # Affichage des colonnes pour vérification (Streamlit ou console)
+        st.write("Colonnes df_estafettes :", self.df_estafettes.columns.tolist())
 
     def _initialize_rental_columns(self, df):
         """Ajoute les colonnes d'état de location si elles n'existent pas et les renomme."""
         
-        # Colonnes à renommer pour la cohérence interne et la gestion des décisions
+        # Renommer les colonnes pour cohérence
         df.rename(columns={
             "Poids total chargé": "Poids total",
             "Volume total chargé": "Volume total",
-            "Client(s) inclus": "Client commande",
+            "Client(s) inclus": "Client",  # On renomme ici pour correspondre à detecter_propositions
             "Représentant(s) inclus": "Représentant"
         }, inplace=True)
 
         # Assurer que les colonnes de décision existent
-        if "Location_camion" not in df.columns:
-            df["Location_camion"] = False
-        if "Location_proposee" not in df.columns:
-            df["Location_proposee"] = False
-        if "Code Véhicule" not in df.columns:
-            df["Code Véhicule"] = "ESTAFETTE" # Valeur par défaut
-        if "Camion N°" not in df.columns:
-            # Ce Camion N° initial sera écrasé par le N° d'Estafette pour les lignes optimisées
-            df["Camion N°"] = df["Estafette N°"].apply(lambda x: f"E{int(x)}" if pd.notna(x) and x != 0 else "À Optimiser")
+        df["Location_camion"] = df.get("Location_camion", False)
+        df["Location_proposee"] = df.get("Location_proposee", False)
+        df["Code Véhicule"] = df.get("Code Véhicule", "ESTAFETTE")
         
-        # Mettre à jour les "Camion N°" pour les lignes de location (si déjà là)
+        # Création du numéro de camion pour les estafettes
+        if "Camion N°" not in df.columns:
+            df["Camion N°"] = df["Estafette N°"].apply(
+                lambda x: f"E{int(x)}" if pd.notna(x) and x != 0 else "À Optimiser"
+            )
+        
+        # Pour les camions déjà loués
         mask_camion_loue = df["Code Véhicule"] == CAMION_CODE
         if mask_camion_loue.any():
-            # Assigner C1, C2, C3... en fonction de l'ordre d'apparition
-            df.loc[mask_camion_loue, "Camion N°"] = [f"C{i+1}" for i in range(mask_camion_loue.sum())]
+            df.loc[mask_camion_loue, "Camion N°"] = [
+                f"C{i+1}" for i in range(mask_camion_loue.sum())
+            ]
 
         # S'assurer que les BLs sont bien des chaînes
         df['BL inclus'] = df['BL inclus'].astype(str)
         
-        # Correction: s'assurer que 'Estafette N°' est numérique pour le tri
+        # S'assurer que 'Estafette N°' est numérique
         df["Estafette N°"] = pd.to_numeric(df["Estafette N°"], errors='coerce').fillna(99999).astype(int)
 
         return df
 
     def detecter_propositions(self):
+        """Détecte les clients dépassant les seuils pour proposer une location de camion."""
         propositions = []
 
         # On travaille par client
-        clients = self.df_estafettes['Client commande'].unique()
+        clients = self.df_estafettes['Client'].unique()
         for client in clients:
-            df_client = self.df_base[self.df_base['Client'] == client]
+            df_client = self.df_estafettes[self.df_estafettes['Client'] == client]
 
-            poids_total = df_client['Poids total chargé'].sum()
-            volume_total = df_client['Volume total chargé'].sum()
+            poids_total = df_client['Poids total'].sum()
+            volume_total = df_client['Volume total'].sum()
 
             # Déclenchement si seuil dépassé
             if poids_total > SEUIL_POIDS or volume_total > SEUIL_VOLUME:
