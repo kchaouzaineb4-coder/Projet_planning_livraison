@@ -1,6 +1,7 @@
 import pandas as pd
 import math
 import numpy as np # Import pour gérer les NaN plus efficacement
+import streamlit as st
 
 # --- Constantes pour la location de camion ---
 SEUIL_POIDS = 3000.0    # kg
