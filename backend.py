@@ -53,9 +53,7 @@ class TruckRentalProcessor:
 
     def detecter_propositions(self):
         """Détecte les clients qui devraient se voir proposer une location de camion."""
-        # Clients déjà proposés
-        processed_clients = self.df_base[self.df_base["Location_proposee"]]["Client commande"].unique()
-        df_pending = self.df_base[~self.df_base["Client commande"].isin(processed_clients)].copy()
+        df_pending = self.df_base.copy()  # prendre toutes les lignes, même si certaines ont été proposées
         if df_pending.empty:
             return pd.DataFrame()
 
@@ -81,7 +79,7 @@ class TruckRentalProcessor:
             on='Client commande', how='left'
         )
         df_proposition['Raison'] = df_proposition.apply(
-            lambda r: f"Poids ≥ {SEUIL_POIDS} kg"*(r['Poids_total_client'] >= SEUIL_POIDS) + 
+            lambda r: f"Poids ≥ {SEUIL_POIDS} kg"*(r['Poids_total_client'] >= SEUIL_POIDS) +
                       f" & Volume ≥ {SEUIL_VOLUME} m³"*(r['Volume_total_client'] >= SEUIL_VOLUME),
             axis=1
         )
@@ -132,28 +130,24 @@ class TruckRentalProcessor:
         return resume, data_display_styled
 
     def appliquer_location(self, client, accepter):
-        """Accepte ou refuse la location et met à jour le DataFrame pour tous les BLs du client."""
+        """Accepte ou refuse la location et fusionne tous les BLs du client dans un seul camion si accepté."""
         mask = self.df_base["Client commande"] == client
         if not mask.any():
             return False, "Client introuvable.", self.df_base
 
         df = self.df_base.copy()
-        # Calcul des totaux et concaténation de tous les BLs
         total_poids = df.loc[mask, "Poids total"].sum()
         total_volume = df.loc[mask, "Volume total"].sum()
         bl_concat = ";".join(df.loc[mask, "BL inclus"].astype(str).unique())
         representants = ";".join(sorted(df.loc[mask, "Représentant"].astype(str).unique()))
         zones = ";".join(sorted(df.loc[mask, "Zone"].astype(str).unique()))
 
-        # Calcul taux d'occupation max entre poids et volume
         taux_occu = max(total_poids / 5000 * 100, total_volume / 15 * 100)
 
         if accepter:
-            # Attribution d’un numéro de camion unique
             camion_num_final = f"C{self._next_camion_num}"
             self._next_camion_num += 1
 
-            # Création de la ligne unique pour le camion loué
             new_row = pd.DataFrame([{
                 "Zone": zones,
                 "Estafette N°": 0,
@@ -169,7 +163,7 @@ class TruckRentalProcessor:
                 "Taux d'occupation (%)": taux_occu
             }])
 
-            # Supprimer toutes les lignes originales du client et ajouter la nouvelle ligne
+            # Supprimer toutes les lignes originales du client et ajouter la nouvelle
             df = df[~mask]
             df = pd.concat([df, new_row], ignore_index=True)
             self.df_base = df
@@ -177,7 +171,7 @@ class TruckRentalProcessor:
             return True, f"✅ Location ACCEPTÉE pour {client}.", self.detecter_propositions()
 
         else:
-            # Si refus, marquer comme proposition faite mais non acceptée
+            # Si refus, toutes les lignes du client sont marquées comme proposition faite
             df.loc[mask, ["Location_proposee", "Location_camion", "Code Véhicule"]] = [True, False, "ESTAFETTE"]
             df.loc[mask, "Camion N°"] = df.loc[mask, "Estafette N°"].apply(lambda x: f"E{int(x)}" if pd.notna(x) else "À Optimiser")
             self.df_base = df
@@ -185,6 +179,7 @@ class TruckRentalProcessor:
             return True, f"❌ Proposition REFUSÉE pour {client}.", self.detecter_propositions()
 
     def get_df_result(self):
+        """Retourne le DataFrame final formaté pour affichage."""
         df_result = self.df_base.copy()
         df_result.rename(columns={
             "Poids total": "Poids total chargé",
