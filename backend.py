@@ -19,6 +19,7 @@ class TruckRentalProcessor:
         # Initialiser le compteur de camions loués pour générer C1, C2, etc.
         # On commence à 1 + le nombre de camions loués déjà présents si on chargeait un état
         self._next_camion_num = self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE].shape[0] + 1
+        self.df_estafettes = df_estafettes.copy() 
 
     def _initialize_rental_columns(self, df):
         """Ajoute les colonnes d'état de location si elles n'existent pas et les renomme."""
