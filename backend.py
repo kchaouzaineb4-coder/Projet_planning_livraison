@@ -1,7 +1,6 @@
 import pandas as pd
 import math
 import numpy as np # Import pour gérer les NaN plus efficacement
-import streamlit as st 
 
 # --- Constantes pour la location de camion ---
 SEUIL_POIDS = 3000.0    # kg
@@ -16,71 +15,90 @@ class TruckRentalProcessor:
     
     def __init__(self, df_optimized):
         """Initialise le processeur avec le DataFrame de base pour la gestion des propositions."""
-        self.df_estafettes = self._initialize_rental_columns(df_optimized_estafettes.copy())
-        
+        self.df_base = self._initialize_rental_columns(df_optimized.copy())
         # Initialiser le compteur de camions loués pour générer C1, C2, etc.
+        # On commence à 1 + le nombre de camions loués déjà présents si on chargeait un état
         self._next_camion_num = self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE].shape[0] + 1
-        
-        # df_estafettes sera utilisé pour le traitement par client
-        self.df_estafettes = self.df_base.copy()
-        
-        # Affichage des colonnes pour vérification (Streamlit ou console)
-        st.write("Colonnes df_estafettes :", self.df_estafettes.columns.tolist())
 
     def _initialize_rental_columns(self, df):
-        """
-        Ajoute les colonnes nécessaires pour la gestion des propositions de location.
-        """
-        # Renommer certaines colonnes pour cohérence
+        """Ajoute les colonnes d'état de location si elles n'existent pas et les renomme."""
+        
+        # Colonnes à renommer pour la cohérence interne et la gestion des décisions
         df.rename(columns={
             "Poids total chargé": "Poids total",
             "Volume total chargé": "Volume total",
-            "Client(s) inclus": "Client",
+            "Client(s) inclus": "Client commande",
             "Représentant(s) inclus": "Représentant"
         }, inplace=True)
 
-        # Colonnes de décision
+        # Assurer que les colonnes de décision existent
         if "Location_camion" not in df.columns:
             df["Location_camion"] = False
         if "Location_proposee" not in df.columns:
             df["Location_proposee"] = False
         if "Code Véhicule" not in df.columns:
-            df["Code Véhicule"] = "ESTAFETTE"
+            df["Code Véhicule"] = "ESTAFETTE" # Valeur par défaut
         if "Camion N°" not in df.columns:
+            # Ce Camion N° initial sera écrasé par le N° d'Estafette pour les lignes optimisées
             df["Camion N°"] = df["Estafette N°"].apply(lambda x: f"E{int(x)}" if pd.notna(x) and x != 0 else "À Optimiser")
+        
+        # Mettre à jour les "Camion N°" pour les lignes de location (si déjà là)
+        mask_camion_loue = df["Code Véhicule"] == CAMION_CODE
+        if mask_camion_loue.any():
+            # Assigner C1, C2, C3... en fonction de l'ordre d'apparition
+            df.loc[mask_camion_loue, "Camion N°"] = [f"C{i+1}" for i in range(mask_camion_loue.sum())]
 
-        # S'assurer que les BLs sont des chaînes
+        # S'assurer que les BLs sont bien des chaînes
         df['BL inclus'] = df['BL inclus'].astype(str)
-
-        # Estafette N° numérique
+        
+        # Correction: s'assurer que 'Estafette N°' est numérique pour le tri
         df["Estafette N°"] = pd.to_numeric(df["Estafette N°"], errors='coerce').fillna(99999).astype(int)
 
         return df
 
     def detecter_propositions(self):
         """
-        Détecte les clients qui dépassent les seuils et génère un DataFrame de propositions.
+        Regroupe les données par Client commande pour déterminer si le SEUIL est dépassé.
+        Retourne un DataFrame des clients proposables.
         """
-        propositions = []
+        # Exclure les clients déjà traités (ceux où Location_proposee est True)
+        # On utilise le 'Client commande' qui est l'agrégation du client
+        processed_clients = self.df_base[self.df_base["Location_proposee"]]["Client commande"].unique()
+        
+        # Filtrer toutes les lignes de df_base pour exclure les commandes des clients déjà traités
+        df_pending = self.df_base[~self.df_base["Client commande"].isin(processed_clients)].copy()
 
-        # On travaille par client
-        clients = self.df_estafettes['Client'].unique()
-        for client in clients:
-            df_client = self.df_estafettes[self.df_estafettes['Client'] == client]
+        if df_pending.empty:
+            return pd.DataFrame() # Retourne un DataFrame vide si tout est déjà traité
 
-            poids_total = df_client['Poids total'].sum()
-            volume_total = df_client['Volume total'].sum()
+        # Utiliser df_pending pour l'agrégation
+        grouped = df_pending.groupby("Client commande").agg(
+            Poids_sum=pd.NamedAgg(column="Poids total", aggfunc="sum"),
+            Volume_sum=pd.NamedAgg(column="Volume total", aggfunc="sum"),
+            Zones=pd.NamedAgg(column="Zone", aggfunc=lambda s: ", ".join(sorted(set(s.astype(str).tolist()))))
+        ).reset_index()
 
-            # Déclenchement si seuil dépassé
-            if poids_total > SEUIL_POIDS or volume_total > SEUIL_VOLUME:
-                propositions.append({
-                    'Client': client,
-                    'Poids total (kg)': poids_total,
-                    'Volume total (m³)': volume_total,
-                    'Raison': 'Poids' if poids_total > SEUIL_POIDS else 'Volume'
-                })
+        # Filtrage : Poids ou Volume dépasse le seuil
+        propositions = grouped[(grouped["Poids_sum"] >= SEUIL_POIDS) | (grouped["Volume_sum"] >= SEUIL_VOLUME)].copy()
 
-        return pd.DataFrame(propositions)
+        # Création de la colonne Raison
+        def get_raison(row):
+            raisons = []
+            if row["Poids_sum"] >= SEUIL_POIDS:
+                raisons.append(f"Poids ≥ {SEUIL_POIDS} kg")
+            if row["Volume_sum"] >= SEUIL_VOLUME:
+                raisons.append(f"Volume ≥ {SEUIL_VOLUME:.3f} m³")
+            return " & ".join(raisons)
+
+        propositions["Raison"] = propositions.apply(get_raison, axis=1)
+        propositions.rename(columns={
+             "Client commande": "Client",
+             "Poids_sum": "Poids total (kg)",
+             "Volume_sum": "Volume total (m³)",
+             "Zones": "Zones concernées"
+          }, inplace=True)
+
+        return propositions.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False).reset_index(drop=True)
 
     def get_details_client(self, client):
         """Récupère et formate les détails de tous les BLs/voyages pour un client."""
