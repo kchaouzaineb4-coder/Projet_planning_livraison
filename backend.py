@@ -17,17 +17,17 @@ CAMION_CODE = "CAMION"
 
 class TruckRentalProcessor:
     """
-    Classe pour gérer la logique de proposition et de décision de location de camion
-    basée sur les données optimisées.
+    Classe pour gérer la proposition et la décision de location de camion,
+    en tenant compte de tous les BLs d'un client, toutes estafettes confondues.
     """
 
     def __init__(self, df_optimized):
-        """Initialise le processeur avec le DataFrame de base pour la gestion des propositions."""
+        """Initialise le processeur avec le DataFrame de base."""
         self.df_base = self._initialize_rental_columns(df_optimized.copy())
         self._next_camion_num = self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE].shape[0] + 1
 
     def _initialize_rental_columns(self, df):
-        """Ajoute les colonnes d'état de location si elles n'existent pas et les renomme."""
+        """Ajoute les colonnes d'état de location et renomme certaines colonnes."""
         df.rename(columns={
             "Poids total chargé": "Poids total",
             "Volume total chargé": "Volume total",
@@ -52,13 +52,15 @@ class TruckRentalProcessor:
         return df
 
     def detecter_propositions(self):
-        """Détecte les clients qui devraient se voir proposer une location de camion."""
-        df_pending = self.df_base.copy()  # prendre toutes les lignes, même si certaines ont été proposées
-        if df_pending.empty:
+        """
+        Détecte les clients pour lesquels la location est recommandée.
+        Tous les BLs du client sont pris en compte, toutes estafettes confondues.
+        """
+        if self.df_base.empty:
             return pd.DataFrame()
 
-        # Agréger par client (tous les BLs)
-        grouped = df_pending.groupby("Client commande").agg(
+        # Agréger par client : somme des poids/volumes sur toutes les estafettes
+        grouped = self.df_base.groupby("Client commande").agg(
             Poids_total_client=('Poids total', 'sum'),
             Volume_total_client=('Volume total', 'sum'),
             Zones=('Zone', lambda s: ", ".join(sorted(set(s.astype(str).tolist()))))
@@ -70,8 +72,8 @@ class TruckRentalProcessor:
             (grouped['Volume_total_client'] >= SEUIL_VOLUME)
         ]['Client commande'].tolist()
 
-        # Tous les BLs de ces clients
-        df_proposition = df_pending[df_pending['Client commande'].isin(clients_proposables)].copy()
+        # Sélectionner tous les BLs de ces clients, toutes estafettes confondues
+        df_proposition = self.df_base[self.df_base['Client commande'].isin(clients_proposables)].copy()
 
         # Ajouter raison
         df_proposition = df_proposition.merge(
@@ -96,41 +98,10 @@ class TruckRentalProcessor:
             ["Poids total (kg)", "Volume total (m³)"], ascending=False
         ).reset_index(drop=True)
 
-    def get_details_client(self, client):
-        """Tous les BLs du client sont affichés, peu importe leur poids/volume individuel."""
-        if "Client commande" not in self.df_base.columns:
-            return "Erreur: Colonne 'Client commande' manquante.", pd.DataFrame()
-
-        data = self.df_base[self.df_base["Client commande"] == client].copy()
-        if data.empty:
-            return f"Aucune donnée pour {client}", pd.DataFrame()
-
-        total_poids = data["Poids total"].sum()
-        total_volume = data["Volume total"].sum()
-        etat = "Non décidée"
-        if data["Location_camion"].any():
-            etat = "Location ACCEPTÉE"
-        elif data["Location_proposee"].any():
-            etat = "Proposition REFUSÉE"
-
-        colonnes_affichage = [
-            "Zone", "Camion N°", "Poids total", "Volume total", "BL inclus",
-            "Taux d'occupation (%)", "Client commande", "Représentant",
-            "Location_camion", "Location_proposee", "Code Véhicule"
-        ]
-        data_display = data[[col for col in colonnes_affichage if col in data.columns]]
-        resume = f"Client {client} — Poids total : {total_poids:.1f} kg ; Volume total : {total_volume:.3f} m³ | État : {etat}"
-
-        data_display_styled = data_display.style.format({
-            "Poids total": "{:.2f} kg",
-            "Volume total": "{:.3f} m³",
-            "Taux d'occupation (%)": "{:.2f}%"
-        }).set_table_attributes('data-table-name="details-client-table"')
-
-        return resume, data_display_styled
-
     def appliquer_location(self, client, accepter):
-        """Accepte ou refuse la location et fusionne tous les BLs du client dans un seul camion si accepté."""
+        """
+        Accepte ou refuse la location. Fusionne tous les BLs du client dans un seul camion si accepté.
+        """
         mask = self.df_base["Client commande"] == client
         if not mask.any():
             return False, "Client introuvable.", self.df_base
@@ -145,6 +116,7 @@ class TruckRentalProcessor:
         taux_occu = max(total_poids / 5000 * 100, total_volume / 15 * 100)
 
         if accepter:
+            # Fusionner tous les BLs du client dans un seul camion
             camion_num_final = f"C{self._next_camion_num}"
             self._next_camion_num += 1
 
@@ -163,7 +135,7 @@ class TruckRentalProcessor:
                 "Taux d'occupation (%)": taux_occu
             }])
 
-            # Supprimer toutes les lignes originales du client et ajouter la nouvelle
+            # Supprimer toutes les lignes originales du client et ajouter la nouvelle ligne
             df = df[~mask]
             df = pd.concat([df, new_row], ignore_index=True)
             self.df_base = df
@@ -171,7 +143,7 @@ class TruckRentalProcessor:
             return True, f"✅ Location ACCEPTÉE pour {client}.", self.detecter_propositions()
 
         else:
-            # Si refus, toutes les lignes du client sont marquées comme proposition faite
+            # Refus : toutes les lignes du client marquées comme proposition faite
             df.loc[mask, ["Location_proposee", "Location_camion", "Code Véhicule"]] = [True, False, "ESTAFETTE"]
             df.loc[mask, "Camion N°"] = df.loc[mask, "Estafette N°"].apply(lambda x: f"E{int(x)}" if pd.notna(x) else "À Optimiser")
             self.df_base = df
