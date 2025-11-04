@@ -236,13 +236,24 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 # --- Onglet Livraisons Client/Ville ---
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
-    if st.session_state.df_grouped is not None:
-        show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), use_container_width=True)
+
+    # Vérifier si df_grouped est chargé
+    if st.session_state.df_grouped is not None and not st.session_state.df_grouped.empty:
+        # Sélection des colonnes existantes pour éviter KeyError
+        cols_to_display = [c for c in st.session_state.df_grouped.columns if c != "Zone"]
+        
+        # Affichage sécurisé avec arrondi à 3 décimales
+        show_df(
+            st.session_state.df_grouped[cols_to_display],
+            width="stretch"  # Remplace use_container_width
+        )
+
+        # Stockage du DataFrame pour la section transfert BLs
+        if "df_livraisons" not in st.session_state or st.session_state.df_livraisons is None:
+            st.session_state.df_livraisons = st.session_state.df_grouped.copy()
+
     else:
         st.info("⚠️ Aucun DataFrame disponible. Veuillez uploader les fichiers et exécuter le traitement.")
-    # Stockage du DataFrame pour la section 5 (transfert BLs)
-    if "df_livraisons" not in st.session_state:
-        st.session_state.df_livraisons = st.session_state.df_grouped.copy()
 
 # --- Onglet Besoin Estafette par Ville ---
 with tab_city:
