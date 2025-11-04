@@ -2,6 +2,27 @@ import streamlit as st
 import pandas as pd
 from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME 
 import plotly.express as px
+from st_aggrid import AgGrid, GridOptionsBuilder
+
+def show_df_aggrid(df):
+    """
+    Affiche un DataFrame avec st-aggrid, filtres et recherche pour chaque colonne.
+    """
+    gb = GridOptionsBuilder.from_dataframe(df)
+    gb.configure_default_column(filter="agTextColumnFilter", sortable=True, resizable=True)
+    gb.configure_selection('single')  # optionnel : sélection d'une ligne
+    grid_options = gb.build()
+
+    AgGrid(
+        df,
+        gridOptions=grid_options,
+        enable_enterprise_modules=False,
+        fit_columns_on_grid_load=True,
+        update_mode="MODEL_CHANGED",
+        height=400,
+        width='100%',
+        theme='streamlit'  # 'light', 'dark', 'streamlit', etc.
+    )
 
 
 # =====================================================
