@@ -19,7 +19,7 @@ class TruckRentalProcessor:
         # Initialiser le compteur de camions loués pour générer C1, C2, etc.
         # On commence à 1 + le nombre de camions loués déjà présents si on chargeait un état
         self._next_camion_num = self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE].shape[0] + 1
-        self.df_estafettes = df_estafettes.copy() 
+        self.df_estafettes = self.df_base.copy()
 
     def _initialize_rental_columns(self, df):
         """Ajoute les colonnes d'état de location si elles n'existent pas et les renomme."""
@@ -61,9 +61,9 @@ class TruckRentalProcessor:
         propositions = []
 
         # On travaille par client
-        clients = self.df_estafettes['Client'].unique()  # ← Utiliser self.df_estafettes
+        clients = self.df_base['Client'].unique()
         for client in clients:
-            df_client = self.df_estafettes[self.df_estafettes['Client'] == client]
+            df_client = self.df_base[self.df_base['Client'] == client]
 
             poids_total = df_client['Poids total chargé'].sum()
             volume_total = df_client['Volume total chargé'].sum()
