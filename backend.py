@@ -16,7 +16,8 @@ class TruckRentalProcessor:
     def __init__(self, df_optimized):
         """Initialise le processeur avec le DataFrame de base pour la gestion des propositions."""
         self.df_base = self._initialize_rental_columns(df_optimized.copy())
-        # Compteur pour générer C1, C2, etc.
+        # Initialiser le compteur de camions loués pour générer C1, C2, etc.
+        # On commence à 1 + le nombre de camions loués déjà présents si on chargeait un état
         self._next_camion_num = self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE].shape[0] + 1
 
     def _initialize_rental_columns(self, df):
@@ -56,25 +57,48 @@ class TruckRentalProcessor:
         return df
 
     def detecter_propositions(self):
-        df = self.df_base.copy()
-        grouped = df.groupby(["Client commande", "Zone"]).agg(
-            Poids_total=pd.NamedAgg(column="Poids total", aggfunc="sum"),
-            Volume_total=pd.NamedAgg(column="Volume total", aggfunc="sum"),
-            BLs_concernees=pd.NamedAgg(column="No livraison", aggfunc=lambda x: ", ".join(x.astype(str)))
+        """
+        Regroupe les données par Client commande pour déterminer si le SEUIL est dépassé.
+        Retourne un DataFrame des clients proposables.
+        """
+        # Exclure les clients déjà traités (ceux où Location_proposee est True)
+        # On utilise le 'Client commande' qui est l'agrégation du client
+        processed_clients = self.df_base[self.df_base["Location_proposee"]]["Client commande"].unique()
+        
+        # Filtrer toutes les lignes de df_base pour exclure les commandes des clients déjà traités
+        df_pending = self.df_base[~self.df_base["Client commande"].isin(processed_clients)].copy()
+
+        if df_pending.empty:
+            return pd.DataFrame() # Retourne un DataFrame vide si tout est déjà traité
+
+        # Utiliser df_pending pour l'agrégation
+        grouped = df_pending.groupby("Client commande").agg(
+            Poids_sum=pd.NamedAgg(column="Poids total", aggfunc="sum"),
+            Volume_sum=pd.NamedAgg(column="Volume total", aggfunc="sum"),
+            Zones=pd.NamedAgg(column="Zone", aggfunc=lambda s: ", ".join(sorted(set(s.astype(str).tolist()))))
         ).reset_index()
 
-        propositions = grouped[
-            (grouped["Poids_total"] >= SEUIL_POIDS) | (grouped["Volume_total"] >= SEUIL_VOLUME)
-        ].copy()
+        # Filtrage : Poids ou Volume dépasse le seuil
+        propositions = grouped[(grouped["Poids_sum"] >= SEUIL_POIDS) | (grouped["Volume_sum"] >= SEUIL_VOLUME)].copy()
 
-        propositions["Raison"] = propositions.apply(
-            lambda row: ("Poids ≥ " + str(SEUIL_POIDS) + " kg " if row["Poids_total"]>=SEUIL_POIDS else "") +
-                        ("Volume ≥ " + str(SEUIL_VOLUME) + " m³" if row["Volume_total"]>=SEUIL_VOLUME else "")
-            , axis=1
-        )
+        # Création de la colonne Raison
+        def get_raison(row):
+            raisons = []
+            if row["Poids_sum"] >= SEUIL_POIDS:
+                raisons.append(f"Poids ≥ {SEUIL_POIDS} kg")
+            if row["Volume_sum"] >= SEUIL_VOLUME:
+                raisons.append(f"Volume ≥ {SEUIL_VOLUME:.3f} m³")
+            return " & ".join(raisons)
 
-        return propositions
+        propositions["Raison"] = propositions.apply(get_raison, axis=1)
+        propositions.rename(columns={
+             "Client commande": "Client",
+             "Poids_sum": "Poids total (kg)",
+             "Volume_sum": "Volume total (m³)",
+             "Zones": "Zones concernées"
+          }, inplace=True)
 
+        return propositions.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False).reset_index(drop=True)
 
     def get_details_client(self, client):
         """Récupère et formate les détails de tous les BLs/voyages pour un client."""
