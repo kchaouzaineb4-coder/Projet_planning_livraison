@@ -53,50 +53,43 @@ class TruckRentalProcessor:
         return df
 
     def detecter_propositions(self):
-        """
-        Détecte les clients nécessitant une location de camion.
-        Tous les BLs d'un client sont inclus si le total du client dépasse les seuils.
-        """
-        # Clients déjà proposés
+        # 1️⃣ Clients déjà proposés
         processed_clients = self.df_base[self.df_base["Location_proposee"]]["Client commande"].unique()
         df_pending = self.df_base[~self.df_base["Client commande"].isin(processed_clients)].copy()
         if df_pending.empty:
             return pd.DataFrame()
 
-        # Agrégation par client
+        # 2️⃣ Agréger par client
         grouped = df_pending.groupby("Client commande").agg(
-            Poids_sum=('Poids total', 'sum'),
-            Volume_sum=('Volume total', 'sum'),
+            Poids_total_client=('Poids total', 'sum'),
+            Volume_total_client=('Volume total', 'sum'),
             Zones=('Zone', lambda s: ", ".join(sorted(set(s.astype(str).tolist()))))
         ).reset_index()
 
-        # Clients à proposer
+        # 3️⃣ Clients dont le total dépasse les seuils
         clients_proposables = grouped[
-            (grouped['Poids_sum'] >= SEUIL_POIDS) | 
-            (grouped['Volume_sum'] >= SEUIL_VOLUME)
+            (grouped['Poids_total_client'] >= SEUIL_POIDS) | 
+            (grouped['Volume_total_client'] >= SEUIL_VOLUME)
         ]['Client commande'].tolist()
 
-        # Récupérer tous les BLs de ces clients
+        # 4️⃣ Tous les BLs de ces clients
         df_proposition = df_pending[df_pending['Client commande'].isin(clients_proposables)].copy()
 
-        # Ajouter raison pour affichage
-        df_proposition = df_proposition.merge(grouped[['Client commande', 'Poids_sum', 'Volume_sum', 'Zones']],
-                                              on='Client commande', how='left')
+        # 5️⃣ Ajouter raison
+        df_proposition = df_proposition.merge(grouped[['Client commande', 'Poids_total_client', 'Volume_total_client', 'Zones']],
+                                            on='Client commande', how='left')
+        df_proposition['Raison'] = df_proposition.apply(
+            lambda r: f"Poids ≥ {SEUIL_POIDS} kg"*(r['Poids_total_client'] >= SEUIL_POIDS) + 
+                    f" & Volume ≥ {SEUIL_VOLUME} m³"*(r['Volume_total_client'] >= SEUIL_VOLUME),
+            axis=1
+        )
 
-        def get_raison(row):
-            raisons = []
-            if row["Poids_sum"] >= SEUIL_POIDS:
-                raisons.append(f"Poids ≥ {SEUIL_POIDS} kg")
-            if row["Volume_sum"] >= SEUIL_VOLUME:
-                raisons.append(f"Volume ≥ {SEUIL_VOLUME:.3f} m³")
-            return " & ".join(raisons)
-
-        df_proposition["Raison"] = df_proposition.apply(get_raison, axis=1)
+        # 6️⃣ Renommer colonnes pour affichage
         df_proposition.rename(columns={
-            "Client commande": "Client",
-            "Poids_sum": "Poids total (kg)",
-            "Volume_sum": "Volume total (m³)",
-            "Zones": "Zones concernées"
+            'Client commande': 'Client',
+            'Poids_total_client': 'Poids total (kg)',
+            'Volume_total_client': 'Volume total (m³)',
+            'Zones': 'Zones concernées'
         }, inplace=True)
 
         return df_proposition.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False).reset_index(drop=True)
