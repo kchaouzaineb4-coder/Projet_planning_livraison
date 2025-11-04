@@ -64,131 +64,101 @@ class TruckRentalProcessor:
 
         return df
 
-    def detecter_propositions(self):
-        """
-        Détecte les propositions de location en agrégeant par (Client, Zone).
-        Retourne un DataFrame des clients proposables (une ligne par client).
-        Remplit self._pending_proposals avec les BLs à déplacer pour chaque client proposé.
-        """
-        self._pending_proposals = {}
+def detecter_propositions(self):
+    """
+    Détecte et prépare les propositions de tournées optimisées selon les zones et les véhicules disponibles.
+    - Sépare les estafettes E1 à E5 des camions loués
+    - Agrège les BL par zone et par véhicule
+    - Calcule le poids et volume total de chaque tournée
+    - Détermine si la tournée dépasse les seuils (nécessite location)
+    """
+    try:
+        df = self.df_optimized_estafettes.copy()
+        df_grouped = self.df_grouped_zone.copy()
 
-        # Clients déjà traités
-        processed_clients = self.df_base[self.df_base["Location_proposee"]]["Client commande"].unique()
+        # Vérification colonnes requises
+        colonnes_requises = ["Zone", "Poids total", "Volume total", "Véhicule N°", "No Livraison"]
+        for col in colonnes_requises:
+            if col not in df_grouped.columns:
+                raise KeyError(f"Colonne manquante dans df_grouped_zone : {col}")
 
-        # --- 1️⃣ Source : df_grouped_zone si fourni ---
-        if hasattr(self, "df_grouped_zone") and self.df_grouped_zone is not None:
-            df_src = self.df_grouped_zone.copy()
+        st.write("✅ Colonnes détectées :", list(df_grouped.columns))
 
-            # Identifier la colonne client
-            client_col = None
-            if "Client de l'estafette" in df_src.columns:
-                client_col = "Client de l'estafette"
-            elif "Client" in df_src.columns:
-                client_col = "Client"
-            else:
-                raise ValueError("df_grouped_zone doit contenir la colonne 'Client de l'estafette' ou 'Client'.")
+        # -----------------------------
+        # 1️⃣ Séparer les estafettes (E1–E5) et les locations
+        # -----------------------------
+        df_estafettes = df_grouped[df_grouped["Véhicule N°"].str.contains(r"E[1-5]", na=False)]
+        df_location = df_grouped[~df_grouped["Véhicule N°"].str.contains(r"E[1-5]", na=False)]
 
-            # Vérifier les colonnes essentielles
-            for c in ["No livraison", "Zone", "Poids total", "Volume total"]:
-                if c not in df_src.columns:
-                    raise ValueError(f"df_grouped_zone doit contenir la colonne '{c}'.")
+        st.write("🚐 Estafettes détectées :", df_estafettes["Véhicule N°"].unique())
+        st.write("🚛 Zones en location potentielles :", df_location["Zone"].unique())
 
-            # Exclure les clients déjà traités
-            df_src = df_src[~df_src[client_col].isin(processed_clients)].copy()
+        # -----------------------------
+        # 2️⃣ Préparer les tournées estafettes
+        # -----------------------------
+        tournees_estafettes = []
+        for (zone, vehicule), groupe in df_estafettes.groupby(["Zone", "Véhicule N°"]):
+            poids_total = groupe["Poids total"].sum()
+            volume_total = groupe["Volume total"].sum()
+            liste_bls = ", ".join(map(str, groupe["No Livraison"].unique()))
 
-            # Agrégation par client + zone
-            grouped_cz = (
-                df_src.groupby([client_col, "Zone"], as_index=False)
-                .agg({
-                    "Poids total": "sum",
-                    "Volume total": "sum",
-                    "No livraison": lambda s: ";".join(sorted(set(map(str, s.dropna().tolist()))))
-                })
-                .rename(columns={client_col: "Client"})
-            )
+            st.write(f"🟢 Estafette {vehicule} | Zone {zone} : {poids_total} kg, {volume_total} m³")
 
-        # --- 2️⃣ Sinon : on reconstruit depuis df_base ---
-        else:
-            df_tmp = self.df_base[~self.df_base["Client commande"].isin(processed_clients)].copy()
-            records = []
-
-            for _, row in df_tmp.iterrows():
-                client = row.get("Client commande")
-                zone = row.get("Zone")
-                poids = row.get("Poids total", 0)
-                volume = row.get("Volume total", 0)
-                bls = [b.strip() for b in str(row.get("BL inclus", "")).split(";") if b.strip()]
-
-                if not bls:
-                    records.append({"Client": client, "Zone": zone, "No livraison": "", "Poids total": poids, "Volume total": volume})
-                else:
-                    for bl in bls:
-                        records.append({"Client": client, "Zone": zone, "No livraison": bl, "Poids total": poids, "Volume total": volume})
-
-            df_src = pd.DataFrame.from_records(records)
-            grouped_cz = (
-                df_src.groupby(["Client", "Zone"], as_index=False)
-                .agg({
-                    "Poids total": "sum",
-                    "Volume total": "sum",
-                    "No livraison": lambda s: ";".join(sorted(set(map(str, s.dropna().tolist()))))
-                })
-            )
-
-        # --- 3️⃣ Filtrage des dépassements ---
-        triggered = grouped_cz[
-            (grouped_cz["Poids total"] >= SEUIL_POIDS) |
-            (grouped_cz["Volume total"] >= SEUIL_VOLUME)
-        ].copy()
-
-        if triggered.empty:
-            return pd.DataFrame()
-
-        # --- 4️⃣ Regroupement final par client ---
-        proposals = []
-        for client, sub in triggered.groupby("Client"):
-            zones = ";".join(sorted(sub["Zone"].astype(str).unique()))
-            poids_sum = sub["Poids total"].sum()
-            vol_sum = sub["Volume total"].sum()
-
-            # Fusionner tous les BLs du client
-            bls = sorted(set(";".join(sub["No livraison"].astype(str)).split(";")))
-            bls = [b.strip() for b in bls if b.strip()]
-            bls_concat = ";".join(bls)
-
-            # Déterminer la raison
-            raisons = []
-            if poids_sum >= SEUIL_POIDS:
-                raisons.append(f"Poids ≥ {SEUIL_POIDS} kg")
-            if vol_sum >= SEUIL_VOLUME:
-                raisons.append(f"Volume ≥ {SEUIL_VOLUME:.3f} m³")
-            raison = " & ".join(raisons)
-
-            proposals.append({
-                "Client": client,
-                "Poids total (kg)": poids_sum,
-                "Volume total (m³)": vol_sum,
-                "Zones concernées": zones,
-                "BLs": bls_concat,
-                "Raison": raison
+            tournees_estafettes.append({
+                "Zone": zone,
+                "Véhicule": vehicule,
+                "Poids total": round(poids_total, 2),
+                "Volume total": round(volume_total, 3),
+                "BL inclus": liste_bls,
+                "Type": "Estafette"
             })
 
-            # Enregistrer la proposition
-            self._pending_proposals[client] = {
-                "bls": bls,
-                "zones": zones.split(";"),
-                "poids": poids_sum,
-                "volume": vol_sum
-            }
+        # -----------------------------
+        # 3️⃣ Préparer les tournées nécessitant une location
+        # -----------------------------
+        tournees_location = []
+        for zone, groupe in df_location.groupby("Zone"):
+            poids_total = groupe["Poids total"].sum()
+            volume_total = groupe["Volume total"].sum()
+            liste_bls = ", ".join(map(str, groupe["No Livraison"].unique()))
 
-        # --- 5️⃣ Résultat final ---
-        df_props = pd.DataFrame(proposals)
-        df_props = df_props.sort_values(
-            by=["Poids total (kg)", "Volume total (m³)"],
-            ascending=False
-        ).reset_index(drop=True)
+            besoin_location = (
+                poids_total > SEUIL_POIDS or
+                volume_total > SEUIL_VOLUME
+            )
 
-        return df_props[["Client", "Poids total (kg)", "Volume total (m³)", "Zones concernées", "Raison", "BLs"]]
+            if besoin_location:
+                st.write(f"🔴 Location nécessaire pour zone {zone} : {poids_total} kg / {volume_total} m³")
+                tournees_location.append({
+                    "Zone": zone,
+                    "Véhicule": "Camion Loué",
+                    "Poids total": round(poids_total, 2),
+                    "Volume total": round(volume_total, 3),
+                    "BL inclus": liste_bls,
+                    "Type": "Location"
+                })
+            else:
+                st.write(f"🟡 Zone {zone} reste dans les limites : {poids_total} kg / {volume_total} m³")
+
+        # -----------------------------
+        # 4️⃣ Fusionner et trier les résultats
+        # -----------------------------
+        propositions = pd.DataFrame(tournees_estafettes + tournees_location)
+        if not propositions.empty:
+            propositions = propositions.sort_values(by=["Type", "Zone"]).reset_index(drop=True)
+
+        st.write("📋 Propositions finales :", propositions)
+
+        # -----------------------------
+        # 5️⃣ Sauvegarde dans session_state
+        # -----------------------------
+        st.session_state.propositions = propositions
+        return propositions
+
+    except Exception as e:
+        st.error(f"❌ Erreur lors de la détection des propositions : {e}")
+        return pd.DataFrame()
+
 
 
     def appliquer_location(self, client, accepter):
