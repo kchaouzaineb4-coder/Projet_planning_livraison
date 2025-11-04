@@ -60,7 +60,7 @@ class TruckRentalProcessor:
         grouped = df.groupby(["Client commande", "Zone"]).agg(
             Poids_total=pd.NamedAgg(column="Poids total", aggfunc="sum"),
             Volume_total=pd.NamedAgg(column="Volume total", aggfunc="sum"),
-            BLs_concernees=pd.NamedAgg(column="No BL", aggfunc=lambda x: ", ".join(x.astype(str)))
+            BLs_concernees=pd.NamedAgg(column="No livraison", aggfunc=lambda x: ", ".join(x.astype(str)))
         ).reset_index()
 
         propositions = grouped[
