@@ -50,59 +50,68 @@ class TruckRentalProcessor:
 
         df['BL inclus'] = df['BL inclus'].astype(str)
         df["Estafette N°"] = pd.to_numeric(df["Estafette N°"], errors='coerce').fillna(99999).astype(int)
-
         return df
 
     def detecter_propositions(self):
         """
-        Détecte les clients dont le total Poids ou Volume dépasse les seuils
-        et crée une proposition de camion pour l'ensemble de leurs BLs.
+        Détecte les clients nécessitant une location de camion.
+        Tous les BLs d'un client sont inclus si le total du client dépasse les seuils.
         """
+        # Clients déjà proposés
         processed_clients = self.df_base[self.df_base["Location_proposee"]]["Client commande"].unique()
         df_pending = self.df_base[~self.df_base["Client commande"].isin(processed_clients)].copy()
-
         if df_pending.empty:
             return pd.DataFrame()
 
-        # Agréger par client pour savoir si une proposition est nécessaire
+        # Agrégation par client
         grouped = df_pending.groupby("Client commande").agg(
-            Poids_sum=pd.NamedAgg(column="Poids total", aggfunc="sum"),
-            Volume_sum=pd.NamedAgg(column="Volume total", aggfunc="sum"),
-            Zones=pd.NamedAgg(column="Zone", aggfunc=lambda s: ", ".join(sorted(set(s.astype(str).tolist()))))
+            Poids_sum=('Poids total', 'sum'),
+            Volume_sum=('Volume total', 'sum'),
+            Zones=('Zone', lambda s: ", ".join(sorted(set(s.astype(str).tolist()))))
         ).reset_index()
 
-        # Clients dont le total dépasse le seuil
-        propositions_clients = grouped[(grouped["Poids_sum"] >= SEUIL_POIDS) | (grouped["Volume_sum"] >= SEUIL_VOLUME)].copy()
+        # Clients à proposer
+        clients_proposables = grouped[
+            (grouped['Poids_sum'] >= SEUIL_POIDS) | 
+            (grouped['Volume_sum'] >= SEUIL_VOLUME)
+        ]['Client commande'].tolist()
 
-        # Création de la colonne Raison
+        # Récupérer tous les BLs de ces clients
+        df_proposition = df_pending[df_pending['Client commande'].isin(clients_proposables)].copy()
+
+        # Ajouter raison pour affichage
+        df_proposition = df_proposition.merge(grouped[['Client commande', 'Poids_sum', 'Volume_sum', 'Zones']],
+                                              on='Client commande', how='left')
+
         def get_raison(row):
             raisons = []
             if row["Poids_sum"] >= SEUIL_POIDS:
-                raisons.append(f"Poids total ≥ {SEUIL_POIDS} kg")
+                raisons.append(f"Poids ≥ {SEUIL_POIDS} kg")
             if row["Volume_sum"] >= SEUIL_VOLUME:
-                raisons.append(f"Volume total ≥ {SEUIL_VOLUME:.3f} m³")
+                raisons.append(f"Volume ≥ {SEUIL_VOLUME:.3f} m³")
             return " & ".join(raisons)
 
-        propositions_clients["Raison"] = propositions_clients.apply(get_raison, axis=1)
-        propositions_clients.rename(columns={
+        df_proposition["Raison"] = df_proposition.apply(get_raison, axis=1)
+        df_proposition.rename(columns={
             "Client commande": "Client",
             "Poids_sum": "Poids total (kg)",
             "Volume_sum": "Volume total (m³)",
             "Zones": "Zones concernées"
         }, inplace=True)
 
-        return propositions_clients.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False).reset_index(drop=True)
+        return df_proposition.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False).reset_index(drop=True)
 
     def get_details_client(self, client):
-        """Récupère tous les BLs d’un client, même ceux qui individuellement ne dépassent pas le seuil."""
-        data = self.df_base[self.df_base["Client commande"] == client].copy()
+        """Tous les BLs du client sont affichés, peu importe leur poids/volume individuel."""
+        if "Client commande" not in self.df_base.columns:
+            return "Erreur: Colonne 'Client commande' manquante.", pd.DataFrame()
 
+        data = self.df_base[self.df_base["Client commande"] == client].copy()
         if data.empty:
             return f"Aucune donnée pour {client}", pd.DataFrame()
 
         total_poids = data["Poids total"].sum()
         total_volume = data["Volume total"].sum()
-
         etat = "Non décidée"
         if data["Location_camion"].any():
             etat = "Location ACCEPTÉE"
@@ -110,11 +119,11 @@ class TruckRentalProcessor:
             etat = "Proposition REFUSÉE"
 
         colonnes_affichage = [
-            "Zone", "Camion N°", "Poids total", "Volume total", "BL inclus", "Taux d'occupation (%)",
-            "Client commande", "Représentant", "Location_camion", "Location_proposee", "Code Véhicule"
+            "Zone", "Camion N°", "Poids total", "Volume total", "BL inclus",
+            "Taux d'occupation (%)", "Client commande", "Représentant",
+            "Location_camion", "Location_proposee", "Code Véhicule"
         ]
         data_display = data[[col for col in colonnes_affichage if col in data.columns]]
-
         resume = f"Client {client} — Poids total : {total_poids:.1f} kg ; Volume total : {total_volume:.3f} m³ | État : {etat}"
 
         data_display_styled = data_display.style.format({
