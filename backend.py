@@ -58,45 +58,51 @@ class TruckRentalProcessor:
     # 1️⃣ Détection des clients nécessitant une location
     # =====================================================
     def detecter_propositions(self):
-        """
-        Détecte les propositions de location basées sur tous les BLs du client,
-        sans distinction d'estafette ou de zone.
-        """
-        try:
-            grouped = self.df_grouped_zone.groupby(
-                ["Client de l'estafette"], as_index=False
-            ).agg({
-                "Poids total": "sum",
-                "Volume total": "sum"
-            })
+        df = self.df_grouped_zone.copy()
 
-            propositions = grouped[
-                (grouped["Poids total"] >= SEUIL_POIDS) |
-                (grouped["Volume total"] >= SEUIL_VOLUME)
+        # Grouper par client et zone pour détecter les dépassements
+        grouped = df.groupby(
+            ["Client de l'estafette", "Zone"], as_index=False
+        ).agg({
+            "Poids total": "sum",
+            "Volume total": "sum"
+        })
+
+        # Déterminer les clients éligibles à un camion
+        clients_camion = grouped[
+            (grouped["Poids total"] >= SEUIL_POIDS) |
+            (grouped["Volume total"] >= SEUIL_VOLUME)
+        ]
+
+        propositions = []
+
+        # Pour chaque client éligible → prendre TOUS ses BLs
+        for _, row in clients_camion.iterrows():
+            client = row["Client de l'estafette"]
+            zone = row["Zone"]
+
+            df_client_full = df[
+                (df["Client de l'estafette"] == client) &
+                (df["Zone"] == zone)
             ].copy()
 
-            # Ajout de la raison
-            def get_raison(row):
-                raisons = []
-                if row["Poids total"] >= SEUIL_POIDS:
-                    raisons.append(f"Poids ≥ {SEUIL_POIDS} kg")
-                if row["Volume total"] >= SEUIL_VOLUME:
-                    raisons.append(f"Volume ≥ {SEUIL_VOLUME:.3f} m³")
-                return " & ".join(raisons)
+            # Calcul raison
+            raisons = []
+            if row["Poids total"] >= SEUIL_POIDS:
+                raisons.append(f"Poids ≥ {SEUIL_POIDS} kg")
+            if row["Volume total"] >= SEUIL_VOLUME:
+                raisons.append(f"Volume ≥ {SEUIL_VOLUME:.3f} m³")
 
-            propositions["Raison"] = propositions.apply(get_raison, axis=1)
-            propositions.rename(columns={
-                "Client de l'estafette": "Client",
-                "Poids total": "Poids total (kg)",
-                "Volume total": "Volume total (m³)"
-            }, inplace=True)
+            df_client_full["Raison"] = " & ".join(raisons)
+            propositions.append(df_client_full)
 
-            st.session_state.propositions = propositions
-            return propositions
+        if propositions:
+            self.df_propositions = pd.concat(propositions, ignore_index=True)
+        else:
+            self.df_propositions = pd.DataFrame()
 
-        except Exception as e:
-            st.error(f"❌ Erreur lors de la détection des propositions : {e}")
-            return pd.DataFrame()
+        return self.df_propositions
+
 
     # =====================================================
     # 2️⃣ Détails des BLs d’un client
