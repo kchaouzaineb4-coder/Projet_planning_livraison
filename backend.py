@@ -21,6 +21,9 @@ class TruckRentalProcessor:
         self._next_camion_num = self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE].shape[0] + 1
         self._pending_proposals = {}
 
+    # =====================================================
+    # Initialisation des colonnes de suivi
+    # =====================================================
     def _initialize_rental_columns(self, df):
         """Ajoute les colonnes d'état de location si elles n'existent pas et les renomme."""
         df.rename(columns={
@@ -58,7 +61,9 @@ class TruckRentalProcessor:
 
         return df
 
-    # ✅ Méthode bien intégrée à la classe
+    # =====================================================
+    # 1️⃣ Détection des clients nécessitant une location
+    # =====================================================
     def detecter_propositions(self):
         """
         Détecte les propositions de location basées sur df_grouped_zone.
@@ -101,6 +106,47 @@ class TruckRentalProcessor:
             st.error(f"❌ Erreur lors de la détection des propositions : {e}")
             return pd.DataFrame()
 
+    # =====================================================
+    # 2️⃣ Détails des BLs d’un client
+    # =====================================================
+    def get_details_client(self, client):
+        """
+        Retourne un résumé et le DataFrame détaillé pour un client donné
+        (affiché dans l'interface de proposition Streamlit).
+        """
+        if client is None or str(client).strip() == "":
+            return "⚠️ Aucun client sélectionné.", pd.DataFrame()
+
+        # Filtrer tous les BLs du client dans toutes les estafettes
+        df_client = self.df_base[
+            self.df_base["Client commande"].astype(str) == str(client)
+        ].copy()
+
+        if df_client.empty:
+            return f"Aucun BL trouvé pour le client {client}.", pd.DataFrame()
+
+        poids_total = df_client["Poids total"].sum()
+        volume_total = df_client["Volume total"].sum()
+
+        resume = (
+            f"Client **{client}** — {len(df_client)} BL(s) — "
+            f"Poids total : {poids_total:.2f} kg — "
+            f"Volume total : {volume_total:.3f} m³"
+        )
+
+        # Colonnes à afficher
+        cols_to_show = [
+            c for c in [
+                "No livraison", "Client commande", "Ville",
+                "Zone", "Article", "Poids total", "Volume total", "Camion N°"
+            ] if c in df_client.columns
+        ]
+        details_df = df_client[cols_to_show].reset_index(drop=True)
+        return resume, details_df
+
+    # =====================================================
+    # 3️⃣ Appliquer ou refuser une proposition
+    # =====================================================
     def appliquer_location(self, client, accepter):
         """Applique ou refuse la location pour un client et met à jour le DataFrame de base."""
         if client not in self.df_base["Client commande"].unique():
@@ -174,6 +220,9 @@ class TruckRentalProcessor:
                 del self._pending_proposals[client]
             return True, f"❌ Proposition REFUSÉE pour {client}.", self.detecter_propositions()
 
+    # =====================================================
+    # 4️⃣ Résultat final à exporter
+    # =====================================================
     def get_df_result(self):
         """Retourne le DataFrame optimisé final avec les modifications de location."""
         df_result = self.df_base.copy()
@@ -195,6 +244,7 @@ class TruckRentalProcessor:
             "Taux d'occupation (%)", "Location_camion", "Location_proposee", "Code Véhicule"
         ]
         return df_result[[c for c in final_cols if c in df_result.columns]]
+
 
 
 class DeliveryProcessor:
