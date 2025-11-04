@@ -62,7 +62,10 @@ class TruckRentalProcessor:
 
         # Garder toutes les lignes dont le client n'a pas encore reçu de proposition
         df_pending = self.df_base[~self.df_base["Client commande"].isin(processed_clients)].copy()
-
+         # === DÉBOGAGE : affiche le contenu du DataFrame pour STQ ===
+        print("Clients en attente dans df_pending:", df_pending["Client commande"].unique())
+        print("Nombre de lignes dans df_pending:", len(df_pending))
+        print(df_pending[df_pending["Client commande"] == "STQ"])
         if df_pending.empty:
             return pd.DataFrame()
 
