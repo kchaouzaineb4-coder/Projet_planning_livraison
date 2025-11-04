@@ -61,7 +61,7 @@ class TruckRentalProcessor:
         propositions = []
 
         # On travaille par client
-        clients = self.df_base['Client'].unique()
+        clients = self.df_estafettes['Client(s) inclus'].unique()
         for client in clients:
             df_client = self.df_base[self.df_base['Client'] == client]
 
