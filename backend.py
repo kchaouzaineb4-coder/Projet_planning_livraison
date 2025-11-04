@@ -35,10 +35,9 @@ class TruckRentalProcessor:
             "Représentant(s) inclus": "Représentant"
         }, inplace=True)
 
-        if "Location_camion" not in df.columns:
-            df["Location_camion"] = False
-        if "Location_proposee" not in df.columns:
-            df["Location_proposee"] = False
+        for col in ["Location_camion", "Location_proposee"]:
+            if col not in df.columns:
+                df[col] = False
         if "Code Véhicule" not in df.columns:
             df["Code Véhicule"] = "ESTAFETTE"
         if "Camion N°" not in df.columns:
@@ -53,38 +52,41 @@ class TruckRentalProcessor:
         return df
 
     def detecter_propositions(self):
-        # 1️⃣ Clients déjà proposés
+        """Détecte les clients qui devraient se voir proposer une location de camion."""
+        # Clients déjà proposés
         processed_clients = self.df_base[self.df_base["Location_proposee"]]["Client commande"].unique()
         df_pending = self.df_base[~self.df_base["Client commande"].isin(processed_clients)].copy()
         if df_pending.empty:
             return pd.DataFrame()
 
-        # 2️⃣ Agréger par client
+        # Agréger par client (tous les BLs)
         grouped = df_pending.groupby("Client commande").agg(
             Poids_total_client=('Poids total', 'sum'),
             Volume_total_client=('Volume total', 'sum'),
             Zones=('Zone', lambda s: ", ".join(sorted(set(s.astype(str).tolist()))))
         ).reset_index()
 
-        # 3️⃣ Clients dont le total dépasse les seuils
+        # Clients dont le total dépasse les seuils
         clients_proposables = grouped[
-            (grouped['Poids_total_client'] >= SEUIL_POIDS) | 
+            (grouped['Poids_total_client'] >= SEUIL_POIDS) |
             (grouped['Volume_total_client'] >= SEUIL_VOLUME)
         ]['Client commande'].tolist()
 
-        # 4️⃣ Tous les BLs de ces clients
+        # Tous les BLs de ces clients
         df_proposition = df_pending[df_pending['Client commande'].isin(clients_proposables)].copy()
 
-        # 5️⃣ Ajouter raison
-        df_proposition = df_proposition.merge(grouped[['Client commande', 'Poids_total_client', 'Volume_total_client', 'Zones']],
-                                            on='Client commande', how='left')
+        # Ajouter raison
+        df_proposition = df_proposition.merge(
+            grouped[['Client commande', 'Poids_total_client', 'Volume_total_client', 'Zones']],
+            on='Client commande', how='left'
+        )
         df_proposition['Raison'] = df_proposition.apply(
             lambda r: f"Poids ≥ {SEUIL_POIDS} kg"*(r['Poids_total_client'] >= SEUIL_POIDS) + 
-                    f" & Volume ≥ {SEUIL_VOLUME} m³"*(r['Volume_total_client'] >= SEUIL_VOLUME),
+                      f" & Volume ≥ {SEUIL_VOLUME} m³"*(r['Volume_total_client'] >= SEUIL_VOLUME),
             axis=1
         )
 
-        # 6️⃣ Renommer colonnes pour affichage
+        # Renommer colonnes pour affichage
         df_proposition.rename(columns={
             'Client commande': 'Client',
             'Poids_total_client': 'Poids total (kg)',
@@ -92,7 +94,9 @@ class TruckRentalProcessor:
             'Zones': 'Zones concernées'
         }, inplace=True)
 
-        return df_proposition.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False).reset_index(drop=True)
+        return df_proposition.sort_values(
+            ["Poids total (kg)", "Volume total (m³)"], ascending=False
+        ).reset_index(drop=True)
 
     def get_details_client(self, client):
         """Tous les BLs du client sont affichés, peu importe leur poids/volume individuel."""
@@ -134,21 +138,21 @@ class TruckRentalProcessor:
             return False, "Client introuvable.", self.df_base
 
         df = self.df_base.copy()
-        poids_total = df.loc[mask, "Poids total"].sum()
-        volume_total = df.loc[mask, "Volume total"].sum()
+        total_poids = df.loc[mask, "Poids total"].sum()
+        total_volume = df.loc[mask, "Volume total"].sum()
         bl_concat = ";".join(df.loc[mask, "BL inclus"].astype(str).unique().tolist())
         representants = ";".join(sorted(df.loc[mask, "Représentant"].astype(str).unique().tolist()))
         zones = ";".join(sorted(df.loc[mask, "Zone"].astype(str).unique().tolist()))
 
-        taux_occu = max(poids_total / 5000 * 100, volume_total / 15 * 100)
+        taux_occu = max(total_poids / 5000 * 100, total_volume / 15 * 100)
 
         if accepter:
             camion_num_final = f"C{self._next_camion_num}"
             new_row = pd.DataFrame([{
                 "Zone": zones,
                 "Estafette N°": 0,
-                "Poids total": poids_total,
-                "Volume total": volume_total,
+                "Poids total": total_poids,
+                "Volume total": total_volume,
                 "BL inclus": bl_concat,
                 "Client commande": client,
                 "Représentant": representants,
@@ -189,6 +193,7 @@ class TruckRentalProcessor:
             "Location_camion", "Location_proposee", "Code Véhicule"
         ]
         return df_result[[col for col in final_cols_display if col in df_result.columns]]
+
 
 
 class DeliveryProcessor:
