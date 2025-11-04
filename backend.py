@@ -58,47 +58,26 @@ class TruckRentalProcessor:
         return df
 
     def detecter_propositions(self):
-        """
-        Détecte les clients pour lesquels une proposition de location doit être faite.
-        Une proposition est déclenchée si le poids total ou le volume total d'un client
-        dépasse les seuils définis (SEUIL_POIDS ou SEUIL_VOLUME).
-        
-        Retourne un DataFrame avec les colonnes :
-        - Client
-        - Poids total (kg)
-        - Volume total (m³)
-        - Raison
-        """
-        if self.df_estafettes is None or self.df_estafettes.empty:
-            return pd.DataFrame(columns=["Client", "Poids total (kg)", "Volume total (m³)", "Raison"])
-        
-        # Grouper par client et calculer le poids et le volume total
-        df_clients = self.df_estafettes.groupby("Client", as_index=False).agg({
-            "Poids total chargé": "sum",
-            "Volume total chargé": "sum"
-        })
+        propositions = []
 
-        # Renommer les colonnes pour l'affichage
-        df_clients.rename(columns={
-            "Poids total chargé": "Poids total (kg)",
-            "Volume total chargé": "Volume total (m³)"
-        }, inplace=True)
+        # On travaille par client
+        clients = self.df_estafettes['Client'].unique()  # ← Utiliser self.df_estafettes
+        for client in clients:
+            df_client = self.df_estafettes[self.df_estafettes['Client'] == client]
 
-        # Déterminer la raison pour laquelle chaque client déclenche une proposition
-        def raison(row):
-            raisons = []
-            if row["Poids total (kg)"] >= SEUIL_POIDS:
-                raisons.append("Poids élevé")
-            if row["Volume total (m³)"] >= SEUIL_VOLUME:
-                raisons.append("Volume élevé")
-            return " & ".join(raisons)
+            poids_total = df_client['Poids total chargé'].sum()
+            volume_total = df_client['Volume total chargé'].sum()
 
-        df_clients["Raison"] = df_clients.apply(raison, axis=1)
+            # Déclenchement si seuil dépassé
+            if poids_total > SEUIL_POIDS or volume_total > SEUIL_VOLUME:
+                propositions.append({
+                    'Client': client,
+                    'Poids total (kg)': poids_total,
+                    'Volume total (m³)': volume_total,
+                    'Raison': 'Poids' if poids_total > SEUIL_POIDS else 'Volume'
+                })
 
-        # Ne conserver que les clients qui dépassent au moins un seuil
-        df_propositions = df_clients[df_clients["Raison"] != ""].reset_index(drop=True)
-        
-        return df_propositions
+        return pd.DataFrame(propositions)
 
 
     def get_details_client(self, client):
