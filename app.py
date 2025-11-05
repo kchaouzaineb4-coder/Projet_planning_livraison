@@ -230,6 +230,20 @@ with tab_city:
 with tab_zone_group:
     st.subheader("Livraisons par Client & Ville + Zone")
     show_df(st.session_state.df_grouped_zone, use_container_width=True)
+    
+    # Bouton de téléchargement pour ce tableau
+    from io import BytesIO
+    excel_buffer_zone = BytesIO()
+    with pd.ExcelWriter(excel_buffer_zone, engine='openpyxl') as writer:
+        st.session_state.df_grouped_zone.to_excel(writer, index=False, sheet_name="Livraisons Client Ville Zone")
+    excel_buffer_zone.seek(0)
+    
+    st.download_button(
+        label="💾 Télécharger Livraisons Client/Ville/Zone",
+        data=excel_buffer_zone,
+        file_name="Livraisons_Client_Ville_Zone.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 # --- Onglet Besoin Estafette par Zone ---
 with tab_zone_summary:
@@ -268,6 +282,7 @@ with tab_charts:
         )
 
 st.markdown("---")
+
 
     # =====================================================
 # 3. PROPOSITION DE LOCATION DE CAMION (Section 3)
