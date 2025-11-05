@@ -1,16 +1,8 @@
 import streamlit as st
 import pandas as pd
+from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME 
 import plotly.express as px
 
-# Import avec gestion d'erreur
-try:
-    from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, ManualBLManager, SEUIL_POIDS, SEUIL_VOLUME
-except ImportError as e:
-    st.error(f"Erreur d'import: {e}")
-    # Import des classes de base seulement
-    from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME
-    # Définir ManualBLManager comme None si non disponible
-    ManualBLManager = None
 
 # =====================================================
 # === Fonction show_df pour arrondir à 3 décimales ===
@@ -26,6 +18,50 @@ def show_df(df, **kwargs):
         st.dataframe(df_to_display, **kwargs)
     else:
         st.dataframe(df, **kwargs)
+
+# =====================================================
+# === Fonction show_df_multiline avec affichage HTML ===
+# =====================================================
+def show_df_multiline(df, column_to_multiline):
+    """
+    Affiche un DataFrame avec les articles multilignes dans la même cellule.
+    Chaque 'No livraison' reste sur une seule ligne.
+    """
+    df_display = df.copy()
+
+    # Grouper les lignes par livraison et concaténer les articles avec des <br>
+    df_display = df_display.groupby(
+        ['No livraison', 'Client', 'Ville', 'Représentant', 'Poids total', 'Volume total'],
+        as_index=False
+    ).agg({column_to_multiline: lambda x: "<br>".join(x.astype(str))})
+
+    # CSS pour forcer l'affichage des <br> sur plusieurs lignes
+    css = """
+    <style>
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    th, td {
+        border: 1px solid #555;
+        padding: 8px;
+        text-align: left;
+        vertical-align: top;
+        white-space: normal;
+        word-wrap: break-word;
+    }
+    th {
+        background-color: #222;
+        color: white;
+    }
+    td {
+        color: #ddd;
+    }
+    </style>
+    """
+
+    html = df_display.to_html(escape=False, index=False)
+    st.markdown(css + html, unsafe_allow_html=True)
 
 # =====================================================
 # 📌 Constantes pour les véhicules et chauffeurs
@@ -63,7 +99,6 @@ if 'data_processed' not in st.session_state:
     st.session_state.message = ""
     st.session_state.df_voyages = None
     st.session_state.df_livraisons = None
-    st.session_state.manual_bl_manager = None
 
 # =====================================================
 # Fonctions de Callback pour la Location
@@ -547,123 +582,8 @@ else:
                                 mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                             )
 
-st.markdown("---")
-
 # =====================================================
-# 6️⃣ AJOUT MANUEL DE BLs/MACHINES (NOUVELLE SECTION)
-# =====================================================
-st.markdown("## 🆕 AJOUT MANUEL DE BLs/MACHINES")
-
-# Import dynamique de ManualBLManager
-try:
-    from backend import ManualBLManager
-    MANUAL_BL_MANAGER_AVAILABLE = True
-except ImportError:
-    MANUAL_BL_MANAGER_AVAILABLE = False
-    st.warning("⚠️ La fonctionnalité d'ajout manuel n'est pas disponible. Vérifiez votre fichier backend.py")
-
-if MANUAL_BL_MANAGER_AVAILABLE and "df_voyages" in st.session_state:
-    # Initialiser le manager d'ajout manuel
-    if st.session_state.manual_bl_manager is None:
-        st.session_state.manual_bl_manager = ManualBLManager(
-            st.session_state.df_voyages, 
-            st.session_state.df_livraisons_original
-        )
-    
-    bl_manager = st.session_state.manual_bl_manager
-    
-    # Afficher les voyages disponibles
-    st.subheader("📋 Voyages disponibles")
-    voyages_disponibles = bl_manager.get_voyages_disponibles()
-    show_df(voyages_disponibles, use_container_width=True)
-    
-    # Formulaire d'ajout manuel
-    st.subheader("➕ AJOUT D'UN NOUVEL OBJET (BL, Machine, etc.)")
-    
-    with st.form("ajout_manuel_form"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            designation = st.text_input("Désignation de l'objet à ajouter *", placeholder="Ex: BL12345 ou Machine-XYZ")
-            poids_kg = st.number_input("Poids de l'objet (kg) *", min_value=0.0, step=0.1, format="%.3f")
-            volume_m3 = st.number_input("Volume de l'objet (m³) *", min_value=0.0, step=0.001, format="%.6f")
-        
-        with col2:
-            # Liste des véhicules disponibles
-            vehicules_disponibles = sorted(st.session_state.df_voyages["Véhicule N°"].unique().tolist())
-            vehicule_cible = st.selectbox("Véhicule cible *", options=vehicules_disponibles)
-            client = st.text_input("Client", value="AJOUT MANUEL", placeholder="Nom du client")
-            representant = st.text_input("Représentant", value="AJOUT MANUEL", placeholder="Nom du représentant")
-        
-        # Vérification en temps réel
-        if designation and poids_kg > 0 and volume_m3 > 0 and vehicule_cible:
-            possible, message_verif = bl_manager.verifier_capacite_ajout(vehicule_cible, poids_kg, volume_m3)
-            if possible:
-                st.success(message_verif)
-            else:
-                st.error(message_verif)
-        
-        submitted = st.form_submit_button("✅ Ajouter l'objet au véhicule")
-        
-        if submitted:
-            if not designation or poids_kg <= 0 or volume_m3 <= 0 or not vehicule_cible:
-                st.error("❌ Veuillez remplir tous les champs obligatoires (*)")
-            else:
-                # Vérification finale avant ajout
-                possible, message_verif = bl_manager.verifier_capacite_ajout(vehicule_cible, poids_kg, volume_m3)
-                
-                if possible:
-                    succes, message, df_voyages_maj = bl_manager.ajouter_objet_manuel(
-                        designation, poids_kg, volume_m3, vehicule_cible, client, representant
-                    )
-                    
-                    if succes:
-                        st.success(message)
-                        # Mettre à jour le DataFrame des voyages
-                        st.session_state.df_voyages = df_voyages_maj
-                        st.session_state.manual_bl_manager = ManualBLManager(
-                            st.session_state.df_voyages, 
-                            st.session_state.df_livraisons_original
-                        )
-                        st.rerun()
-                    else:
-                        st.error(message)
-                else:
-                    st.error("❌ Impossible d'ajouter l'objet - capacités insuffisantes.")
-    
-    # Statistiques des véhicules
-    st.subheader("📊 Statistiques des véhicules")
-    vehicule_selected = st.selectbox("Sélectionner un véhicule pour voir ses statistiques", 
-                                   options=sorted(st.session_state.df_voyages["Véhicule N°"].unique().tolist()))
-    
-    if vehicule_selected:
-        stats = bl_manager.get_statistiques_vehicule(vehicule_selected)
-        if stats:
-            col_stat1, col_stat2 = st.columns(2)
-            with col_stat1:
-                st.metric("Véhicule", stats["Véhicule"])
-                st.metric("Type", stats["Type"])
-                st.metric("Zone", stats["Zone"])
-                st.metric("Poids actuel", stats["Poids actuel"])
-                st.metric("Volume actuel", stats["Volume actuel"])
-            with col_stat2:
-                st.metric("Poids disponible", stats["Poids disponible"])
-                st.metric("Volume disponible", stats["Volume disponible"])
-                st.metric("Taux d'occupation", stats["Taux d'occupation"])
-            
-            with st.expander("📋 Détails des BLs et Clients"):
-                st.text(f"BLs inclus: {stats['BLs inclus']}")
-                st.text(f"Clients inclus: {stats['Clients inclus']}")
-else:
-    if not MANUAL_BL_MANAGER_AVAILABLE:
-        st.warning("⚠️ La fonctionnalité d'ajout manuel n'est pas disponible.")
-    else:
-        st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
-
-st.markdown("---")
-
-# =====================================================
-# 7️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
+# 6️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
 # =====================================================
 st.markdown("## ✅ VALIDATION DES VOYAGES APRÈS TRANSFERT")
 
@@ -742,7 +662,7 @@ else:
     st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
 
 # =====================================================
-# 8️⃣ ATTRIBUTION DES VÉHICULES ET CHAUFFEURS
+# 7️⃣ ATTRIBUTION DES VÉHICULES ET CHAUFFEURS
 # =====================================================
 st.markdown("## 🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS")
 
@@ -858,4 +778,4 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             mime='application/pdf'
         )
 else:
-    st.warning("⚠️ Vous devez d'abord valider les voyages dans la section 7.")
+    st.warning("⚠️ Vous devez d'abord valider les voyages dans la section 6.")
