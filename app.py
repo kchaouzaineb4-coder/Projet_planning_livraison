@@ -1,7 +1,16 @@
 import streamlit as st
 import pandas as pd
-from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME
 import plotly.express as px
+
+# Import avec gestion d'erreur
+try:
+    from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, ManualBLManager, SEUIL_POIDS, SEUIL_VOLUME
+except ImportError as e:
+    st.error(f"Erreur d'import: {e}")
+    # Import des classes de base seulement
+    from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME
+    # Définir ManualBLManager comme None si non disponible
+    ManualBLManager = None
 
 # =====================================================
 # === Fonction show_df pour arrondir à 3 décimales ===
