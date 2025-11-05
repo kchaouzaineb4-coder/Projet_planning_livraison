@@ -150,10 +150,10 @@ class TruckRentalProcessor:
 
         df = self.df_base.copy()
         
-        # Récupérer les données totales (somme de tous les voyages du client)
-        poids_total = df.loc[mask, "Poids total"].sum()
+        # VÉRIFICATION CONFIRMÉE : Récupérer TOUTES les données du client (toutes zones)
+        poids_total = df.loc[mask, "Poids total"].sum()  # ← SOMME de TOUS les BLs
         volume_total = df.loc[mask, "Volume total"].sum()
-        bl_concat = ";".join(df.loc[mask, "BL inclus"].astype(str).unique().tolist())
+        bl_concat = ";".join(df.loc[mask, "BL inclus"].astype(str).unique().tolist())  # ← TOUS les BLs
         representants = ";".join(sorted(df.loc[mask, "Représentant"].astype(str).unique().tolist()))
         zones = ";".join(sorted(df.loc[mask, "Zone"].astype(str).unique().tolist()))
         
@@ -164,17 +164,17 @@ class TruckRentalProcessor:
         taux_occu = max(poids_total / TAUX_POIDS_MAX_LOC * 100, volume_total / TAUX_VOLUME_MAX_LOC * 100)
         
         if accepter:
-            # --- MODIFICATION CLÉ ICI ---
+            # --- LOGIQUE "TOUT OU RIEN" CONFIRMÉE ---
             # 1. Générer le numéro de camion C1, C2, C3...
             camion_num_final = f"C{self._next_camion_num}"
             
             # 2. Créer un nouveau voyage (une seule ligne) pour le camion loué
             new_row = pd.DataFrame([{
-                "Zone": zones,
+                "Zone": zones,  # ← Ex: "Zone 1;Zone 2;Zone 3" (toutes zones concaténées)
                 "Estafette N°": 0, # Mettre à 0 pour le tri
-                "Poids total": poids_total,
-                "Volume total": volume_total,
-                "BL inclus": bl_concat,
+                "Poids total": poids_total,  # ← SOMME de TOUS les poids
+                "Volume total": volume_total,  # ← SOMME de TOUS les volumes
+                "BL inclus": bl_concat,  # ← TOUS les BLs concaténés
                 "Client commande": client,
                 "Représentant": representants,
                 "Location_camion": True,
@@ -187,14 +187,14 @@ class TruckRentalProcessor:
             # 3. Mettre à jour le compteur
             self._next_camion_num += 1
 
-            # 4. Supprimer les lignes d'estafette existantes pour ce client
-            df = df[~mask]
+            # 4. VÉRIFICATION CONFIRMÉE : Supprimer TOUTES les lignes du client (peu importe la zone)
+            df = df[~mask]  # ← Supprime TOUS les BLs, toutes zones confondues
             
-            # 5. Ajouter la nouvelle ligne
+            # 5. Ajouter la nouvelle ligne camion
             df = pd.concat([df, new_row], ignore_index=True)
             
             self.df_base = df
-            return True, f"✅ Location ACCEPTÉE pour {client}. Les commandes ont été consolidées dans le véhicule {camion_num_final}.", self.detecter_propositions()
+            return True, f"✅ Location ACCEPTÉE pour {client}. TOUTES les commandes ont été consolidées dans le véhicule {camion_num_final}.", self.detecter_propositions()
         else:
             # Refuser la proposition (les commandes restent dans les estafettes optimisées)
             # Marquer Location_proposee à True pour qu'elles n'apparaissent plus
@@ -562,9 +562,7 @@ class DeliveryProcessor:
         df_estafettes = df_estafettes.drop(columns=["Taux Poids (%)", "Taux Volume (%)"]) 
         
         return df_estafettes
-    # =====================================================
-    # 🆕 Transfert des BL d'une estafette à une autre dans la même zone
-    # =====================================================
+
     def transfer_bl_between_estafettes(self, source_estafette_num, target_estafette_num, bl_list):
         """
         Transfert une ou plusieurs BLs d'une estafette source à une estafette cible
@@ -636,9 +634,6 @@ class DeliveryProcessor:
         # Mettre à jour le DataFrame
         self.df_base = df
         return True, f"✅ BLs transférés de {source_estafette_num} vers {target_estafette_num} avec succès."
-    # ============================================================
-    # 🔁 NOUVELLE CLASSE : Gestion du transfert de BLs entre estafettes
-    # ============================================================
 
 
 # =====================================================
@@ -710,5 +705,3 @@ class TruckTransferManager:
         }
 
         return transfert_autorise, info
-
-
