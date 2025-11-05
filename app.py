@@ -412,37 +412,67 @@ st.markdown("---")
 # =====================================================
 st.header("4. 🚐 Voyages par Estafette Optimisé (Inclut Camions Loués)")
 
-# --- Création d'une copie pour l'affichage (avec unités) ---
-df_display = df_optimized_estafettes.copy()
-df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
+try:
+    # CORRECTION : Nettoyer les colonnes en double
+    df_clean = df_optimized_estafettes.loc[:, ~df_optimized_estafettes.columns.duplicated()]
+    
+    # Vérifier les colonnes disponibles
+    st.info(f"📊 Colonnes disponibles: {', '.join(df_clean.columns)}")
+    
+    # Définir l'ordre des colonnes pour l'affichage
+    colonnes_ordre = [
+        "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé",
+        "Client(s) inclus", "Représentant(s) inclus", "BL inclus", 
+        "Taux d'occupation (%)", "Location_camion", "Location_proposee", "Code Véhicule"
+    ]
+    
+    # Filtrer seulement les colonnes qui existent
+    colonnes_finales = [col for col in colonnes_ordre if col in df_clean.columns]
+    
+    # Créer le DataFrame d'affichage
+    df_display = df_clean[colonnes_finales].copy()
+    
+    # Formater les colonnes numériques
+    if "Poids total chargé" in df_display.columns:
+        df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
+    if "Volume total chargé" in df_display.columns:
+        df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+    if "Taux d'occupation (%)" in df_display.columns:
+        df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
+    
+    # Afficher le tableau
+    show_df(df_display, use_container_width=True)
+    
+    # Préparer l'export Excel
+    df_export = df_clean.copy()
+    if "Poids total chargé" in df_export.columns:
+        df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
+    if "Volume total chargé" in df_export.columns:
+        df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
+    
+    # Bouton de téléchargement
+    from io import BytesIO
+    excel_buffer = BytesIO()
+    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+        df_export.to_excel(writer, index=False, sheet_name="Voyages Optimisés")
+    excel_buffer.seek(0)
+    
+    st.download_button(
+        label="💾 Télécharger Voyages Estafette Optimisés",
+        data=excel_buffer,
+        file_name="Voyages_Estafette_Optimises.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    
+    # Mise à jour pour les sections suivantes
+    st.session_state.df_voyages = df_clean
 
-# --- Affichage avec show_df ---
-show_df(df_display, use_container_width=True)
-
-# --- Préparer un DataFrame pour export Excel ---
-df_export = df_optimized_estafettes.copy()
-df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
-df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
-
-# --- Bouton de téléchargement Excel ---
-from io import BytesIO
-path_optimized = "Voyages_Estafette_Optimises.xlsx"
-excel_buffer = BytesIO()
-with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-    df_export.to_excel(writer, index=False, sheet_name="Voyages Optimisés")
-excel_buffer.seek(0)
-
-st.download_button(
-    label="💾 Télécharger Voyages Estafette Optimisés",
-    data=excel_buffer,
-    file_name=path_optimized,
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
-
-# --- Mise à jour dans session_state pour la section 5 ---
-st.session_state.df_voyages = df_optimized_estafettes
+except Exception as e:
+    st.error(f"❌ Erreur lors de l'affichage des voyages optimisés: {str(e)}")
+    # Afficher les données brutes pour debug
+    st.write("Données brutes pour debug:")
+    st.write("Colonnes:", list(df_optimized_estafettes.columns))
+    st.write("Doublons:", df_optimized_estafettes.columns.duplicated().sum())
 
 # =====================================================
 # 5️⃣ TRANSFERT DES BLs ENTRE ESTAFETTES / CAMIONS
