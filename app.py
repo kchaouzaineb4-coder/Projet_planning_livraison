@@ -35,7 +35,7 @@ def show_df_multiline(df, column_to_multiline):
         as_index=False
     ).agg({column_to_multiline: lambda x: "<br>".join(x.astype(str))})
 
-    # CSS pour forcer l’affichage des <br> sur plusieurs lignes
+    # CSS pour forcer l'affichage des <br> sur plusieurs lignes
     css = """
     <style>
     table {
@@ -91,6 +91,7 @@ if 'data_processed' not in st.session_state:
     st.session_state.df_grouped_zone = None
     st.session_state.df_zone = None 
     st.session_state.df_optimized_estafettes = None
+    st.session_state.df_livraisons_original = None  # Nouveau: données originales
     st.session_state.rental_processor = None # Objet de traitement de location
     st.session_state.propositions = None # Dataframe de propositions
     st.session_state.selected_client = None # Client sélectionné
@@ -155,7 +156,8 @@ with col_button:
             processor = DeliveryProcessor()
             try:
                 with st.spinner("Traitement des données en cours..."):
-                    df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes = processor.process_delivery_data(
+                    # MODIFICATION: Récupération du df_livraisons_original
+                    df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes, df_livraisons_original = processor.process_delivery_data(
                         liv_file, ydlogist_file, wcliegps_file
                     )
                 
@@ -165,9 +167,10 @@ with col_button:
                 st.session_state.df_city = df_city
                 st.session_state.df_grouped_zone = df_grouped_zone
                 st.session_state.df_zone = df_zone 
+                st.session_state.df_livraisons_original = df_livraisons_original  # Nouveau: données originales
                 
-                # 🆕 Initialisation du processeur de location et des propositions
-                st.session_state.rental_processor = TruckRentalProcessor(df_optimized_estafettes)
+                # 🆕 MODIFICATION: Initialisation avec les données originales
+                st.session_state.rental_processor = TruckRentalProcessor(df_optimized_estafettes, df_livraisons_original)
                 update_propositions_view()
                 
                 st.session_state.data_processed = True
@@ -686,5 +689,3 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             file_name="Voyages_attribues.pdf",
             mime='application/pdf'
         )
-
-

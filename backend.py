@@ -13,11 +13,11 @@ class TruckRentalProcessor:
     basée sur les données optimisées.
     """
     
-    def __init__(self, df_optimized):
-        """Initialise le processeur avec le DataFrame de base pour la gestion des propositions."""
+    def __init__(self, df_optimized, df_livraisons_original):
+        """Initialise le processeur avec le DataFrame optimisé ET les données originales des livraisons."""
         self.df_base = self._initialize_rental_columns(df_optimized.copy())
+        self.df_livraisons_original = df_livraisons_original.copy()
         # Initialiser le compteur de camions loués pour générer C1, C2, etc.
-        # On commence à 1 + le nombre de camions loués déjà présents si on chargeait un état
         self._next_camion_num = self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE].shape[0] + 1
 
     def _initialize_rental_columns(self, df):
@@ -56,29 +56,65 @@ class TruckRentalProcessor:
 
         return df
 
-    def _explode_client_column(self, df):
-        """Explose la colonne Client(s) inclus pour avoir une ligne par client"""
-        # Créer une copie pour éviter les warnings
-        df_expanded = df.copy()
+    def _explode_client_column_with_accurate_weights(self, df):
+        """
+        Version PRÉCISE qui recalcule les poids/volumes réels par client
+        à partir des données originales des BLs
+        """
+        # Créer un mapping BL -> (Client, Poids, Volume) depuis les données originales
+        bl_client_mapping = {}
+        for _, row in self.df_livraisons_original.iterrows():
+            bl = str(row["No livraison"]).strip()
+            client = str(row["Client de l'estafette"]).strip()
+            poids = float(row["Poids total"]) if pd.notna(row["Poids total"]) else 0.0
+            volume = float(row["Volume total"]) if pd.notna(row["Volume total"]) else 0.0
+            
+            if bl and client and client != "nan" and client != "":
+                bl_client_mapping[bl] = {
+                    "client": client,
+                    "poids": poids,
+                    "volume": volume
+                }
         
-        # Séparer les clients par virgule ou point-virgule et exploser
-        df_expanded["Client commande"] = df_expanded["Client(s) inclus"].str.split(r'[,;]')
+        # Préparer le résultat
+        result_rows = []
         
-        # Exploser le DataFrame
-        df_exploded = df_expanded.explode("Client commande")
+        for _, row in df.iterrows():
+            bls = [bl.strip() for bl in str(row["BL inclus"]).split(';') if bl.strip()]
+            
+            # Pour chaque BL, trouver le client réel et ses poids/volume
+            clients_data = {}
+            for bl in bls:
+                if bl in bl_client_mapping:
+                    client_data = bl_client_mapping[bl]
+                    client = client_data["client"]
+                    
+                    if client not in clients_data:
+                        clients_data[client] = {
+                            "poids": 0.0,
+                            "volume": 0.0,
+                            "bls": []
+                        }
+                    
+                    clients_data[client]["poids"] += client_data["poids"]
+                    clients_data[client]["volume"] += client_data["volume"]
+                    clients_data[client]["bls"].append(bl)
+            
+            # Créer une ligne pour chaque client avec ses données réelles
+            for client, data in clients_data.items():
+                new_row = row.copy()
+                new_row["Client commande"] = client
+                new_row["Poids total"] = data["poids"]
+                new_row["Volume total"] = data["volume"]
+                new_row["BL inclus"] = ";".join(data["bls"])
+                result_rows.append(new_row)
         
-        # Nettoyer les espaces
-        df_exploded["Client commande"] = df_exploded["Client commande"].str.strip()
-        
-        # Supprimer les lignes vides
-        df_exploded = df_exploded[df_exploded["Client commande"] != ""]
-        
-        return df_exploded
+        return pd.DataFrame(result_rows)
 
     def detecter_propositions(self):
         """
         Regroupe les données par Client pour déterminer si le SEUIL est dépassé.
-        Retourne un DataFrame des clients proposables.
+        Utilise les poids/volumes RÉELS de chaque client.
         """
         # Exclure les clients déjà traités
         processed_clients = self.df_base[self.df_base["Location_proposee"]]["Client(s) inclus"].unique()
@@ -89,17 +125,19 @@ class TruckRentalProcessor:
         if df_pending.empty:
             return pd.DataFrame()
 
-        # 🆕 EXPLOSION DES CLIENTS - Chaque ligne représente maintenant un client unique
-        df_exploded = self._explode_client_column(df_pending)
+        # 🆕 UTILISER LA VERSION PRÉCISE AVEC LES DONNÉES RÉELLES
+        df_exploded = self._explode_client_column_with_accurate_weights(df_pending)
+        
+        if df_exploded.empty:
+            return pd.DataFrame()
         
         # 🆕 Utiliser df_exploded pour l'agrégation par client unique
         grouped = df_exploded.groupby("Client commande").agg(
             Poids_sum=pd.NamedAgg(column="Poids total", aggfunc="sum"),
             Volume_sum=pd.NamedAgg(column="Volume total", aggfunc="sum"),
             Zones=pd.NamedAgg(column="Zone", aggfunc=lambda s: ", ".join(sorted(set(s.astype(str).tolist())))),
-            # 🆕 Ajouter le comptage des estafettes concernées pour debug
             Nombre_Estafettes=pd.NamedAgg(column="Camion N°", aggfunc="nunique"),
-            BLs_Concatenes=pd.NamedAgg(column="BL inclus", aggfunc=lambda x: ";".join(x.astype(str)))
+            BLs_Concatenes=pd.NamedAgg(column="BL inclus", aggfunc=lambda x: ";".join(sorted(set(x))))
         ).reset_index()
 
         # Filtrage : Poids ou Volume dépasse le seuil
@@ -128,14 +166,14 @@ class TruckRentalProcessor:
 
     def get_details_client(self, client):
         """Récupère et formate les détails de tous les BLs/voyages pour un client."""
-        # 🆕 UTILISER L'EXPLOSION POUR TROUVER TOUTES LES OCCURRENCES
-        df_exploded = self._explode_client_column(self.df_base)
+        # 🆕 UTILISER LA VERSION PRÉCISE POUR TROUVER TOUTES LES OCCURRENCES
+        df_exploded = self._explode_client_column_with_accurate_weights(self.df_base)
         data = df_exploded[df_exploded["Client commande"] == client].copy()
         
         if data.empty:
             return f"Aucune donnée pour {client}", pd.DataFrame()
 
-        # 🆕 CALCULER LE TOTAL SUR TOUTES LES LIGNES EXPLOSÉES
+        # 🆕 CALCULER LE TOTAL SUR TOUTES LES LIGNES EXPLOSÉES (données réelles)
         total_poids = data["Poids total"].sum()
         total_volume = data["Volume total"].sum()
         
@@ -174,8 +212,8 @@ class TruckRentalProcessor:
     
     def appliquer_location(self, client, accepter):
         """Applique ou refuse la location pour un client et met à jour le DataFrame de base."""
-        # 🆕 Utiliser l'explosion pour trouver TOUTES les estafettes concernées par ce client
-        df_exploded = self._explode_client_column(self.df_base)
+        # 🆕 Utiliser la version précise pour trouver TOUTES les estafettes concernées par ce client
+        df_exploded = self._explode_client_column_with_accurate_weights(self.df_base)
         mask = df_exploded["Client commande"] == client
         
         if not mask.any():
@@ -347,8 +385,8 @@ class DeliveryProcessor:
             # 🆕 Calcul des voyages optimisés 
             df_optimized_estafettes = self._calculate_optimized_estafette(df_grouped_zone)
 
-            # 🆕 Retourne les DataFrames + l'instance TruckRentalProcessor
-            return df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes
+            # 🆕 Retourne les DataFrames + les données originales pour TruckRentalProcessor
+            return df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes, df_grouped_zone
 
         except Exception as e:
             raise Exception(f"❌ Erreur lors du traitement des données : {str(e)}")
