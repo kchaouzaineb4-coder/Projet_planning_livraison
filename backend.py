@@ -687,3 +687,203 @@ class TruckTransferManager:
 
     def get_voyages_actuels(self):
         return self.df_voyages
+
+# =====================================================
+# CLASSE POUR L'AJOUT MANUEL DE BLs/MACHINES
+# =====================================================
+class ManualBLManager:
+    def __init__(self, df_voyages, df_livraisons_original):
+        self.df_voyages = df_voyages.copy()
+        self.df_livraisons_original = df_livraisons_original.copy()
+        self.CAPACITE_POIDS_ESTAFETTE = CAPACITE_POIDS_ESTAFETTE
+        self.CAPACITE_VOLUME_ESTAFETTE = CAPACITE_VOLUME_ESTAFETTE
+        self.CAPACITE_POIDS_CAMION = 30500  # kg - capacité approximative d'un camion
+        self.CAPACITE_VOLUME_CAMION = 77.5  # m³ - capacité approximative d'un camion
+
+    def get_voyages_disponibles(self, zone=None):
+        """Retourne la liste des voyages disponibles pour l'ajout manuel."""
+        df_disponibles = self.df_voyages.copy()
+        
+        if zone:
+            df_disponibles = df_disponibles[df_disponibles["Zone"] == zone]
+        
+        # Sélectionner les colonnes pertinentes pour l'affichage
+        colonnes_a_garder = [
+            "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé", 
+            "Taux d'occupation (%)", "Code Véhicule", "BL inclus"
+        ]
+        
+        df_disponibles = df_disponibles[[col for col in colonnes_a_garder if col in df_disponibles.columns]]
+        
+        return df_disponibles
+
+    def verifier_capacite_ajout(self, vehicule_num, poids_ajout, volume_ajout):
+        """Vérifie si l'ajout est possible dans le véhicule sélectionné."""
+        try:
+            # Trouver le véhicule
+            vehicule = self.df_voyages[self.df_voyages["Véhicule N°"] == vehicule_num]
+            
+            if vehicule.empty:
+                return False, f"❌ Véhicule {vehicule_num} non trouvé"
+            
+            ligne_vehicule = vehicule.iloc[0]
+            poids_actuel = ligne_vehicule["Poids total chargé"]
+            volume_actuel = ligne_vehicule["Volume total chargé"]
+            code_vehicule = ligne_vehicule["Code Véhicule"]
+            
+            # Déterminer les capacités maximales selon le type de véhicule
+            if code_vehicule == CAMION_CODE:
+                capacite_poids = self.CAPACITE_POIDS_CAMION
+                capacite_volume = self.CAPACITE_VOLUME_CAMION
+                type_vehicule = "camion"
+            else:
+                capacite_poids = self.CAPACITE_POIDS_ESTAFETTE
+                capacite_volume = self.CAPACITE_VOLUME_ESTAFETTE
+                type_vehicule = "estafette"
+            
+            # Vérifier les capacités
+            nouveau_poids = poids_actuel + poids_ajout
+            nouveau_volume = volume_actuel + volume_ajout
+            
+            if nouveau_poids > capacite_poids:
+                return False, f"❌ Capacité poids dépassée : {nouveau_poids:.1f} kg > {capacite_poids} kg"
+            
+            if nouveau_volume > capacite_volume:
+                return False, f"❌ Capacité volume dépassée : {nouveau_volume:.3f} m³ > {capacite_volume} m³"
+            
+            # Calculer le nouveau taux d'occupation
+            taux_poids = (nouveau_poids / capacite_poids) * 100
+            taux_volume = (nouveau_volume / capacite_volume) * 100
+            nouveau_taux_occupation = max(taux_poids, taux_volume)
+            
+            message = (
+                f"✅ Ajout possible dans le {type_vehicule} {vehicule_num}\n"
+                f"• Poids actuel : {poids_actuel:.1f} kg → {nouveau_poids:.1f} kg\n"
+                f"• Volume actuel : {volume_actuel:.3f} m³ → {nouveau_volume:.3f} m³\n"
+                f"• Taux d'occupation : {ligne_vehicule['Taux d\\'occupation (%)']:.1f}% → {nouveau_taux_occupation:.1f}%"
+            )
+            
+            return True, message
+            
+        except Exception as e:
+            return False, f"❌ Erreur lors de la vérification : {str(e)}"
+
+    def ajouter_objet_manuel(self, designation, poids_kg, volume_m3, vehicule_num, client="AJOUT MANUEL", representant="AJOUT MANUEL"):
+        """Ajoute manuellement un objet (BL, machine, etc.) dans un véhicule."""
+        try:
+            # Vérifier d'abord la capacité
+            possible, message_verif = self.verifier_capacite_ajout(vehicule_num, poids_kg, volume_m3)
+            
+            if not possible:
+                return False, message_verif, self.df_voyages
+            
+            # Trouver l'index du véhicule
+            idx_vehicule = self.df_voyages[self.df_voyages["Véhicule N°"] == vehicule_num].index[0]
+            ligne_vehicule = self.df_voyages.loc[idx_vehicule]
+            
+            # Mettre à jour les données du véhicule
+            nouveau_poids = ligne_vehicule["Poids total chargé"] + poids_kg
+            nouveau_volume = ligne_vehicule["Volume total chargé"] + volume_m3
+            
+            # Mettre à jour les BLs inclus
+            bls_actuels = str(ligne_vehicule["BL inclus"]).split(';')
+            bls_actuels = [bl for bl in bls_actuels if bl and bl != 'nan']  # Nettoyer
+            bls_actuels.append(designation)
+            nouveaux_bls = ";".join(bls_actuels)
+            
+            # Mettre à jour les clients inclus
+            clients_actuels = str(ligne_vehicule["Client(s) inclus"]).split(',')
+            clients_actuels = [c.strip() for c in clients_actuels if c.strip() and c.strip() != 'nan']
+            if client not in clients_actuels:
+                clients_actuels.append(client)
+            nouveaux_clients = ", ".join(clients_actuels)
+            
+            # Mettre à jour les représentants inclus
+            representants_actuels = str(ligne_vehicule["Représentant(s) inclus"]).split(',')
+            representants_actuels = [r.strip() for r in representants_actuels if r.strip() and r.strip() != 'nan']
+            if representant not in representants_actuels:
+                representants_actuels.append(representant)
+            nouveaux_representants = ", ".join(representants_actuels)
+            
+            # Recalculer le taux d'occupation
+            if ligne_vehicule["Code Véhicule"] == CAMION_CODE:
+                capacite_poids = self.CAPACITE_POIDS_CAMION
+                capacite_volume = self.CAPACITE_VOLUME_CAMION
+            else:
+                capacite_poids = self.CAPACITE_POIDS_ESTAFETTE
+                capacite_volume = self.CAPACITE_VOLUME_ESTAFETTE
+            
+            taux_poids = (nouveau_poids / capacite_poids) * 100
+            taux_volume = (nouveau_volume / capacite_volume) * 100
+            nouveau_taux_occupation = max(taux_poids, taux_volume)
+            
+            # Appliquer les modifications
+            self.df_voyages.at[idx_vehicule, "Poids total chargé"] = nouveau_poids
+            self.df_voyages.at[idx_vehicule, "Volume total chargé"] = nouveau_volume
+            self.df_voyages.at[idx_vehicule, "BL inclus"] = nouveaux_bls
+            self.df_voyages.at[idx_vehicule, "Client(s) inclus"] = nouveaux_clients
+            self.df_voyages.at[idx_vehicule, "Représentant(s) inclus"] = nouveaux_representants
+            self.df_voyages.at[idx_vehicule, "Taux d'occupation (%)"] = nouveau_taux_occupation
+            
+            message_succes = (
+                f"✅ Objet '{designation}' ajouté avec succès au véhicule {vehicule_num}\n"
+                f"• Poids ajouté : {poids_kg:.1f} kg\n"
+                f"• Volume ajouté : {volume_m3:.3f} m³\n"
+                f"• Nouveau taux d'occupation : {nouveau_taux_occupation:.1f}%"
+            )
+            
+            return True, message_succes, self.df_voyages
+            
+        except Exception as e:
+            return False, f"❌ Erreur lors de l'ajout manuel : {str(e)}", self.df_voyages
+
+    def get_capacites_vehicules(self):
+        """Retourne les capacités des différents types de véhicules."""
+        return {
+            "estafette": {
+                "poids_max": self.CAPACITE_POIDS_ESTAFETTE,
+                "volume_max": self.CAPACITE_VOLUME_ESTAFETTE
+            },
+            "camion": {
+                "poids_max": self.CAPACITE_POIDS_CAMION,
+                "volume_max": self.CAPACITE_VOLUME_CAMION
+            }
+        }
+
+    def get_statistiques_vehicule(self, vehicule_num):
+        """Retourne les statistiques détaillées d'un véhicule."""
+        try:
+            vehicule = self.df_voyages[self.df_voyages["Véhicule N°"] == vehicule_num]
+            
+            if vehicule.empty:
+                return None
+            
+            ligne = vehicule.iloc[0]
+            
+            if ligne["Code Véhicule"] == CAMION_CODE:
+                capacite_poids = self.CAPACITE_POIDS_CAMION
+                capacite_volume = self.CAPACITE_VOLUME_CAMION
+                type_vehicule = "Camion loué"
+            else:
+                capacite_poids = self.CAPACITE_POIDS_ESTAFETTE
+                capacite_volume = self.CAPACITE_VOLUME_ESTAFETTE
+                type_vehicule = "Estafette"
+            
+            stats = {
+                "Véhicule": vehicule_num,
+                "Type": type_vehicule,
+                "Zone": ligne["Zone"],
+                "Poids actuel": f"{ligne['Poids total chargé']:.1f} kg",
+                "Volume actuel": f"{ligne['Volume total chargé']:.3f} m³",
+                "Poids disponible": f"{capacite_poids - ligne['Poids total chargé']:.1f} kg",
+                "Volume disponible": f"{capacite_volume - ligne['Volume total chargé']:.3f} m³",
+                "Taux d'occupation": f"{ligne['Taux d\\'occupation (%)']:.1f}%",
+                "BLs inclus": ligne["BL inclus"],
+                "Clients inclus": ligne["Client(s) inclus"]
+            }
+            
+            return stats
+            
+        except Exception as e:
+            print(f"❌ Erreur lors de la récupération des statistiques: {e}")
+            return None
