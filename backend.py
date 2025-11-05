@@ -790,6 +790,3 @@ class TruckTransferManager:
     def get_voyages_actuels(self):
         return self.df_voyages.copy()
 
-# ----------------------------
-# Fin du backend.py
-# ----------------------------

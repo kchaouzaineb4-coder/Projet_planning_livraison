@@ -233,7 +233,8 @@ if st.session_state.propositions is not None and not st.session_state.propositio
         st.markdown("### Propositions ouvertes")
         # show_df expects dataframe; ensure column 'Client' exists
         df_props = st.session_state.propositions.copy()
-        if 'Client' not in df_props.columns and 'Client de l'estafette' in df_props.columns:
+        if "Client" not in df_props.columns and "Client de l'estafette" in df_props.columns:
+
             df_props = df_props.rename(columns={"Client de l'estafette": "Client"})
         show_df(df_props[["Client", "Poids total (kg)" , "Volume total (m³)", "Raison"]], use_container_width=True)
         client_options = [""] + df_props['Client'].astype(str).tolist()
