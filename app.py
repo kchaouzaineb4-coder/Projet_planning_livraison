@@ -157,9 +157,7 @@ with col_button:
             try:
                 with st.spinner("Traitement des données en cours..."):
                     # MODIFICATION: Récupération du df_livraisons_original
-                    df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes, df_livraisons_original = processor.process_delivery_data(
-                        liv_file, ydlogist_file, wcliegps_file
-                    )
+                   df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes, df_livraisons_original = processor.process_delivery_data(liv_file, ydlogist_file, wcliegps_file)
                 
                 # Stockage des résultats dans l'état de session
                 st.session_state.df_optimized_estafettes = df_optimized_estafettes

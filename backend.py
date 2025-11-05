@@ -65,6 +65,7 @@ class DeliveryProcessor:
             # 🆕 CORRECTION : Stocker les données originales du tableau "Livraisons par Client & Ville + Zone"
             self.df_livraisons_original = df_grouped_zone.copy()
 
+            # 🆕 CORRECTION : Retourner 6 valeurs
             return df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes, self.df_livraisons_original
 
         except Exception as e:
@@ -256,7 +257,7 @@ class TruckRentalProcessor:
     def __init__(self, df_optimized, df_livraisons_original):
         """Initialise avec le DataFrame optimisé ET les données originales du tableau 'Livraisons par Client & Ville + Zone'."""
         self.df_base = self._initialize_rental_columns(df_optimized.copy())
-        # 🆕 CORRECTION : Utiliser directement le tableau "Livraisons par Client & Ville + Zone"
+        # Utiliser directement le tableau "Livraisons par Client & Ville + Zone"
         self.df_livraisons_original = df_livraisons_original.copy()
         self._next_camion_num = self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE].shape[0] + 1
 
@@ -286,7 +287,7 @@ class TruckRentalProcessor:
         return df
 
     def _get_client_totals_from_original_data(self):
-        """🆕 CORRECTION : Extrait les totaux réels des clients depuis le tableau 'Livraisons par Client & Ville + Zone'."""
+        """Extrait les totaux réels des clients depuis le tableau 'Livraisons par Client & Ville + Zone'."""
         try:
             # Vérifier que les colonnes nécessaires existent
             required_cols = ["Client de l'estafette", "Poids total", "Volume total"]
@@ -315,7 +316,7 @@ class TruckRentalProcessor:
             return pd.DataFrame(columns=["Client", "Poids total (kg)", "Volume total (m³)"])
 
     def detecter_propositions(self):
-        """🆕 CORRECTION : Détecte les propositions en utilisant les totaux RÉELS du tableau original."""
+        """Détecte les propositions en utilisant les totaux RÉELS du tableau original."""
         # Récupérer les totaux réels des clients
         df_client_totals = self._get_client_totals_from_original_data()
         
@@ -350,39 +351,11 @@ class TruckRentalProcessor:
             return " & ".join(raisons)
 
         propositions["Raison"] = propositions.apply(get_raison, axis=1)
-        
-        # Ajouter des informations supplémentaires sur les zones et BLs concernés
-        zone_info = []
-        bl_info = []
-        estafette_count = []
-        
-        for client in propositions["Client"]:
-            # Trouver les zones concernées par ce client
-            client_zones = self.df_livraisons_original[
-                self.df_livraisons_original["Client de l'estafette"] == client
-            ]["Zone"].unique()
-            zone_info.append(", ".join(sorted(client_zones)))
-            
-            # Trouver les BLs concernés
-            client_bls = self.df_livraisons_original[
-                self.df_livraisons_original["Client de l'estafette"] == client
-            ]["No livraison"].unique()
-            bl_info.append(", ".join(sorted([str(bl) for bl in client_bls])))
-            
-            # Compter le nombre d'estafettes concernées
-            client_estafettes = self.df_base[
-                self.df_base["Client(s) inclus"].str.contains(client, na=False)
-            ]["Camion N°"].nunique()
-            estafette_count.append(client_estafettes)
-
-        propositions["Zones concernées"] = zone_info
-        propositions["BLs concernés"] = bl_info
-        propositions["Nombre d'estafettes concernées"] = estafette_count
 
         return propositions.sort_values(["Poids total (kg)", "Volume total (m³)"], ascending=False).reset_index(drop=True)
 
     def get_details_client(self, client):
-        """🆕 CORRECTION : Affiche les détails avec les totaux RÉELS du tableau original."""
+        """Affiche les détails avec les totaux RÉELS du tableau original."""
         try:
             # Récupérer les totaux RÉELS du client depuis les données originales
             client_data_original = self.df_livraisons_original[
@@ -437,7 +410,7 @@ class TruckRentalProcessor:
     def appliquer_location(self, client, accepter):
         """Applique la décision de location pour un client."""
         try:
-            # 🆕 CORRECTION : Utiliser les données originales pour trouver tous les BLs du client
+            # Utiliser les données originales pour trouver tous les BLs du client
             client_data_original = self.df_livraisons_original[
                 self.df_livraisons_original["Client de l'estafette"] == client
             ]
