@@ -128,13 +128,14 @@ class TruckRentalProcessor:
 
     def get_details_client(self, client):
         """Récupère et formate les détails de tous les BLs/voyages pour un client."""
-        # 🆕 Utiliser l'explosion pour trouver TOUTES les estafettes concernées par ce client
+        # 🆕 UTILISER L'EXPLOSION POUR TROUVER TOUTES LES OCCURRENCES
         df_exploded = self._explode_client_column(self.df_base)
         data = df_exploded[df_exploded["Client commande"] == client].copy()
         
         if data.empty:
             return f"Aucune donnée pour {client}", pd.DataFrame()
 
+        # 🆕 CALCULER LE TOTAL SUR TOUTES LES LIGNES EXPLOSÉES
         total_poids = data["Poids total"].sum()
         total_volume = data["Volume total"].sum()
         
@@ -146,26 +147,31 @@ class TruckRentalProcessor:
         elif (data["Location_proposee"]).any():
             etat = "Proposition REFUSÉE"
         
-        # Colonnes pour l'affichage des détails (adaptées au DataFrame optimisé)
+        # 🆕 MAINTENANT AFFICHER TOUTES LES LIGNES ORIGINALES (pas les explosées)
+        # Retrouver les lignes originales correspondant aux véhicules concernés
+        vehicules_concernes = data["Camion N°"].unique()
+        data_display = self.df_base[self.df_base["Camion N°"].isin(vehicules_concernes)].copy()
+        
+        # Colonnes pour l'affichage des détails
         colonnes_affichage = [
-             "Zone", "Camion N°", "Poids total", "Volume total", "BL inclus", "Taux d'occupation (%)",
-             "Client(s) inclus", "Représentant", "Location_camion", "Location_proposee", "Code Véhicule"
-           ]
+            "Zone", "Camion N°", "Poids total", "Volume total", "BL inclus", "Taux d'occupation (%)",
+            "Client(s) inclus", "Représentant", "Location_camion", "Location_proposee", "Code Véhicule"
+        ]
         
         # Réorganiser et sélectionner les colonnes
-        data_display = data[[col for col in colonnes_affichage if col in data.columns]]
+        data_display = data_display[[col for col in colonnes_affichage if col in data_display.columns]]
         
         resume = f"Client {client} — Poids total : {total_poids:.1f} kg ; Volume total : {total_volume:.3f} m³ | État : {etat}"
         
         # Formater les colonnes pour l'affichage
         data_display_styled = data_display.style.format({
             "Poids total": "{:.2f} kg",
-            "Volume total": "{:.3f} m³",
+            "Volume total": "{:.3f} m³", 
             "Taux d'occupation (%)": "{:.2f}%"
         }).set_table_attributes('data-table-name="details-client-table"')
 
         return resume, data_display_styled
-
+    
     def appliquer_location(self, client, accepter):
         """Applique ou refuse la location pour un client et met à jour le DataFrame de base."""
         # 🆕 Utiliser l'explosion pour trouver TOUTES les estafettes concernées par ce client
