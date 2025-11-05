@@ -445,7 +445,7 @@ class TruckRentalProcessor:
                     "Volume total": volume_total,
                     "BL inclus": bl_concat,
                     "Client(s) inclus": client,
-                    "Représentant": representants,
+                    "Représentant(s) inclus": representants,
                     "Location_camion": True,
                     "Location_proposee": True,
                     "Code Véhicule": CAMION_CODE,
@@ -455,24 +455,33 @@ class TruckRentalProcessor:
                 
                 self._next_camion_num += 1
                 
-                # 🆕 CORRECTION : Ne supprimer que les BLs du client, pas toute l'estafette
+                # 🆕 CORRECTION COMPLÈTE : Ne transférer que les BLs du client, pas toute l'estafette
+                # Créer une liste pour stocker les nouvelles estafettes à créer
+                nouvelles_estafettes = []
+                
+                # Parcourir toutes les estafettes existantes
                 for idx, row in df.iterrows():
                     if pd.notna(row["BL inclus"]):
                         bls_actuels = str(row["BL inclus"]).split(';')
-                        # Garder seulement les BLs qui ne sont PAS du client à transférer
-                        bls_restants = [bl for bl in bls_actuels if bl not in [str(b) for b in bls_client]]
                         
-                        if len(bls_restants) != len(bls_actuels):  # Si des BLs ont été retirés
-                            if bls_restants:  # S'il reste des BLs dans l'estafette
-                                # 🆕 CORRECTION : Recalculer le poids et volume des BLs restants
-                                df_livraisons_restants = self.df_livraisons_original[
-                                    self.df_livraisons_original["No livraison"].isin(bls_restants)
+                        # Séparer les BLs du client (à transférer) des autres BLs (à garder)
+                        bls_a_transferer = [bl for bl in bls_actuels if bl in [str(b) for b in bls_client]]
+                        bls_a_garder = [bl for bl in bls_actuels if bl not in [str(b) for b in bls_client]]
+                        
+                        # Si cette estafette contient des BLs du client
+                        if bls_a_transferer:
+                            # Si l'estafette contient aussi d'autres BLs à garder
+                            if bls_a_garder:
+                                # 🆕 RECALCULER les données pour l'estafette modifiée
+                                df_livraisons_gardees = self.df_livraisons_original[
+                                    self.df_livraisons_original["No livraison"].isin(bls_a_garder)
                                 ]
-                                nouveau_poids = df_livraisons_restants["Poids total"].sum()
-                                nouveau_volume = df_livraisons_restants["Volume total"].sum()
                                 
-                                # Mettre à jour l'estafette
-                                df.at[idx, "BL inclus"] = ";".join(bls_restants)
+                                nouveau_poids = df_livraisons_gardees["Poids total"].sum()
+                                nouveau_volume = df_livraisons_gardees["Volume total"].sum()
+                                
+                                # Mettre à jour l'estafette existante avec les BLs restants
+                                df.at[idx, "BL inclus"] = ";".join(bls_a_garder)
                                 df.at[idx, "Poids total"] = nouveau_poids
                                 df.at[idx, "Volume total"] = nouveau_volume
                                 
@@ -481,20 +490,30 @@ class TruckRentalProcessor:
                                 taux_volume = (nouveau_volume / CAPACITE_VOLUME_ESTAFETTE) * 100
                                 df.at[idx, "Taux d'occupation (%)"] = max(taux_poids, taux_volume)
                                 
-                                # 🆕 Mettre à jour les clients inclus
+                                # Mettre à jour les clients inclus
                                 clients_restants = self.df_livraisons_original[
-                                    self.df_livraisons_original["No livraison"].isin(bls_restants)
+                                    self.df_livraisons_original["No livraison"].isin(bls_a_garder)
                                 ]["Client de l'estafette"].unique()
                                 df.at[idx, "Client(s) inclus"] = ", ".join(sorted(clients_restants))
                                 
-                            else:  # Si plus de BLs dans l'estafette, la supprimer
+                                # Mettre à jour les représentants
+                                representants_restants = self.df_livraisons_original[
+                                    self.df_livraisons_original["No livraison"].isin(bls_a_garder)
+                                ]["Représentant"].unique()
+                                df.at[idx, "Représentant(s) inclus"] = ", ".join(sorted(representants_restants))
+                            
+                            else:
+                                # Si plus de BLs dans l'estafette, la supprimer
                                 df = df.drop(index=idx)
+                
+                # 🆕 OPTIMISATION : Recalculer la distribution optimale des estafettes restantes
+                df = self._recalculer_optimisation_estafettes(df)
                 
                 # Ajouter la nouvelle ligne camion
                 df = pd.concat([df, new_row], ignore_index=True)
                 
                 self.df_base = df
-                return True, f"✅ Location ACCEPTÉE pour {client}. Commandes transférées vers {camion_num_final}. Les autres clients restent dans leurs estafettes.", self.detecter_propositions()
+                return True, f"✅ Location ACCEPTÉE pour {client}. Commandes transférées vers {camion_num_final}. Les autres commandes restent optimisées dans les estafettes.", self.detecter_propositions()
             else:
                 # Refuser la proposition
                 mask_original = df["BL inclus"].apply(
@@ -508,6 +527,117 @@ class TruckRentalProcessor:
                 
         except Exception as e:
             return False, f"❌ Erreur lors de l'application de la décision: {str(e)}", self.df_base
+
+    def _recalculer_optimisation_estafettes(self, df_estafettes):
+        """Recalcule l'optimisation des estafettes après transfert de BLs vers un camion."""
+        try:
+            # Extraire toutes les estafettes qui ne sont pas des camions loués
+            df_estafettes_only = df_estafettes[df_estafettes["Code Véhicule"] != CAMION_CODE].copy()
+            
+            if df_estafettes_only.empty:
+                return df_estafettes
+            
+            # Récupérer tous les BLs des estafettes pour les réoptimiser
+            tous_bls = []
+            for _, row in df_estafettes_only.iterrows():
+                bls = str(row["BL inclus"]).split(';')
+                for bl in bls:
+                    if bl and bl != 'nan':
+                        tous_bls.append(bl)
+            
+            # Récupérer les données complètes de ces BLs depuis les données originales
+            df_bls_data = self.df_livraisons_original[
+                self.df_livraisons_original["No livraison"].isin(tous_bls)
+            ]
+            
+            if df_bls_data.empty:
+                return df_estafettes
+            
+            # Regrouper par zone pour réoptimiser
+            resultats_optimises = []
+            estafette_num = max(df_estafettes_only["Estafette N°"].max(), 0) + 1
+            
+            for zone, group in df_bls_data.groupby("Zone"):
+                group_sorted = group.sort_values(by="Poids total", ascending=False).reset_index()
+                estafettes = []
+                
+                for idx, row in group_sorted.iterrows():
+                    bl = str(row["No livraison"])
+                    poids = row["Poids total"]
+                    volume = row["Volume total"]
+                    client = str(row["Client de l'estafette"])
+                    representant = str(row["Représentant"])
+                    placed = False
+                    
+                    for e in estafettes:
+                        if (e["poids"] + poids <= CAPACITE_POIDS_ESTAFETTE and 
+                            e["volume"] + volume <= CAPACITE_VOLUME_ESTAFETTE):
+                            e["poids"] += poids
+                            e["volume"] += volume
+                            e["bls"].append(bl)
+                            for c in client.split(','): 
+                                e["clients"].add(c.strip())
+                            for r in representant.split(','): 
+                                e["representants"].add(r.strip())
+                            placed = True
+                            break
+                    
+                    if not placed:
+                        estafettes.append({
+                            "poids": poids,
+                            "volume": volume,
+                            "bls": [bl],
+                            "clients": {c.strip() for c in client.split(',')},
+                            "representants": {r.strip() for r in representant.split(',')},
+                            "num_global": estafette_num
+                        })
+                        estafette_num += 1
+
+                for e in estafettes:
+                    clients_list = ", ".join(sorted(list(e["clients"])))
+                    representants_list = ", ".join(sorted(list(e["representants"])))
+                    resultats_optimises.append([
+                        zone,
+                        e["num_global"],
+                        e["poids"],
+                        e["volume"],
+                        clients_list,
+                        representants_list,
+                        ";".join(e["bls"])
+                    ])
+            
+            # Créer le DataFrame des estafettes optimisées
+            if resultats_optimises:
+                df_estafettes_optimisees = pd.DataFrame(resultats_optimises, columns=[
+                    "Zone", "Estafette N°", "Poids total", "Volume total", 
+                    "Client(s) inclus", "Représentant(s) inclus", "BL inclus"
+                ])
+                
+                # Calculer le taux d'occupation
+                df_estafettes_optimisees["Taux d'occupation (%)"] = df_estafettes_optimisees.apply(
+                    lambda row: max(
+                        (row["Poids total"] / CAPACITE_POIDS_ESTAFETTE) * 100,
+                        (row["Volume total"] / CAPACITE_VOLUME_ESTAFETTE) * 100
+                    ), axis=1
+                ).round(2)
+                
+                # Initialiser les colonnes de location
+                df_estafettes_optimisees["Location_camion"] = False
+                df_estafettes_optimisees["Location_proposee"] = False
+                df_estafettes_optimisees["Code Véhicule"] = "ESTAFETTE"
+                df_estafettes_optimisees["Camion N°"] = df_estafettes_optimisees["Estafette N°"].apply(lambda x: f"E{int(x)}")
+                
+                # Combiner avec les camions loués existants
+                df_camions = df_estafettes[df_estafettes["Code Véhicule"] == CAMION_CODE].copy()
+                df_final = pd.concat([df_camions, df_estafettes_optimisees], ignore_index=True)
+                
+                return df_final
+            else:
+                return df_estafettes
+                
+        except Exception as e:
+            print(f"❌ Erreur lors de la réoptimisation: {e}")
+            return df_estafettes
 
     def get_df_result(self):
         """Retourne le DataFrame optimisé final."""
