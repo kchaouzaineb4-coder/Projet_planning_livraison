@@ -57,29 +57,63 @@ class TruckRentalProcessor:
 
     def detecter_propositions(self):
         """
-        Regroupe les données BRUTES par Client pour déterminer si le SEUIL est dépassé.
+        Identifie les clients dépassant le seuil total Poids/Volume
+        à partir des données BRUTES df_grouped_zone.
+        Propose une location camion si :
+        - Poids_total ≥ SEUIL_POIDS
+        - ou Volume_total ≥ SEUIL_VOLUME
+        Exclut les clients déjà traités (Location_proposee = True)
         """
-        # Utiliser les données BRUTES (df_grouped_zone) pour la détection
+
+        # ✅ Sécurité : si pas de données
         if self.df_grouped_zone is None or self.df_grouped_zone.empty:
             return pd.DataFrame()
 
-        # Grouper par client depuis les données brutes
-        grouped = self.df_grouped_zone.groupby("Client de l'estafette").agg(
-            Poids_sum=pd.NamedAgg(column="Poids total", aggfunc="sum"),
-            Volume_sum=pd.NamedAgg(column="Volume total", aggfunc="sum"),
-            Zones=pd.NamedAgg(column="Zone", aggfunc=lambda s: ", ".join(sorted(set(s.astype(str).tolist())))),
-            Nb_BLs=pd.NamedAgg(column="No livraison", aggfunc="count")  # Nombre de BLs
-        ).reset_index()
+        # ✅ Regrouper par client (depuis données brutes)
+        grouped = (
+            self.df_grouped_zone
+            .groupby("Client de l'estafette")
+            .agg(
+                Poids_sum=("Poids total", "sum"),
+                Volume_sum=("Volume total", "sum"),
+                Zones=("Zone", lambda s: ", ".join(sorted(set(s.astype(str).tolist())))),
+                Nb_BLs=("No livraison", "count")
+            )
+            .reset_index()
+        )
 
-        # Exclure les clients déjà traités
-        processed_clients = self.df_base[self.df_base["Location_proposee"]]["Client commande"].unique()
-        grouped = grouped[~grouped["Client de l'estafette"].isin(processed_clients)]
+        # ✅ Exclure les clients déjà traités
+        if "Location_proposee" in self.df_base.columns:
+            processed_clients = self.df_base.loc[self.df_base["Location_proposee"] == True, "Client commande"].unique()
+            grouped = grouped[~grouped["Client de l'estafette"].isin(processed_clients)]
 
         if grouped.empty:
             return pd.DataFrame()
 
-        # Filtrage : Poids ou Volume dépasse le seuil
-        propositions = grouped[(grouped["Poids_sum"] >= SEUIL_POIDS) | (grouped["Volume_sum"] >= SEUIL_VOLUME)].copy()
+        # ✅ Identifier dépassement de seuil
+        propositions = grouped[
+            (grouped["Poids_sum"] >= SEUIL_POIDS) |
+            (grouped["Volume_sum"] >= SEUIL_VOLUME)
+        ].copy()
+
+        if propositions.empty:
+            return pd.DataFrame()
+
+        # ✅ Ajouter colonne REASON
+        def raison(row):
+            reasons = []
+            if row["Poids_sum"] >= SEUIL_POIDS:
+                reasons.append(f"Poids ≥ {SEUIL_POIDS} kg")
+            if row["Volume_sum"] >= SEUIL_VOLUME:
+                reasons.append(f"Volume ≥ {SEUIL_VOLUME} m³")
+            return " et ".join(reasons)
+
+        propositions["Raison"] = propositions.apply(raison, axis=1)
+
+        # ✅ Renommer colonnes pour cohérence dans l'interface
+        propositions.rename(columns={"Client de l'estafette": "Client"}, inplace=True)
+
+        return propositions[["Client", "Poids_sum", "Volume_sum", "Nb_BLs", "Zones", "Raison"]]
 
         # Création de la colonne Raison
         def get_raison(row):
@@ -804,3 +838,4 @@ class TruckTransferManager:
         }
 
         return transfert_autorise, info
+    
