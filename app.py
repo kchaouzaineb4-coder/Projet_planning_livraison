@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, ManualBLManager, SEUIL_POIDS, SEUIL_VOLUME
+from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME
 import plotly.express as px
 
 # =====================================================
@@ -545,9 +545,15 @@ st.markdown("---")
 # =====================================================
 st.markdown("## 🆕 AJOUT MANUEL DE BLs/MACHINES")
 
-if "df_voyages" not in st.session_state:
-    st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
-else:
+# Import dynamique de ManualBLManager
+try:
+    from backend import ManualBLManager
+    MANUAL_BL_MANAGER_AVAILABLE = True
+except ImportError:
+    MANUAL_BL_MANAGER_AVAILABLE = False
+    st.warning("⚠️ La fonctionnalité d'ajout manuel n'est pas disponible. Vérifiez votre fichier backend.py")
+
+if MANUAL_BL_MANAGER_AVAILABLE and "df_voyages" in st.session_state:
     # Initialiser le manager d'ajout manuel
     if st.session_state.manual_bl_manager is None:
         st.session_state.manual_bl_manager = ManualBLManager(
@@ -639,6 +645,11 @@ else:
             with st.expander("📋 Détails des BLs et Clients"):
                 st.text(f"BLs inclus: {stats['BLs inclus']}")
                 st.text(f"Clients inclus: {stats['Clients inclus']}")
+else:
+    if not MANUAL_BL_MANAGER_AVAILABLE:
+        st.warning("⚠️ La fonctionnalité d'ajout manuel n'est pas disponible.")
+    else:
+        st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
 
 st.markdown("---")
 
