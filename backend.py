@@ -410,7 +410,7 @@ class TruckRentalProcessor:
     def appliquer_location(self, client, accepter):
         """Applique la décision de location pour un client."""
         try:
-            # Utiliser les données originales pour trouver tous les BLs du client
+            # 🆕 CORRECTION : Utiliser les données originales pour trouver tous les BLs du client
             client_data_original = self.df_livraisons_original[
                 self.df_livraisons_original["Client de l'estafette"] == client
             ]
@@ -420,11 +420,6 @@ class TruckRentalProcessor:
 
             # Récupérer tous les BLs du client
             bls_client = client_data_original["No livraison"].unique()
-            
-            # Trouver toutes les estafettes concernées par ces BLs
-            mask_original = self.df_base["BL inclus"].apply(
-                lambda x: any(str(bl) in str(x).split(';') for bl in bls_client)
-            )
             
             df = self.df_base.copy()
             
@@ -460,19 +455,56 @@ class TruckRentalProcessor:
                 
                 self._next_camion_num += 1
                 
-                # Supprimer toutes les lignes des véhicules concernés
-                df = df[~mask_original]
+                # 🆕 CORRECTION : Ne supprimer que les BLs du client, pas toute l'estafette
+                for idx, row in df.iterrows():
+                    if pd.notna(row["BL inclus"]):
+                        bls_actuels = str(row["BL inclus"]).split(';')
+                        # Garder seulement les BLs qui ne sont PAS du client à transférer
+                        bls_restants = [bl for bl in bls_actuels if bl not in [str(b) for b in bls_client]]
+                        
+                        if len(bls_restants) != len(bls_actuels):  # Si des BLs ont été retirés
+                            if bls_restants:  # S'il reste des BLs dans l'estafette
+                                # 🆕 CORRECTION : Recalculer le poids et volume des BLs restants
+                                df_livraisons_restants = self.df_livraisons_original[
+                                    self.df_livraisons_original["No livraison"].isin(bls_restants)
+                                ]
+                                nouveau_poids = df_livraisons_restants["Poids total"].sum()
+                                nouveau_volume = df_livraisons_restants["Volume total"].sum()
+                                
+                                # Mettre à jour l'estafette
+                                df.at[idx, "BL inclus"] = ";".join(bls_restants)
+                                df.at[idx, "Poids total"] = nouveau_poids
+                                df.at[idx, "Volume total"] = nouveau_volume
+                                
+                                # Recalculer le taux d'occupation
+                                taux_poids = (nouveau_poids / CAPACITE_POIDS_ESTAFETTE) * 100
+                                taux_volume = (nouveau_volume / CAPACITE_VOLUME_ESTAFETTE) * 100
+                                df.at[idx, "Taux d'occupation (%)"] = max(taux_poids, taux_volume)
+                                
+                                # 🆕 Mettre à jour les clients inclus
+                                clients_restants = self.df_livraisons_original[
+                                    self.df_livraisons_original["No livraison"].isin(bls_restants)
+                                ]["Client de l'estafette"].unique()
+                                df.at[idx, "Client(s) inclus"] = ", ".join(sorted(clients_restants))
+                                
+                            else:  # Si plus de BLs dans l'estafette, la supprimer
+                                df = df.drop(index=idx)
+                
+                # Ajouter la nouvelle ligne camion
                 df = pd.concat([df, new_row], ignore_index=True)
                 
                 self.df_base = df
-                return True, f"✅ Location ACCEPTÉE pour {client}. Commandes consolidées dans {camion_num_final}.", self.detecter_propositions()
+                return True, f"✅ Location ACCEPTÉE pour {client}. Commandes transférées vers {camion_num_final}. Les autres clients restent dans leurs estafettes.", self.detecter_propositions()
             else:
                 # Refuser la proposition
+                mask_original = df["BL inclus"].apply(
+                    lambda x: any(str(bl) in str(x).split(';') for bl in bls_client)
+                )
                 df.loc[mask_original, ["Location_proposee", "Location_camion", "Code Véhicule"]] = [True, False, "ESTAFETTE"]
                 df.loc[mask_original, "Camion N°"] = df.loc[mask_original, "Estafette N°"].apply(lambda x: f"E{int(x)}")
                 
                 self.df_base = df
-                return True, f"❌ Proposition REFUSÉE pour {client}. Commandes restent en Estafettes.", self.detecter_propositions()
+                return True, f"❌ Proposition REFUSÉE pour {client}. Les commandes restent en Estafettes.", self.detecter_propositions()
                 
         except Exception as e:
             return False, f"❌ Erreur lors de l'application de la décision: {str(e)}", self.df_base
