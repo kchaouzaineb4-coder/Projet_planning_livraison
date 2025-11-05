@@ -158,8 +158,8 @@ class TruckRentalProcessor:
         zones = ";".join(sorted(df.loc[mask, "Zone"].astype(str).unique().tolist()))
         
         # Taux d'occupation (basé sur des seuils plus importants pour le camion loué)
-        TAUX_POIDS_MAX_LOC = 5000 # kg, par exemple 
-        TAUX_VOLUME_MAX_LOC = 15 # m3, par exemple
+        TAUX_POIDS_MAX_LOC = 30500 # kg, par exemple 
+        TAUX_VOLUME_MAX_LOC = 77.5 # m3, par exemple
         
         taux_occu = max(poids_total / TAUX_POIDS_MAX_LOC * 100, volume_total / TAUX_VOLUME_MAX_LOC * 100)
         
