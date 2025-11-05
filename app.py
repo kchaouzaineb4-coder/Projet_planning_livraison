@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
-from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, ManualBLManager, SEUIL_POIDS, SEUIL_VOLUME 
+from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, ManualBLManager, SEUIL_POIDS, SEUIL_VOLUME
 import plotly.express as px
-
 
 # =====================================================
 # === Fonction show_df pour arrondir à 3 décimales ===
@@ -18,50 +17,6 @@ def show_df(df, **kwargs):
         st.dataframe(df_to_display, **kwargs)
     else:
         st.dataframe(df, **kwargs)
-
-# =====================================================
-# === Fonction show_df_multiline avec affichage HTML ===
-# =====================================================
-def show_df_multiline(df, column_to_multiline):
-    """
-    Affiche un DataFrame avec les articles multilignes dans la même cellule.
-    Chaque 'No livraison' reste sur une seule ligne.
-    """
-    df_display = df.copy()
-
-    # Grouper les lignes par livraison et concaténer les articles avec des <br>
-    df_display = df_display.groupby(
-        ['No livraison', 'Client', 'Ville', 'Représentant', 'Poids total', 'Volume total'],
-        as_index=False
-    ).agg({column_to_multiline: lambda x: "<br>".join(x.astype(str))})
-
-    # CSS pour forcer l'affichage des <br> sur plusieurs lignes
-    css = """
-    <style>
-    table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    th, td {
-        border: 1px solid #555;
-        padding: 8px;
-        text-align: left;
-        vertical-align: top;
-        white-space: normal;
-        word-wrap: break-word;
-    }
-    th {
-        background-color: #222;
-        color: white;
-    }
-    td {
-        color: #ddd;
-    }
-    </style>
-    """
-
-    html = df_display.to_html(escape=False, index=False)
-    st.markdown(css + html, unsafe_allow_html=True)
 
 # =====================================================
 # 📌 Constantes pour les véhicules et chauffeurs

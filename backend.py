@@ -62,10 +62,10 @@ class DeliveryProcessor:
             # Calcul des voyages optimisés 
             df_optimized_estafettes = self._calculate_optimized_estafette(df_grouped_zone)
 
-            # 🆕 CORRECTION : Stocker les données originales du tableau "Livraisons par Client & Ville + Zone"
+            # Stocker les données originales du tableau "Livraisons par Client & Ville + Zone"
             self.df_livraisons_original = df_grouped_zone.copy()
 
-            # 🆕 CORRECTION : Retourner 6 valeurs
+            # Retourner 6 valeurs
             return df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes, self.df_livraisons_original
 
         except Exception as e:
