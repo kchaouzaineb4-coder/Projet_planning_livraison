@@ -217,30 +217,53 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
     show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), use_container_width=True)
-    # Stockage du DataFrame pour la section 5 (transfert BLs)
-    if "df_livraisons" not in st.session_state:
-        st.session_state.df_livraisons = st.session_state.df_grouped.copy()
+    
+    # Bouton de téléchargement
+    from io import BytesIO
+    excel_buffer_grouped = BytesIO()
+    with pd.ExcelWriter(excel_buffer_grouped, engine='openpyxl') as writer:
+        st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').to_excel(writer, index=False, sheet_name="Livraisons Client Ville")
+    excel_buffer_grouped.seek(0)
+    
+    st.download_button(
+        label="💾 Télécharger Livraisons Client/Ville",
+        data=excel_buffer_grouped,
+        file_name="Livraisons_Client_Ville.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 # --- Onglet Besoin Estafette par Ville ---
 with tab_city:
     st.subheader("Besoin Estafette par Ville")
     show_df(st.session_state.df_city, use_container_width=True)
+    
+    # Bouton de téléchargement
+    excel_buffer_city = BytesIO()
+    with pd.ExcelWriter(excel_buffer_city, engine='openpyxl') as writer:
+        st.session_state.df_city.to_excel(writer, index=False, sheet_name="Besoin Estafette Ville")
+    excel_buffer_city.seek(0)
+    
+    st.download_button(
+        label="💾 Télécharger Besoin par Ville",
+        data=excel_buffer_city,
+        file_name="Besoin_Estafette_Ville.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 # --- Onglet Livraisons Client & Ville + Zone ---
 with tab_zone_group:
     st.subheader("Livraisons par Client & Ville + Zone")
     show_df(st.session_state.df_grouped_zone, use_container_width=True)
     
-    # Bouton de téléchargement pour ce tableau
-    from io import BytesIO
-    excel_buffer_zone = BytesIO()
-    with pd.ExcelWriter(excel_buffer_zone, engine='openpyxl') as writer:
+    # Bouton de téléchargement
+    excel_buffer_zone_group = BytesIO()
+    with pd.ExcelWriter(excel_buffer_zone_group, engine='openpyxl') as writer:
         st.session_state.df_grouped_zone.to_excel(writer, index=False, sheet_name="Livraisons Client Ville Zone")
-    excel_buffer_zone.seek(0)
+    excel_buffer_zone_group.seek(0)
     
     st.download_button(
         label="💾 Télécharger Livraisons Client/Ville/Zone",
-        data=excel_buffer_zone,
+        data=excel_buffer_zone_group,
         file_name="Livraisons_Client_Ville_Zone.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
@@ -249,7 +272,19 @@ with tab_zone_group:
 with tab_zone_summary:
     st.subheader("Besoin Estafette par Zone")
     show_df(st.session_state.df_zone, use_container_width=True)
-
+    
+    # Bouton de téléchargement
+    excel_buffer_zone = BytesIO()
+    with pd.ExcelWriter(excel_buffer_zone, engine='openpyxl') as writer:
+        st.session_state.df_zone.to_excel(writer, index=False, sheet_name="Besoin Estafette Zone")
+    excel_buffer_zone.seek(0)
+    
+    st.download_button(
+        label="💾 Télécharger Besoin par Zone",
+        data=excel_buffer_zone,
+        file_name="Besoin_Estafette_Zone.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 # --- Onglet Graphiques ---
 with tab_charts:
     st.subheader("Statistiques par Ville")
