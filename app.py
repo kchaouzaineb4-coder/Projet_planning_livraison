@@ -134,7 +134,8 @@ with col_button:
                 st.session_state.df_voyages = st.session_state.rental_processor.get_df_result()
                 st.session_state.data_processed = True
                 st.session_state.message = "Traitement terminé avec succès !"
-                st.experimental_rerun()
+                st.rerun()
+
             except Exception as e:
                 st.error(f"❌ Erreur lors du traitement : {e}")
         else:
@@ -288,7 +289,9 @@ if st.session_state.df_optimized_estafettes is not None:
     show_df(df_display, use_container_width=True)
 
     # sauvegarder df_voyages dans session_state si pas déjà
-    st.session_state.df_voyages = st.session_state.df_voyages or df_display.copy()
+    if "df_voyages" not in st.session_state or st.session_state.df_voyages is None:
+        st.session_state.df_voyages = df_display.copy()
+
 
     # Export
     df_export = st.session_state.rental_processor.get_df_result().copy()
