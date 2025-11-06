@@ -1270,7 +1270,7 @@ st.markdown("---")
 st.markdown(
     """
     <div style='text-align: center; color: #666;'>
-        <p>🚀 <strong>Système d'Optimisation des Livraisons</strong> - Développé par Zaineb KCHAOU</p>
+        <p>🚚 <strong>Système d'Optimisation des Livraisons</strong> - Développé par Zaineb KCHAOU</p>
         <p>📧 Support : Zaineb.KCHAOU@sopal.com | 📞 Hotline : +216 23 130 088</p>
     </div>
     """,
