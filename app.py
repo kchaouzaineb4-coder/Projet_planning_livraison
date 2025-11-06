@@ -1309,9 +1309,9 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                     st.success(message)
                     
                     # Aperçu du format d'export
-                    st.subheader("👁️ Aperçu du format d'export")
-                    colonnes_apercu = ["Code voyage", "Zone", "Véhicule N°", "Chauffeur", "BL inclus", "Client(s) inclus", "Poids total chargé", "Volume total chargé"]
-                    df_apercu = df_export_final[colonnes_apercu].head(5).copy()
+                    #st.subheader("👁️ Aperçu du format d'export")
+                    #colonnes_apercu = ["Code voyage", "Zone", "Véhicule N°", "Chauffeur", "BL inclus", "Client(s) inclus", "Poids total chargé", "Volume total chargé"]
+                    #df_apercu = df_export_final[colonnes_apercu].head(5).copy()
                     
                     # Formater l'affichage
                     if "Poids total chargé" in df_apercu.columns:
