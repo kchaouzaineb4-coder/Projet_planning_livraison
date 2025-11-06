@@ -1119,7 +1119,7 @@ def calculer_couts_estimation(df_voyages, cout_estafette=150, cout_camion=800):
             'cout_estafette_unitaire': cout_estafette,
             'cout_camion_unitaire': cout_camion,
             'cout_total': cout_total,
-            'cout_estimation': f"💰 Estimation des coûts : {nb_estafettes} estafettes × {cout_estafette}€ + {nb_camions} camions × {cout_camion}€ = {cout_total}€"
+            'cout_estimation': f"💰 Estimation des coûts : {nb_estafettes} estafettes × {cout_estafette}TND + {nb_camions} camions × {cout_camion}TND = {cout_total}TND"
         }
     except Exception as e:
         return {'erreur': f"❌ Erreur dans le calcul des coûts : {str(e)}"}
