@@ -67,9 +67,11 @@ with col4:
             try:
                 processor = DeliveryProcessor()
                 with st.spinner("Traitement en cours..."):
-                    df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes = processor.process_delivery_data(
+                    df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes, df_livraisons_original = processor.process_delivery_data(
                         liv_file, ydlogist_file, wcliegps_file
                     )
+                    st.session_state.df_livraisons = df_livraisons_original
+
                 # Stockage
                 st.session_state.df_grouped = df_grouped
                 st.session_state.df_city = df_city
