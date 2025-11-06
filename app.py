@@ -581,207 +581,8 @@ else:
                                 file_name="voyages_apres_transfert.xlsx",
                                 mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                             )
-
 # =====================================================
-# 6️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
-# =====================================================
-st.markdown("## ✅ VALIDATION DES VOYAGES APRÈS TRANSFERT")
-
-from io import BytesIO
-
-# --- Fonction pour exporter DataFrame en Excel avec arrondi ---
-def to_excel(df, sheet_name="Voyages Validés"):
-    df_export = df.copy()
-    if "Poids total chargé" in df_export.columns:
-        df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
-    if "Volume total chargé" in df_export.columns:
-        df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
-
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_export.to_excel(writer, index=False, sheet_name=sheet_name)
-    return output.getvalue()
-
-# --- Création du DataFrame de validation à partir du df_voyages ---
-if "df_voyages" in st.session_state:
-    voyages_apres_transfert = st.session_state.df_voyages.copy()
-    df_validation = voyages_apres_transfert.copy()
-
-    if "validations" not in st.session_state:
-        st.session_state.validations = {}
-
-    # --- Affichage interactif des voyages ---
-    for idx, row in df_validation.iterrows():
-        with st.expander(f"🚚 Voyage {row['Véhicule N°']} | Zone : {row['Zone']}"):
-            st.write("**Informations du voyage :**")
-            row_display = row.to_frame().T.copy()
-            if "Poids total chargé" in row_display.columns:
-                row_display["Poids total chargé"] = row_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-            if "Volume total chargé" in row_display.columns:
-                row_display["Volume total chargé"] = row_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-            show_df(row_display, use_container_width=True)
-
-            choix = st.radio(
-                f"Valider ce voyage ? (Estafette {row['Véhicule N°']})",
-                ["Oui", "Non"],
-                index=0 if st.session_state.validations.get(idx) == "Oui" 
-                      else 1 if st.session_state.validations.get(idx) == "Non" 
-                      else 0,
-                key=f"validation_{idx}"
-            )
-            st.session_state.validations[idx] = choix
-
-    # --- Bouton pour appliquer les validations ---
-    if st.button("🧮 Appliquer la validation"):
-        valid_indexes = [i for i, v in st.session_state.validations.items() if v == "Oui"]
-        valid_indexes = [i for i in valid_indexes if i in df_validation.index]
-
-        df_voyages_valides = df_validation.loc[valid_indexes].reset_index(drop=True)
-        st.session_state.df_voyages_valides = df_voyages_valides
-
-        st.success(f"✅ {len(df_voyages_valides)} voyage(s) validé(s).")
-        st.markdown("### 📦 Voyages Validés")
-
-        # --- Affichage Streamlit avec unités ---
-        df_display = df_voyages_valides.copy()
-        if "Poids total chargé" in df_display.columns:
-            df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-        if "Volume total chargé" in df_display.columns:
-            df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-        show_df(df_display, use_container_width=True)
-
-        # --- Export Excel arrondi ---
-        excel_data = to_excel(df_voyages_valides)
-        st.download_button(
-            label="💾 Télécharger les voyages validés (XLSX)",
-            data=excel_data,
-            file_name="Voyages_valides.xlsx",
-            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-else:
-    st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
-
-# =====================================================
-# 7️⃣ ATTRIBUTION DES VÉHICULES ET CHAUFFEURS
-# =====================================================
-st.markdown("## 🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS")
-
-if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_valides.empty:
-
-    df_attribution = st.session_state.df_voyages_valides.copy()
-
-    if "attributions" not in st.session_state:
-        st.session_state.attributions = {}
-
-    for idx, row in df_attribution.iterrows():
-        with st.expander(f"🚚 Voyage {row['Véhicule N°']} | Zone : {row['Zone']}"):
-            st.write("**Informations du voyage :**")
-            row_display = row.to_frame().T.copy()
-            if "Poids total chargé" in row_display.columns:
-                row_display["Poids total chargé"] = row_display["Poids total chargé"].map(lambda x: f"{x:.2f} kg")
-            if "Volume total chargé" in row_display.columns:
-                row_display["Volume total chargé"] = row_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-            show_df(row_display, use_container_width=True)
-
-            vehicule_selectionne = st.selectbox(
-                f"Véhicule pour le voyage {row['Véhicule N°']}",
-                VEHICULES_DISPONIBLES,
-                index=0 if st.session_state.attributions.get(idx, {}).get("Véhicule") else 0,
-                key=f"vehicule_{idx}"
-            )
-            chauffeur_selectionne = st.selectbox(
-                f"Chauffeur pour le voyage {row['Véhicule N°']}",
-                list(CHAUFFEURS_DETAILS.values()),
-                index=0 if st.session_state.attributions.get(idx, {}).get("Chauffeur") else 0,
-                key=f"chauffeur_{idx}"
-            )
-
-            st.session_state.attributions[idx] = {
-                "Véhicule": vehicule_selectionne,
-                "Chauffeur": chauffeur_selectionne
-            }
-
-    if st.button("✅ Appliquer les attributions"):
-
-        df_attribution["Véhicule attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Véhicule"])
-        df_attribution["Chauffeur attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Chauffeur"])
-
-        
-        st.markdown("### 📦 Voyages avec Véhicule et Chauffeur")
-
-        # --- Affichage formaté ---
-        df_display = df_attribution.copy()
-        if "Poids total chargé" in df_display.columns:
-            df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-        if "Volume total chargé" in df_display.columns:
-            df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-        show_df(df_display, use_container_width=True)
-
-        # --- Export Excel ---
-        from io import BytesIO
-        def to_excel(df):
-            df_export = df.copy()
-            if "Poids total chargé" in df_export.columns:
-                df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
-            if "Volume total chargé" in df_export.columns:
-                df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df_export.to_excel(writer, index=False, sheet_name='Voyages_Attribués')
-            return output.getvalue()
-
-        st.download_button(
-            label="💾 Télécharger le tableau final (XLSX)",
-            data=to_excel(df_attribution),
-            file_name="Voyages_attribues.xlsx",
-            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-
-        # --- Export PDF corrigé ---
-        from fpdf import FPDF
-
-        def to_pdf(df, title="Voyages Attribués"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", 'B', 14)
-            pdf.cell(0, 10, title, ln=True, align="C")
-            pdf.ln(5)
-
-            pdf.set_font("Arial", '', 10)
-
-            # Créer une copie formatée pour le PDF avec unités
-            df_pdf = df.copy()
-            if "Poids total chargé" in df_pdf.columns:
-                df_pdf["Poids total chargé"] = df_pdf["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-            if "Volume total chargé" in df_pdf.columns:
-                df_pdf["Volume total chargé"] = df_pdf["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-
-            col_widths = [pdf.get_string_width(col)+6 for col in df_pdf.columns]
-
-            # En-têtes
-            for i, col in enumerate(df_pdf.columns):
-                pdf.cell(col_widths[i], 8, str(col), border=1, align='C')
-            pdf.ln()
-
-            # Lignes
-            for _, row in df_pdf.iterrows():
-                for i, col in enumerate(df_pdf.columns):
-                    pdf.cell(col_widths[i], 8, str(row[col]), border=1)
-                pdf.ln()
-
-            return pdf.output(dest='S').encode('latin1')
-
-        st.download_button(
-            label="📄 Télécharger le tableau final (PDF)",
-            data=to_pdf(df_attribution),
-            file_name="Voyages_attribues.pdf",
-            mime='application/pdf'
-        )
-else:
-    st.warning("⚠️ Vous devez d'abord valider les voyages dans la section 6.")
-
-# =====================================================
-# 8️⃣ AJOUT D'OBJETS MANUELS AUX VÉHICULES
+# 6️⃣ AJOUT D'OBJETS MANUELS AUX VÉHICULES
 # =====================================================
 st.markdown("## 📦 AJOUT D'OBJETS MANUELS AUX VÉHICULES")
 
@@ -924,6 +725,205 @@ else:
     st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
 
 st.markdown("---")
+# =====================================================
+# 7️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
+# =====================================================
+st.markdown("## ✅ VALIDATION DES VOYAGES APRÈS TRANSFERT")
+
+from io import BytesIO
+
+# --- Fonction pour exporter DataFrame en Excel avec arrondi ---
+def to_excel(df, sheet_name="Voyages Validés"):
+    df_export = df.copy()
+    if "Poids total chargé" in df_export.columns:
+        df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
+    if "Volume total chargé" in df_export.columns:
+        df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_export.to_excel(writer, index=False, sheet_name=sheet_name)
+    return output.getvalue()
+
+# --- Création du DataFrame de validation à partir du df_voyages ---
+if "df_voyages" in st.session_state:
+    voyages_apres_transfert = st.session_state.df_voyages.copy()
+    df_validation = voyages_apres_transfert.copy()
+
+    if "validations" not in st.session_state:
+        st.session_state.validations = {}
+
+    # --- Affichage interactif des voyages ---
+    for idx, row in df_validation.iterrows():
+        with st.expander(f"🚚 Voyage {row['Véhicule N°']} | Zone : {row['Zone']}"):
+            st.write("**Informations du voyage :**")
+            row_display = row.to_frame().T.copy()
+            if "Poids total chargé" in row_display.columns:
+                row_display["Poids total chargé"] = row_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
+            if "Volume total chargé" in row_display.columns:
+                row_display["Volume total chargé"] = row_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+            show_df(row_display, use_container_width=True)
+
+            choix = st.radio(
+                f"Valider ce voyage ? (Estafette {row['Véhicule N°']})",
+                ["Oui", "Non"],
+                index=0 if st.session_state.validations.get(idx) == "Oui" 
+                      else 1 if st.session_state.validations.get(idx) == "Non" 
+                      else 0,
+                key=f"validation_{idx}"
+            )
+            st.session_state.validations[idx] = choix
+
+    # --- Bouton pour appliquer les validations ---
+    if st.button("🧮 Appliquer la validation"):
+        valid_indexes = [i for i, v in st.session_state.validations.items() if v == "Oui"]
+        valid_indexes = [i for i in valid_indexes if i in df_validation.index]
+
+        df_voyages_valides = df_validation.loc[valid_indexes].reset_index(drop=True)
+        st.session_state.df_voyages_valides = df_voyages_valides
+
+        st.success(f"✅ {len(df_voyages_valides)} voyage(s) validé(s).")
+        st.markdown("### 📦 Voyages Validés")
+
+        # --- Affichage Streamlit avec unités ---
+        df_display = df_voyages_valides.copy()
+        if "Poids total chargé" in df_display.columns:
+            df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
+        if "Volume total chargé" in df_display.columns:
+            df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+        show_df(df_display, use_container_width=True)
+
+        # --- Export Excel arrondi ---
+        excel_data = to_excel(df_voyages_valides)
+        st.download_button(
+            label="💾 Télécharger les voyages validés (XLSX)",
+            data=excel_data,
+            file_name="Voyages_valides.xlsx",
+            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+else:
+    st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
+
+# =====================================================
+# 8️⃣ ATTRIBUTION DES VÉHICULES ET CHAUFFEURS
+# =====================================================
+st.markdown("## 🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS")
+
+if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_valides.empty:
+
+    df_attribution = st.session_state.df_voyages_valides.copy()
+
+    if "attributions" not in st.session_state:
+        st.session_state.attributions = {}
+
+    for idx, row in df_attribution.iterrows():
+        with st.expander(f"🚚 Voyage {row['Véhicule N°']} | Zone : {row['Zone']}"):
+            st.write("**Informations du voyage :**")
+            row_display = row.to_frame().T.copy()
+            if "Poids total chargé" in row_display.columns:
+                row_display["Poids total chargé"] = row_display["Poids total chargé"].map(lambda x: f"{x:.2f} kg")
+            if "Volume total chargé" in row_display.columns:
+                row_display["Volume total chargé"] = row_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+            show_df(row_display, use_container_width=True)
+
+            vehicule_selectionne = st.selectbox(
+                f"Véhicule pour le voyage {row['Véhicule N°']}",
+                VEHICULES_DISPONIBLES,
+                index=0 if st.session_state.attributions.get(idx, {}).get("Véhicule") else 0,
+                key=f"vehicule_{idx}"
+            )
+            chauffeur_selectionne = st.selectbox(
+                f"Chauffeur pour le voyage {row['Véhicule N°']}",
+                list(CHAUFFEURS_DETAILS.values()),
+                index=0 if st.session_state.attributions.get(idx, {}).get("Chauffeur") else 0,
+                key=f"chauffeur_{idx}"
+            )
+
+            st.session_state.attributions[idx] = {
+                "Véhicule": vehicule_selectionne,
+                "Chauffeur": chauffeur_selectionne
+            }
+
+    if st.button("✅ Appliquer les attributions"):
+
+        df_attribution["Véhicule attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Véhicule"])
+        df_attribution["Chauffeur attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Chauffeur"])
+
+        
+        st.markdown("### 📦 Voyages avec Véhicule et Chauffeur")
+
+        # --- Affichage formaté ---
+        df_display = df_attribution.copy()
+        if "Poids total chargé" in df_display.columns:
+            df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
+        if "Volume total chargé" in df_display.columns:
+            df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+        show_df(df_display, use_container_width=True)
+
+        # --- Export Excel ---
+        from io import BytesIO
+        def to_excel(df):
+            df_export = df.copy()
+            if "Poids total chargé" in df_export.columns:
+                df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
+            if "Volume total chargé" in df_export.columns:
+                df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df_export.to_excel(writer, index=False, sheet_name='Voyages_Attribués')
+            return output.getvalue()
+
+        st.download_button(
+            label="💾 Télécharger le tableau final (XLSX)",
+            data=to_excel(df_attribution),
+            file_name="Voyages_attribues.xlsx",
+            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
+        # --- Export PDF corrigé ---
+        from fpdf import FPDF
+
+        def to_pdf(df, title="Voyages Attribués"):
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", 'B', 14)
+            pdf.cell(0, 10, title, ln=True, align="C")
+            pdf.ln(5)
+
+            pdf.set_font("Arial", '', 10)
+
+            # Créer une copie formatée pour le PDF avec unités
+            df_pdf = df.copy()
+            if "Poids total chargé" in df_pdf.columns:
+                df_pdf["Poids total chargé"] = df_pdf["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
+            if "Volume total chargé" in df_pdf.columns:
+                df_pdf["Volume total chargé"] = df_pdf["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+
+            col_widths = [pdf.get_string_width(col)+6 for col in df_pdf.columns]
+
+            # En-têtes
+            for i, col in enumerate(df_pdf.columns):
+                pdf.cell(col_widths[i], 8, str(col), border=1, align='C')
+            pdf.ln()
+
+            # Lignes
+            for _, row in df_pdf.iterrows():
+                for i, col in enumerate(df_pdf.columns):
+                    pdf.cell(col_widths[i], 8, str(row[col]), border=1)
+                pdf.ln()
+
+            return pdf.output(dest='S').encode('latin1')
+
+        st.download_button(
+            label="📄 Télécharger le tableau final (PDF)",
+            data=to_pdf(df_attribution),
+            file_name="Voyages_attribues.pdf",
+            mime='application/pdf'
+        )
+else:
+    st.warning("⚠️ Vous devez d'abord valider les voyages dans la section 6.")
+
+
 
 # =====================================================
 # 9️⃣ RAPPORTS AVANCÉS ET ANALYTICS

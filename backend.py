@@ -692,7 +692,7 @@ class TruckTransferManager:
         return self.df_voyages
 
     # -------------------------
-    # NOUVEAU : Ajouter un objet manuel à un véhicule (refuse si dépasse)
+    # MÉTHODE POUR AJOUTER UN OBJET MANUEL
     # -------------------------
     def add_manual_object(self, df_voyages, vehicle, zone, name, weight, volume):
         """
@@ -771,39 +771,11 @@ class TruckTransferManager:
             taux = max((new_poids / max_poids) * 100, (new_volume / max_volume) * 100)
             df.at[idx, "Taux d'occupation (%)"] = taux
 
-            # Si on a une colonne 'Code Véhicule' manquante, tenter de la normaliser
-            if "Code Véhicule" not in df.columns:
-                df["Code Véhicule"] = df.get("Code Véhicule", "ESTAFETTE")
-
-            # Mettre à jour self.df_base si la source est le df_base
-            # (l'appelant doit décider s'il veut maj self.df_base ou st.session_state.df_voyages)
-            # Ici on met à jour self.df_base si les index concordent
-            try:
-                # Si vehicle existe dans self.df_base -> appliquer
-                if "Véhicule N°" in self.df_base.columns:
-                    mask_base = self.df_base["Camion N°"] == vehicle
-                    if mask_base.any():
-                        base_idx = self.df_base[mask_base].index[0]
-                        # appliquer poids/volume/BL
-                        self.df_base.at[base_idx, "BL inclus"] = df.at[idx, "BL inclus"]
-                        # colonnes peuvent être 'Poids total'/'Volume total' ou 'Poids total chargé' etc.
-                        if "Poids total chargé" in self.df_base.columns:
-                            self.df_base.at[base_idx, "Poids total chargé"] = df.at[idx, "Poids total chargé"]
-                        else:
-                            self.df_base.at[base_idx, "Poids total"] = df.at[idx, "Poids total"]
-                        if "Volume total chargé" in self.df_base.columns:
-                            self.df_base.at[base_idx, "Volume total chargé"] = df.at[idx, "Volume total chargé"]
-                        else:
-                            self.df_base.at[base_idx, "Volume total"] = df.at[idx, "Volume total"]
-                        self.df_base.at[base_idx, "Taux d'occupation (%)"] = df.at[idx, "Taux d'occupation (%)"]
-            except Exception:
-                # Ne pas bloquer si la sync échoue ; le df retourné est le df mis à jour
-                pass
-
             return True, f"✅ Objet '{name}' ajouté à {vehicle} en zone {zone} (code {obj_code})", df
 
         except Exception as e:
             return False, f"❌ Erreur lors de l'ajout de l'objet : {str(e)}", df_voyages
+
 
 # =====================================================
 # CLASSE DE VALIDATION DES VOYAGES
