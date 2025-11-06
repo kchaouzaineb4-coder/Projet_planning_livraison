@@ -1086,13 +1086,13 @@ if "df_voyages" in st.session_state and "df_livraisons_original" in st.session_s
                 import plotly.express as px
                 df_couts = pd.DataFrame({
                     'Type': ['Estafettes', 'Camions'],
-                    'Coût Total (€)': [
+                    'Coût Total (TND)': [
                         couts['estafettes'] * couts['cout_estafette_unitaire'],
                         couts['camions'] * couts['cout_camion_unitaire']
                     ]
                 })
                 
-                fig = px.pie(df_couts, values='Coût Total (€)', names='Type', 
+                fig = px.pie(df_couts, values='Coût Total (TND)', names='Type', 
                             title='Répartition des coûts par type de véhicule')
                 st.plotly_chart(fig, use_container_width=True)
             else:
