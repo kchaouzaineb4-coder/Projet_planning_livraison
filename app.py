@@ -925,28 +925,53 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                 row_display["Volume total chargé"] = row_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
             show_df(row_display, use_container_width=True)
 
-            vehicule_selectionne = st.selectbox(
-                f"Véhicule pour le voyage {row['Véhicule N°']}",
-                VEHICULES_DISPONIBLES,
-                index=0 if st.session_state.attributions.get(idx, {}).get("Véhicule") else 0,
-                key=f"vehicule_{idx}"
-            )
-            chauffeur_selectionne = st.selectbox(
-                f"Chauffeur pour le voyage {row['Véhicule N°']}",
-                list(CHAUFFEURS_DETAILS.values()),
-                index=0 if st.session_state.attributions.get(idx, {}).get("Chauffeur") else 0,
-                key=f"chauffeur_{idx}"
-            )
+            col_veh, col_chauf = st.columns(2)
+            
+            with col_veh:
+                vehicule_selectionne = st.selectbox(
+                    f"Véhicule pour le voyage {row['Véhicule N°']}",
+                    VEHICULES_DISPONIBLES,
+                    index=0 if st.session_state.attributions.get(idx, {}).get("Véhicule") else 0,
+                    key=f"vehicule_{idx}"
+                )
+            
+            with col_chauf:
+                # MODIFICATION : Afficher matricule + nom dans le selectbox
+                options_chauffeurs = [f"{matricule} - {nom}" for matricule, nom in CHAUFFEURS_DETAILS.items() if matricule != 'Matricule']
+                
+                # Trouver l'index par défaut
+                default_index = 0
+                chauffeur_actuel = st.session_state.attributions.get(idx, {}).get("Chauffeur_complet")
+                if chauffeur_actuel and chauffeur_actuel in options_chauffeurs:
+                    default_index = options_chauffeurs.index(chauffeur_actuel)
+                
+                chauffeur_selectionne_complet = st.selectbox(
+                    f"Chauffeur pour le voyage {row['Véhicule N°']}",
+                    options_chauffeurs,
+                    index=default_index,
+                    key=f"chauffeur_{idx}"
+                )
+                
+                # Extraire le matricule et le nom du chauffeur sélectionné
+                if chauffeur_selectionne_complet:
+                    matricule_chauffeur = chauffeur_selectionne_complet.split(" - ")[0]
+                    nom_chauffeur = chauffeur_selectionne_complet.split(" - ")[1]
+                else:
+                    matricule_chauffeur = ""
+                    nom_chauffeur = ""
 
             st.session_state.attributions[idx] = {
                 "Véhicule": vehicule_selectionne,
-                "Chauffeur": chauffeur_selectionne
+                "Chauffeur_complet": chauffeur_selectionne_complet,
+                "Matricule_chauffeur": matricule_chauffeur,
+                "Nom_chauffeur": nom_chauffeur
             }
 
     if st.button("✅ Appliquer les attributions"):
 
         df_attribution["Véhicule attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Véhicule"])
-        df_attribution["Chauffeur attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Chauffeur"])
+        df_attribution["Chauffeur attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Nom_chauffeur"])
+        df_attribution["Matricule chauffeur"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Matricule_chauffeur"])
 
         
         st.markdown("### 📦 Voyages avec Véhicule et Chauffeur")
@@ -979,7 +1004,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
 
-        # --- Export PDF corrigé ---
+        # --- Export PDF ---
         from fpdf import FPDF
 
         def to_pdf(df, title="Voyages Attribués"):
@@ -1019,9 +1044,13 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             file_name="Voyages_attribues.pdf",
             mime='application/pdf'
         )
+        
+        # Mettre à jour le session state
+        st.session_state.df_voyages_valides = df_attribution
+        st.success("✅ Attributions appliquées avec succès !")
+        
 else:
-    st.warning("⚠️ Vous devez d'abord valider les voyages.")
-
+    st.warning("⚠️ Vous devez d'abord valider les voyages dans la section 7.")
 
 
 # =====================================================
