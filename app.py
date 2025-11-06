@@ -1233,7 +1233,7 @@ else:
     st.warning("⚠️ Vous devez d'abord valider les voyages.")
 
 # =====================================================
-# 📤 EXPORT FINAL ET PLANNING COMPLET
+# 📤 EXPORT FINAL ET PLANNING COMPLET - VERSION OPTIMISÉE
 # =====================================================
 st.markdown("## 📤 EXPORT FINAL ET PLANNING COMPLET")
 
@@ -1241,9 +1241,35 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
     
     df_export_final = st.session_state.df_voyages_valides.copy()
     
+    # =====================================================
+    # GARANTIR QUE TOUTES LES COLONNES REQUISES EXISTENT
+    # =====================================================
+    
+    # Vérifier et créer la colonne "Chauffeur" si nécessaire
+    if "Chauffeur" not in df_export_final.columns:
+        # Priorité 1 : Utiliser "Chauffeur attribué"
+        if "Chauffeur attribué" in df_export_final.columns:
+            df_export_final["Chauffeur"] = df_export_final["Chauffeur attribué"]
+            st.success("✅ Colonne 'Chauffeur' créée à partir de 'Chauffeur attribué'")
+        # Priorité 2 : Utiliser "Matricule chauffeur" avec format
+        elif "Matricule chauffeur" in df_export_final.columns:
+            df_export_final["Chauffeur"] = df_export_final["Matricule chauffeur"].apply(
+                lambda x: f"Chauffeur {x}" if pd.notna(x) and x != "" else "À attribuer"
+            )
+            st.success("✅ Colonne 'Chauffeur' créée à partir de 'Matricule chauffeur'")
+        # Fallback
+        else:
+            df_export_final["Chauffeur"] = "À attribuer"
+            st.warning("⚠️ Colonne 'Chauffeur' créée vide")
+    
+    # Vérifier que "Code voyage" existe
+    if "Code voyage" not in df_export_final.columns:
+        st.error("❌ La colonne 'Code voyage' est manquante. Veuillez d'abord générer les codes voyage dans la section 10.")
+        st.stop()
+    
     st.info("""
-    **Exportez l'ensemble du planning de livraisons** avec tous les codes voyage, 
-    optimisations, validations et attributions dans un fichier Excel structuré.
+    **Exportez l'ensemble du planning de livraisons** avec l'ordre des colonnes suivant :
+    - Code voyage, Zone, Véhicule N°, Chauffeur, BL inclus, Client(s) inclus, Poids total chargé, Volume total chargé
     """)
     
     col_export1, col_export2 = st.columns(2)
@@ -1261,7 +1287,7 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
             try:
                 from backend import exporter_planning_excel
                 
-                # Préparer les données supplémentaires pour l'export
+                # Préparer les données supplémentaires
                 donnees_supplementaires = {}
                 
                 # Ajouter les données de base si disponibles
@@ -1272,12 +1298,6 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                 if st.session_state.df_zone is not None:
                     donnees_supplementaires['Besoin_Estafette_Zone'] = st.session_state.df_zone
                 
-                # Vérifier si les codes voyage existent
-                if 'Code voyage' in df_export_final.columns:
-                    st.success("📦 Export avec codes voyage inclus")
-                else:
-                    st.warning("⚠️ Export sans codes voyage - Générez-les d'abord")
-                
                 # Générer l'export
                 success, message = exporter_planning_excel(
                     df_export_final,
@@ -1287,6 +1307,19 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                 
                 if success:
                     st.success(message)
+                    
+                    # Aperçu du format d'export
+                    st.subheader("👁️ Aperçu du format d'export")
+                    colonnes_apercu = ["Code voyage", "Zone", "Véhicule N°", "Chauffeur", "BL inclus", "Client(s) inclus", "Poids total chargé", "Volume total chargé"]
+                    df_apercu = df_export_final[colonnes_apercu].head(5).copy()
+                    
+                    # Formater l'affichage
+                    if "Poids total chargé" in df_apercu.columns:
+                        df_apercu["Poids total chargé"] = df_apercu["Poids total chargé"].map(lambda x: f"{x:.1f} kg")
+                    if "Volume total chargé" in df_apercu.columns:
+                        df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+                    
+                    show_df(df_apercu, use_container_width=True)
                     
                     # Proposer le téléchargement
                     with open(f"{nom_fichier}.xlsx", "rb") as file:
@@ -1302,23 +1335,27 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
             except Exception as e:
                 st.error(f"❌ Erreur lors de l'export : {str(e)}")
 
-# Afficher un aperçu du planning final
-if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_valides.empty:
+    # =====================================================
+    # APERÇU DU PLANNING FINAL
+    # =====================================================
     st.markdown("### 👁️ Aperçu du Planning Final")
     
-    df_apercu_final = st.session_state.df_voyages_valides.copy()
+    df_apercu_final = df_export_final.copy()
     
-    # Colonnes à afficher (inclure le code voyage si disponible)
-    colonnes_apercu = ["Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé", "Code voyage"] 
+    # Colonnes à afficher (format d'export final)
+    colonnes_apercu = ["Code voyage", "Zone", "Véhicule N°", "Chauffeur", "BL inclus", "Client(s) inclus", "Poids total chargé", "Volume total chargé"]
     colonnes_apercu = [col for col in colonnes_apercu if col in df_apercu_final.columns]
     
-    # Formater l'affichage
+    # Formater l'affichage pour l'aperçu
     if "Poids total chargé" in df_apercu_final.columns:
         df_apercu_final["Poids total chargé"] = df_apercu_final["Poids total chargé"].map(lambda x: f"{x:.1f} kg")
     if "Volume total chargé" in df_apercu_final.columns:
         df_apercu_final["Volume total chargé"] = df_apercu_final["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
     
     show_df(df_apercu_final[colonnes_apercu], use_container_width=True)
+
+else:
+    st.warning("⚠️ Vous devez d'abord valider les voyages dans la section 7 et générer les codes voyage dans la section 10.")
 
 # =====================================================
 # 🎯 RÉSUMÉ ET TABLEAU DE BORD FINAL
@@ -1334,7 +1371,7 @@ if "df_voyages" in st.session_state:
     camions = len(df_final[df_final["Code Véhicule"] == "CAMION-LOUE"])
     poids_total = df_final["Poids total chargé"].sum()
     volume_total = df_final["Volume total chargé"].sum()
-    taux_moyen = df_final["Taux d'occupation (%)"].mean()
+    taux_moyen = df_final["Taux d'occupation (%)"].mean() if "Taux d'occupation (%)" in df_final.columns else 0
     
     # Affichage des métriques
     col_metric1, col_metric2, col_metric3, col_metric4 = st.columns(4)
@@ -1371,31 +1408,33 @@ if "df_voyages" in st.session_state:
     
     # Graphique de répartition par zone
     st.subheader("📊 Répartition par Zone")
-    repartition_zone = df_final.groupby("Zone").size().reset_index(name="Nombre de véhicules")
-    
-    if not repartition_zone.empty:
-        import plotly.express as px
-        fig_zone = px.bar(
-            repartition_zone, 
-            x="Zone", 
-            y="Nombre de véhicules",
-            title="Nombre de véhicules par zone",
-            color="Nombre de véhicules"
-        )
-        st.plotly_chart(fig_zone, use_container_width=True)
+    if 'Zone' in df_final.columns:
+        repartition_zone = df_final.groupby("Zone").size().reset_index(name="Nombre de véhicules")
+        
+        if not repartition_zone.empty:
+            import plotly.express as px
+            fig_zone = px.bar(
+                repartition_zone, 
+                x="Zone", 
+                y="Nombre de véhicules",
+                title="Nombre de véhicules par zone",
+                color="Nombre de véhicules"
+            )
+            st.plotly_chart(fig_zone, use_container_width=True)
     
     # Graphique de répartition par type de véhicule
     st.subheader("🚗 Répartition par Type de Véhicule")
-    repartition_type = df_final["Code Véhicule"].value_counts().reset_index()
-    repartition_type.columns = ["Type Véhicule", "Nombre"]
-    
-    fig_type = px.pie(
-        repartition_type, 
-        values="Nombre", 
-        names="Type Véhicule",
-        title="Répartition des types de véhicules"
-    )
-    st.plotly_chart(fig_type, use_container_width=True)
+    if "Code Véhicule" in df_final.columns:
+        repartition_type = df_final["Code Véhicule"].value_counts().reset_index()
+        repartition_type.columns = ["Type Véhicule", "Nombre"]
+        
+        fig_type = px.pie(
+            repartition_type, 
+            values="Nombre", 
+            names="Type Véhicule",
+            title="Répartition des types de véhicules"
+        )
+        st.plotly_chart(fig_type, use_container_width=True)
 
 else:
     st.warning("⚠️ Le planning n'est pas encore généré. Veuillez traiter les données dans la section 1.")
@@ -1413,7 +1452,6 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
-
 # =====================================================
 # 📱 STYLE RESPONSIVE ET AMÉLIORATIONS VISUELLES
 # =====================================================

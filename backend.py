@@ -1125,46 +1125,147 @@ def calculer_couts_estimation(df_voyages, cout_estafette=150, cout_camion=800):
         return {'erreur': f"❌ Erreur dans le calcul des coûts : {str(e)}"}
 
 def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None):
-    """Exporte le planning complet vers Excel avec formatage."""
+    """Exporte le planning complet vers Excel avec formatage personnalisé."""
     try:
         with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
-            # Feuille principale des voyages
-            df_voyages.to_excel(writer, sheet_name='Planning Livraisons', index=False)
+            # =====================================================
+            # ORDRE EXACT DES COLONNES DEMANDÉ
+            # =====================================================
+            colonnes_demandees = [
+                "Code voyage", "Zone", "Véhicule N°", "Chauffeur", 
+                "BL inclus", "Client(s) inclus", "Poids total chargé", 
+                "Volume total chargé"
+            ]
             
-            # Feuille de synthèse
-            synthèse_data = {
-                'Metric': ['Total Véhicules', 'Estafettes', 'Camions', 'Poids Total', 'Volume Total', 'Taux Occupation Moyen'],
-                'Valeur': [
-                    len(df_voyages),
-                    len(df_voyages[df_voyages["Code Véhicule"] == "ESTAFETTE"]),
-                    len(df_voyages[df_voyages["Code Véhicule"] == CAMION_CODE]),
-                    f"{df_voyages['Poids total chargé'].sum():.1f} kg",
-                    f"{df_voyages['Volume total chargé'].sum():.3f} m³",
-                    f"{df_voyages['Taux d\'occupation (%)'].mean():.1f}%"
-                ]
-            }
-            pd.DataFrame(synthèse_data).to_excel(writer, sheet_name='Synthèse', index=False)
+            # =====================================================
+            # CORRECTION : UTILISATION DES COLONNES EXISTANTES
+            # =====================================================
             
-            # Feuille par zone
-            stats_zone = df_voyages.groupby('Zone').agg({
-                'Véhicule N°': 'count',
-                'Poids total chargé': ['sum', 'mean'],
-                'Volume total chargé': ['sum', 'mean'],
-                'Taux d\'occupation (%)': 'mean'
-            }).round(2)
-            stats_zone.to_excel(writer, sheet_name='Stats par Zone')
+            # 1. Vérifier et mapper "Chauffeur" vers les colonnes existantes
+            if "Chauffeur" not in df_voyages.columns:
+                # Priorité 1 : Utiliser "Chauffeur attribué"
+                if "Chauffeur attribué" in df_voyages.columns:
+                    df_voyages["Chauffeur"] = df_voyages["Chauffeur attribué"]
+                # Priorité 2 : Utiliser "Nom_chauffeur" 
+                elif "Nom_chauffeur" in df_voyages.columns:
+                    df_voyages["Chauffeur"] = df_voyages["Nom_chauffeur"]
+                # Priorité 3 : Utiliser "Matricule chauffeur" avec format
+                elif "Matricule chauffeur" in df_voyages.columns:
+                    df_voyages["Chauffeur"] = df_voyages["Matricule chauffeur"].apply(
+                        lambda x: f"Chauffeur {x}" if pd.notna(x) and x != "" else "À attribuer"
+                    )
+                # Fallback : Colonne vide
+                else:
+                    df_voyages["Chauffeur"] = "À attribuer"
             
-            # Ajouter les données supplémentaires si fournies
+            # 2. Filtrer seulement les colonnes qui existent
+            colonnes_finales = [col for col in colonnes_demandees if col in df_voyages.columns]
+            
+            # 3. Vérifier qu'on a au moins les colonnes de base
+            colonnes_requises = ["Zone", "Véhicule N°", "BL inclus", "Client(s) inclus"]
+            colonnes_manquantes = [col for col in colonnes_requises if col not in colonnes_finales]
+            
+            if colonnes_manquantes:
+                print(f"❌ Colonnes manquantes : {', '.join(colonnes_manquantes)}")
+                return False, f"Colonnes manquantes : {', '.join(colonnes_manquantes)}"
+            
+            # 4. Réorganiser le DataFrame avec l'ordre exact demandé
+            df_voyages_ordered = df_voyages[colonnes_finales].copy()
+            
+            # =====================================================
+            # FORMATAGE DES VALEURS NUMÉRIQUES
+            # =====================================================
+            if "Poids total chargé" in df_voyages_ordered.columns:
+                df_voyages_ordered["Poids total chargé"] = df_voyages_ordered["Poids total chargé"].round(3)
+            
+            if "Volume total chargé" in df_voyages_ordered.columns:
+                df_voyages_ordered["Volume total chargé"] = df_voyages_ordered["Volume total chargé"].round(3)
+            
+            # =====================================================
+            # FEUILLE PRINCIPALE - PLANNING LIVRAISONS
+            # =====================================================
+            df_voyages_ordered.to_excel(writer, sheet_name='Planning Livraisons', index=False)
+            
+            # =====================================================
+            # FEUILLE DE SYNTHÈSE (optionnelle)
+            # =====================================================
+            try:
+                nb_estafettes = len(df_voyages[df_voyages["Code Véhicule"] == "ESTAFETTE"]) if "Code Véhicule" in df_voyages.columns else 0
+                nb_camions = len(df_voyages[df_voyages["Code Véhicule"] == "CAMION-LOUE"]) if "Code Véhicule" in df_voyages.columns else 0
+                poids_total = df_voyages['Poids total chargé'].sum() if 'Poids total chargé' in df_voyages.columns else 0
+                volume_total = df_voyages['Volume total chargé'].sum() if 'Volume total chargé' in df_voyages.columns else 0
+                taux_moyen = df_voyages['Taux d\'occupation (%)'].mean() if 'Taux d\'occupation (%)' in df_voyages.columns else 0
+                
+                synthèse_data = {
+                    'Metric': ['Total Véhicules', 'Estafettes', 'Camions', 'Poids Total', 'Volume Total', 'Taux Occupation Moyen'],
+                    'Valeur': [
+                        len(df_voyages),
+                        nb_estafettes,
+                        nb_camions,
+                        f"{poids_total:.1f} kg",
+                        f"{volume_total:.3f} m³",
+                        f"{taux_moyen:.1f}%" if taux_moyen > 0 else "N/A"
+                    ]
+                }
+                pd.DataFrame(synthèse_data).to_excel(writer, sheet_name='Synthèse', index=False)
+            except Exception as e:
+                print(f"⚠️ Erreur lors de la création de la synthèse : {e}")
+            
+            # =====================================================
+            # FEUILLE STATS PAR ZONE (optionnelle)
+            # =====================================================
+            try:
+                if 'Zone' in df_voyages.columns:
+                    agg_dict = {'Véhicule N°': 'count'}
+                    
+                    if 'Poids total chargé' in df_voyages.columns:
+                        agg_dict['Poids total chargé'] = ['sum', 'mean']
+                    if 'Volume total chargé' in df_voyages.columns:
+                        agg_dict['Volume total chargé'] = ['sum', 'mean']
+                    if 'Taux d\'occupation (%)' in df_voyages.columns:
+                        agg_dict['Taux d\'occupation (%)'] = 'mean'
+                    
+                    stats_zone = df_voyages.groupby('Zone').agg(agg_dict).round(2)
+                    
+                    if isinstance(stats_zone.columns, pd.MultiIndex):
+                        stats_zone.columns = ['_'.join(col).strip() for col in stats_zone.columns.values]
+                    
+                    stats_zone.to_excel(writer, sheet_name='Stats par Zone')
+            except Exception as e:
+                print(f"⚠️ Erreur lors de la création des stats par zone : {e}")
+            
+            # =====================================================
+            # DONNÉES SUPPLÉMENTAIRES
+            # =====================================================
             if donnees_supplementaires:
                 for nom_feuille, data in donnees_supplementaires.items():
                     if isinstance(data, pd.DataFrame):
-                        data.to_excel(writer, sheet_name=nom_feuille[:31], index=False)
+                        nom_feuille = nom_feuille[:31]
+                        data.to_excel(writer, sheet_name=nom_feuille, index=False)
+            
+            # =====================================================
+            # FEUILLE COMPLÈTE (toutes les colonnes) - pour référence
+            # =====================================================
+            try:
+                df_voyages_complet = df_voyages.copy()
+                # Formater les valeurs numériques pour l'export complet
+                if "Poids total chargé" in df_voyages_complet.columns:
+                    df_voyages_complet["Poids total chargé"] = df_voyages_complet["Poids total chargé"].round(3)
+                if "Volume total chargé" in df_voyages_complet.columns:
+                    df_voyages_complet["Volume total chargé"] = df_voyages_complet["Volume total chargé"].round(3)
+                
+                df_voyages_complet.to_excel(writer, sheet_name='Données Complètes', index=False)
+            except Exception as e:
+                print(f"⚠️ Erreur lors de la création de la feuille complète : {e}")
         
         return True, f"✅ Planning exporté avec succès : {file_path}"
     
     except Exception as e:
         return False, f"❌ Erreur lors de l'export Excel : {str(e)}"
 
+# =====================================================
+# GARDEZ CETTE FONCTION INTACTE - NE PAS MODIFIER
+# =====================================================
 def verifier_integrite_donnees(df_voyages, df_livraisons_original):
     """Vérifie l'intégrité des données entre les voyages optimisés et les données originales."""
     try:
