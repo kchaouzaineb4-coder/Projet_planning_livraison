@@ -225,13 +225,7 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 # --- Onglet Livraisons Client/Ville ---
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
-if "df_grouped" in st.session_state and st.session_state.df_grouped is not None:
-    show_df(
-        st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'),
-        use_container_width=True
-    )
-else:
-    st.info("📂 Veuillez importer vos fichiers et lancer le traitement pour afficher les données.")
+    show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), use_container_width=True)
     
     # Bouton de téléchargement
     from io import BytesIO
