@@ -1118,15 +1118,103 @@ else:
 st.markdown("---")
 
 # =====================================================
-# 🔟 EXPORT FINAL ET PLANNING COMPLET
+# 🔟 GÉNÉRATION DES CODES VOYAGE
+# =====================================================
+st.markdown("## 🏷️ GÉNÉRATION DES CODES VOYAGE")
+
+if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_valides.empty:
+    
+    df_final = st.session_state.df_voyages_valides.copy()
+    
+    st.info("""
+    **Génération automatique des codes voyage uniques pour chaque mission.**
+    Le format : **Véhicule/Date/NuméroSéquentiel**
+    """)
+    
+    # Configuration des paramètres de génération
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        date_voyage = st.date_input(
+            "📅 Date de voyage",
+            value=pd.Timestamp.now().date(),
+            help="Date prévue pour les livraisons"
+        )
+    
+    with col2:
+        numero_debut = st.number_input(
+            "🔢 Numéro séquentiel de départ",
+            min_value=1,
+            max_value=1000,
+            value=1,
+            help="Numéro de départ pour la séquence"
+        )
+    
+    with col3:
+        st.markdown("<br>", unsafe_allow_html=True)
+        generer_codes = st.button("🏷️ Générer les codes voyage", type="primary")
+    
+    if generer_codes:
+        try:
+            # Préparation des données pour le code voyage
+            df_final['Date Voyage Format'] = date_voyage.strftime('%Y%m%d')
+            
+            # Création du numéro séquentiel pour chaque voyage
+            df_final['Numero Séquentiel'] = range(numero_debut, numero_debut + len(df_final))
+            df_final['Numero Séquentiel Formatted'] = df_final['Numero Séquentiel'].apply(lambda x: f"{x:03d}")
+            
+            # Création du Code voyage
+            df_final['Code voyage'] = (
+                df_final['Véhicule N°'].astype(str) + '/' +
+                df_final['Date Voyage Format'].astype(str) + '/' +
+                df_final['Numero Séquentiel Formatted'].astype(str)
+            )
+            
+            # Mettre à jour le session state
+            st.session_state.df_voyages_valides = df_final
+            
+            st.success(f"✅ {len(df_final)} codes voyage générés avec succès !")
+            
+            # Afficher un aperçu des codes générés
+            st.markdown("### 📋 Aperçu des codes voyage générés")
+            df_apercu = df_final[['Véhicule N°', 'Zone', 'Code voyage']].copy()
+            show_df(df_apercu, use_container_width=True)
+            
+            print("✅ Colonne 'Code voyage' créée avec succès.")
+            
+        except Exception as e:
+            st.error(f"❌ Erreur lors de la génération des codes voyage : {str(e)}")
+    
+    # Afficher les codes existants si déjà générés
+    elif 'Code voyage' in df_final.columns:
+        st.success("✅ Codes voyage déjà générés")
+        df_apercu = df_final[['Véhicule N°', 'Zone', 'Code voyage']].copy()
+        show_df(df_apercu, use_container_width=True)
+        
+        # Option pour regénérer les codes
+        if st.button("🔄 Regénérer les codes voyage"):
+            del df_final['Code voyage']
+            del df_final['Date Voyage Format']
+            del df_final['Numero Séquentiel']
+            del df_final['Numero Séquentiel Formatted']
+            st.session_state.df_voyages_valides = df_final
+            st.rerun()
+
+else:
+    st.warning("⚠️ Vous devez d'abord valider les voyages dans la section 7.")
+
+# =====================================================
+# 📤 EXPORT FINAL ET PLANNING COMPLET
 # =====================================================
 st.markdown("## 📤 EXPORT FINAL ET PLANNING COMPLET")
 
-if "df_voyages" in st.session_state:
+if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_valides.empty:
+    
+    df_export_final = st.session_state.df_voyages_valides.copy()
     
     st.info("""
-    **Exportez l'ensemble du planning de livraisons** avec toutes les optimisations, 
-    validations et attributions dans un fichier Excel structuré.
+    **Exportez l'ensemble du planning de livraisons** avec tous les codes voyage, 
+    optimisations, validations et attributions dans un fichier Excel structuré.
     """)
     
     col_export1, col_export2 = st.columns(2)
@@ -1155,13 +1243,15 @@ if "df_voyages" in st.session_state:
                 if st.session_state.df_zone is not None:
                     donnees_supplementaires['Besoin_Estafette_Zone'] = st.session_state.df_zone
                 
-                # Ajouter les voyages validés si disponibles
-                if 'df_voyages_valides' in st.session_state:
-                    donnees_supplementaires['Voyages_Valides'] = st.session_state.df_voyages_valides
+                # Vérifier si les codes voyage existent
+                if 'Code voyage' in df_export_final.columns:
+                    st.success("📦 Export avec codes voyage inclus")
+                else:
+                    st.warning("⚠️ Export sans codes voyage - Générez-les d'abord")
                 
                 # Générer l'export
                 success, message = exporter_planning_excel(
-                    st.session_state.df_voyages,
+                    df_export_final,
                     f"{nom_fichier}.xlsx",
                     donnees_supplementaires
                 )
@@ -1182,6 +1272,24 @@ if "df_voyages" in st.session_state:
                     
             except Exception as e:
                 st.error(f"❌ Erreur lors de l'export : {str(e)}")
+
+# Afficher un aperçu du planning final
+if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_valides.empty:
+    st.markdown("### 👁️ Aperçu du Planning Final")
+    
+    df_apercu_final = st.session_state.df_voyages_valides.copy()
+    
+    # Colonnes à afficher (inclure le code voyage si disponible)
+    colonnes_apercu = ["Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé", "Code voyage"] 
+    colonnes_apercu = [col for col in colonnes_apercu if col in df_apercu_final.columns]
+    
+    # Formater l'affichage
+    if "Poids total chargé" in df_apercu_final.columns:
+        df_apercu_final["Poids total chargé"] = df_apercu_final["Poids total chargé"].map(lambda x: f"{x:.1f} kg")
+    if "Volume total chargé" in df_apercu_final.columns:
+        df_apercu_final["Volume total chargé"] = df_apercu_final["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+    
+    show_df(df_apercu_final[colonnes_apercu], use_container_width=True)
 
 # =====================================================
 # 🎯 RÉSUMÉ ET TABLEAU DE BORD FINAL
