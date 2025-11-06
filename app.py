@@ -25,37 +25,63 @@ def show_df(df, **kwargs):
 def show_df_multiline(df, column_to_multiline):
     """
     Affiche un DataFrame avec les articles multilignes dans la même cellule.
-    Chaque 'No livraison' reste sur une seule ligne.
+    S'adapte automatiquement aux colonnes disponibles.
     """
     df_display = df.copy()
 
-    # Grouper les lignes par livraison et concaténer les articles avec des <br>
-    df_display = df_display.groupby(
-        ['No livraison', 'Client', 'Ville', 'Représentant', 'Poids total', 'Volume total'],
-        as_index=False
-    ).agg({column_to_multiline: lambda x: "<br>".join(x.astype(str))})
+    # Colonnes potentielles pour le groupage (par ordre de priorité)
+    potential_group_columns = [
+        'No livraison', 'Client', 'Ville', 'Représentant', 
+        'Poids total', 'Volume total', 'Zone'
+    ]
+    
+    # Prendre les colonnes qui existent réellement dans le DataFrame
+    existing_columns = [col for col in potential_group_columns if col in df_display.columns]
+    
+    # S'assurer qu'on a au moins la colonne de livraison
+    if 'No livraison' not in existing_columns and existing_columns:
+        # Prendre la première colonne disponible comme identifiant
+        st.warning(f"⚠️ Colonne 'No livraison' non trouvée. Utilisation de '{existing_columns[0]}' pour le groupage.")
+    
+    if not existing_columns:
+        st.error("❌ Aucune colonne appropriée trouvée pour le groupage.")
+        return
+    
+    # Vérifier que la colonne à multiligne existe
+    if column_to_multiline not in df_display.columns:
+        st.error(f"❌ Colonne '{column_to_multiline}' non trouvée dans le DataFrame.")
+        return
 
-    # CSS pour forcer l'affichage des <br> sur plusieurs lignes
+    # Grouper et concaténer
+    df_display = df_display.groupby(existing_columns, as_index=False).agg({
+        column_to_multiline: lambda x: "<br>".join(x.astype(str))
+    })
+
+    # CSS amélioré
     css = """
     <style>
     table {
         width: 100%;
         border-collapse: collapse;
+        font-family: Arial, sans-serif;
     }
     th, td {
         border: 1px solid #555;
-        padding: 8px;
+        padding: 10px;
         text-align: left;
         vertical-align: top;
-        white-space: normal;
-        word-wrap: break-word;
     }
     th {
-        background-color: #222;
+        background-color: #2c3e50;
         color: white;
+        font-weight: bold;
     }
     td {
-        color: #ddd;
+        color: #333;
+        background-color: #f9f9f9;
+    }
+    tr:hover td {
+        background-color: #e8f4f8;
     }
     </style>
     """
@@ -225,7 +251,10 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 # --- Onglet Livraisons Client/Ville ---
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
-    show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), use_container_width=True)
+    show_df_multiline(
+        st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'),
+        column_to_multiline="Article"
+    )
     
     # Bouton de téléchargement
     from io import BytesIO
@@ -262,7 +291,10 @@ with tab_city:
 # --- Onglet Livraisons Client & Ville + Zone ---
 with tab_zone_group:
     st.subheader("Livraisons par Client & Ville + Zone")
-    show_df(st.session_state.df_grouped_zone, use_container_width=True)
+    show_df_multiline(
+        st.session_state.df_grouped_zone,
+        column_to_multiline="Article"
+    )
     
     # Bouton de téléchargement
     excel_buffer_zone_group = BytesIO()
@@ -496,6 +528,7 @@ except Exception as e:
     st.write("Données brutes pour debug:")
     if st.session_state.rental_processor:
         st.write("Colonnes du df_base:", list(st.session_state.rental_processor.df_base.columns))
+
 # =====================================================
 # 5️⃣ TRANSFERT DES BLs ENTRE ESTAFETTES / CAMIONS
 # =====================================================
@@ -603,6 +636,7 @@ else:
                                 file_name="voyages_apres_transfert.xlsx",
                                 mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                             )
+
 # =====================================================
 # 6️⃣ AJOUT D'OBJETS MANUELS AUX VÉHICULES
 # =====================================================
@@ -617,11 +651,6 @@ if "df_voyages" in st.session_state:
         )
     
     df_voyages = st.session_state.df_voyages.copy()
-    
-    #st.info("""
-    #**Fonctionnalité :** Ajouter des objets manuels (colis urgents, matériel supplémentaire) 
-    #à un véhicule existant. Le système vérifie automatiquement la capacité disponible.
-    #""")
     
     col1, col2, col3 = st.columns(3)
     
@@ -694,51 +723,36 @@ if "df_voyages" in st.session_state:
                 if success:
                     st.success(message)
                     
-                    # =====================================================
                     # MÉCANISME DE MISE À JOUR FORCÉE DE TOUTES LES DONNÉES
-                    # =====================================================
-                    
-                    # 1. Mettre à jour le DataFrame principal dans session_state
                     st.session_state.df_voyages = df_updated
-                    
-                    # 2. Synchroniser le gestionnaire de transfert
                     st.session_state.transfer_manager.df_voyages = df_updated.copy()
                     
-                    # 3. Synchroniser le processeur de location si disponible
                     if st.session_state.rental_processor:
                         try:
-                            # Méthode 1 : Mettre à jour directement le df_base
                             st.session_state.rental_processor.df_base = df_updated.copy()
-                            
-                            # Méthode 2 : Recréer le processeur si nécessaire
                             st.session_state.rental_processor = TruckRentalProcessor(
                                 df_updated, 
                                 st.session_state.df_livraisons_original
                             )
-                            
                             st.success("✅ Processeur de location synchronisé")
                         except Exception as e:
                             st.warning(f"⚠️ Synchronisation partielle du processeur : {str(e)}")
                     
-                    # 4. Mettre à jour les propositions de location si elles existent
                     if st.session_state.propositions is not None:
                         try:
                             st.session_state.propositions = st.session_state.rental_processor.detecter_propositions()
                         except:
-                            pass  # Ignorer si la mise à jour des propositions échoue
+                            pass
                     
-                    # 5. Mettre à jour les voyages validés si ils existent
                     if 'df_voyages_valides' in st.session_state:
                         try:
-                            # Recréer les voyages validés à partir des nouvelles données
                             mask_valides = df_updated["Véhicule N°"].isin(
                                 st.session_state.df_voyages_valides["Véhicule N°"]
                             )
                             st.session_state.df_voyages_valides = df_updated[mask_valides].copy()
                         except:
-                            pass  # Ignorer si la mise à jour des validations échoue
+                            pass
                     
-                    # Afficher le véhicule mis à jour
                     vehicule_update = df_updated[
                         (df_updated["Zone"] == zone_objet) & 
                         (df_updated["Véhicule N°"] == vehicule_objet)
@@ -752,10 +766,7 @@ if "df_voyages" in st.session_state:
                     - BLs inclus : {vehicule_update['BL inclus']}
                     """)
                     
-                    # Afficher un résumé des modifications
                     st.success("🔄 Toutes les données ont été mises à jour avec succès !")
-                    
-                    # FORCER L'ACTUALISATION COMPLÈTE DE L'APPLICATION
                     st.rerun()
                     
                 else:
@@ -763,7 +774,6 @@ if "df_voyages" in st.session_state:
                     
             except Exception as e:
                 st.error(f"❌ Erreur lors de l'ajout de l'objet : {str(e)}")
-                # Debug information
                 st.error(f"Debug - Zone: {zone_objet}, Véhicule: {vehicule_objet}")
         else:
             st.error("❌ Veuillez sélectionner une zone et un véhicule.")
@@ -824,6 +834,7 @@ if "df_voyages" in st.session_state:
 
 else:
     st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
+
 # =====================================================
 # 7️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
 # =====================================================
@@ -1155,11 +1166,6 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
     
     df_final = st.session_state.df_voyages_valides.copy()
     
-    #st.info("""
-    #**Génération automatique des codes voyage uniques pour chaque mission.**
-    #Le format : **Véhicule/Date/NuméroSéquentiel**
-    #""")
-    
     # Configuration des paramètres de génération
     col1, col2, col3 = st.columns(3)
     
@@ -1256,7 +1262,6 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
             df_export_final["Chauffeur"] = df_export_final["Matricule chauffeur"].apply(
                 lambda x: f"Chauffeur {x}" if pd.notna(x) and x != "" else "À attribuer"
             )
-            #st.success("✅ Colonne 'Chauffeur' créée à partir de 'Matricule chauffeur'")
         # Fallback
         else:
             df_export_final["Chauffeur"] = "À attribuer"
@@ -1266,11 +1271,6 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
     if "Code voyage" not in df_export_final.columns:
         st.error("❌ La colonne 'Code voyage' est manquante. Veuillez d'abord générer les codes voyage dans la section 10.")
         st.stop()
-    
-    #st.info("""
-    #**Exportez l'ensemble du planning de livraisons** avec l'ordre des colonnes suivant :
-    #- Code voyage, Zone, Véhicule N°, Chauffeur, BL inclus, Client(s) inclus, Poids total chargé, Volume total chargé
-    #""")
     
     col_export1, col_export2 = st.columns(2)
     
@@ -1299,21 +1299,20 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                     donnees_supplementaires['Besoin_Estafette_Zone'] = st.session_state.df_zone
                 
                 # Générer l'export
-                # Dans la section où vous appelez exporter_planning_excel, remplacez par :
-                    success, message = exporter_planning_excel(
-                        df_export_final,
-                        f"{nom_fichier}.xlsx",
-                        donnees_supplementaires,
-                        st.session_state.df_livraisons_original  # ← AJOUT DE CE PARAMÈTRE
-                    )
+                success, message = exporter_planning_excel(
+                    df_export_final,
+                    f"{nom_fichier}.xlsx",
+                    donnees_supplementaires,
+                    st.session_state.df_livraisons_original
+                )
                                     
                 if success:
                     st.success(message)
                     
                     # Aperçu du format d'export
-                    #st.subheader("👁️ Aperçu du format d'export")
-                    #colonnes_apercu = ["Code voyage", "Zone", "Ville", "Véhicule N°", "Chauffeur", "BL inclus", "Client(s) inclus", "Poids total chargé", "Volume total chargé"]
-                    #df_apercu = df_export_final[colonnes_apercu].head(5).copy()
+                    colonnes_apercu = ["Code voyage", "Zone", "Véhicule N°", "Chauffeur", "BL inclus", "Client(s) inclus", "Poids total chargé", "Volume total chargé"]
+                    colonnes_apercu = [col for col in colonnes_apercu if col in df_export_final.columns]
+                    df_apercu = df_export_final[colonnes_apercu].head(5).copy()
                     
                     # Formater l'affichage
                     if "Poids total chargé" in df_apercu.columns:
