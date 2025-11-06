@@ -9,7 +9,18 @@ openpyxl
 fpdf
 
 
+
+
+
+
                  Backend.py
+
+
+
+
+
+
+
 
 import pandas as pd
 import math
@@ -726,7 +737,22 @@ class TruckTransferManager:
 
 
 
+
+
+
+
+
+
+
                  APP.PY
+
+
+
+
+
+
+
+
 
 import streamlit as st
 import pandas as pd

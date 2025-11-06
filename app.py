@@ -5,63 +5,28 @@ import plotly.express as px
 
 
 # =====================================================
-# === Fonction show_df pour arrondir à 3 décimales ===
+# === Fonction show_df améliorée avec option multiligne ===
 # =====================================================
-def show_df(df, **kwargs):
+def show_df(df, multiline_columns=None, **kwargs):
     """
     Affiche un DataFrame avec tous les nombres arrondis à 3 décimales.
+    Si multiline_columns est spécifié, ces colonnes affichent leur contenu sur plusieurs lignes.
     kwargs sont transmis à st.dataframe.
     """
     if isinstance(df, pd.DataFrame):
         df_to_display = df.copy()
         df_to_display = df_to_display.round(3)
+        
+        # Si des colonnes multiligne sont spécifiées, formater leur contenu
+        if multiline_columns:
+            for col in multiline_columns:
+                if col in df_to_display.columns:
+                    # Remplacer les virgules par des sauts de ligne
+                    df_to_display[col] = df_to_display[col].astype(str).str.replace(', ', '\n')
+        
         st.dataframe(df_to_display, **kwargs)
     else:
         st.dataframe(df, **kwargs)
-
-# =====================================================
-# === Fonction show_df_multiline avec affichage HTML ===
-# =====================================================
-def show_df_multiline(df, column_to_multiline):
-    """
-    Affiche un DataFrame avec les articles multilignes dans la même cellule.
-    Chaque 'No livraison' reste sur une seule ligne.
-    """
-    df_display = df.copy()
-
-    # Grouper les lignes par livraison et concaténer les articles avec des <br>
-    df_display = df_display.groupby(
-        ['No livraison', 'Client', 'Ville', 'Représentant', 'Poids total', 'Volume total'],
-        as_index=False
-    ).agg({column_to_multiline: lambda x: "<br>".join(x.astype(str))})
-
-    # CSS pour forcer l'affichage des <br> sur plusieurs lignes
-    css = """
-    <style>
-    table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    th, td {
-        border: 1px solid #555;
-        padding: 8px;
-        text-align: left;
-        vertical-align: top;
-        white-space: normal;
-        word-wrap: break-word;
-    }
-    th {
-        background-color: #222;
-        color: white;
-    }
-    td {
-        color: #ddd;
-    }
-    </style>
-    """
-
-    html = df_display.to_html(escape=False, index=False)
-    st.markdown(css + html, unsafe_allow_html=True)
 
 # =====================================================
 # 📌 Constantes pour les véhicules et chauffeurs
@@ -225,7 +190,11 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 # --- Onglet Livraisons Client/Ville ---
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
-    show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), use_container_width=True)
+    show_df(
+        st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), 
+        multiline_columns=["Article"],  # ← ICI : articles sur plusieurs lignes
+        use_container_width=True
+    )
     
     # Bouton de téléchargement
     from io import BytesIO
@@ -262,7 +231,11 @@ with tab_city:
 # --- Onglet Livraisons Client & Ville + Zone ---
 with tab_zone_group:
     st.subheader("Livraisons par Client & Ville + Zone")
-    show_df(st.session_state.df_grouped_zone, use_container_width=True)
+    show_df(
+        st.session_state.df_grouped_zone, 
+        multiline_columns=["Article"],  # ← ICI aussi
+        use_container_width=True
+    )
     
     # Bouton de téléchargement
     excel_buffer_zone_group = BytesIO()
@@ -276,7 +249,6 @@ with tab_zone_group:
         file_name="Livraisons_Client_Ville_Zone.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
 # --- Onglet Besoin Estafette par Zone ---
 with tab_zone_summary:
     st.subheader("Besoin Estafette par Zone")
