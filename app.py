@@ -35,7 +35,7 @@ def show_df_multiline(df, column_to_multiline):
         as_index=False
     ).agg({column_to_multiline: lambda x: "<br>".join(x.astype(str))})
 
-    # CSS pour forcer l’affichage des <br> sur plusieurs lignes
+    # CSS pour forcer l'affichage des <br> sur plusieurs lignes
     css = """
     <style>
     table {
@@ -62,6 +62,7 @@ def show_df_multiline(df, column_to_multiline):
 
     html = df_display.to_html(escape=False, index=False)
     st.markdown(css + html, unsafe_allow_html=True)
+
 # =====================================================
 # 📌 Constantes pour les véhicules et chauffeurs
 # =====================================================
@@ -73,7 +74,7 @@ VEHICULES_DISPONIBLES = [
 CHAUFFEURS_DETAILS = {
     '09254': 'DAMMAK Karim', '06002': 'MAAZOUN Bassem', '11063': 'SASSI Ramzi',
     '10334': 'BOUJELBENE Mohamed', '15144': 'GADDOUR Rami', '08278': 'DAMMAK Wissem',
-    '18339': 'REKIK Ahmed', '07250': 'BARKIA Mustapha', '13321': 'BADRI Moez','Matricule': 'Chauffeur Camion'
+    '18339': 'REKIK Ahmed', '07250': 'BARKIA Mustapha', '13321': 'BADRI Moez','99999': 'Chauffeur Camion'
 }
 
 # Configuration page
@@ -91,10 +92,13 @@ if 'data_processed' not in st.session_state:
     st.session_state.df_grouped_zone = None
     st.session_state.df_zone = None 
     st.session_state.df_optimized_estafettes = None
-    st.session_state.rental_processor = None # Objet de traitement de location
-    st.session_state.propositions = None # Dataframe de propositions
-    st.session_state.selected_client = None # Client sélectionné
-    st.session_state.message = "" # Message de résultat d'opération
+    st.session_state.df_livraisons_original = None
+    st.session_state.rental_processor = None
+    st.session_state.propositions = None
+    st.session_state.selected_client = None
+    st.session_state.message = ""
+    st.session_state.df_voyages = None
+    st.session_state.df_livraisons = None
 
 # =====================================================
 # Fonctions de Callback pour la Location
@@ -105,25 +109,31 @@ def update_propositions_view():
     if st.session_state.rental_processor:
         st.session_state.propositions = st.session_state.rental_processor.detecter_propositions()
         
-        # Réinitialiser la sélection si le client n'est plus dans les propositions ouvertes
-        if (st.session_state.selected_client is not None and 
-            st.session_state.propositions is not None and 
-            st.session_state.selected_client not in st.session_state.propositions['Client'].astype(str).tolist()):
-            st.session_state.selected_client = None
+        # CORRECTION : Vérifier si le DataFrame de propositions n'est pas vide et contient la colonne 'Client'
+        if (st.session_state.propositions is not None and 
+            not st.session_state.propositions.empty and 
+            'Client' in st.session_state.propositions.columns):
+            
+            # Réinitialiser la sélection si le client n'est plus dans les propositions ouvertes
+            if (st.session_state.selected_client is not None and 
+                st.session_state.selected_client not in st.session_state.propositions['Client'].astype(str).tolist()):
+                st.session_state.selected_client = None
     else:
         st.session_state.propositions = pd.DataFrame()
 
 def handle_location_action(accepter):
     """Gère l'acceptation ou le refus de la proposition de location."""
     if st.session_state.rental_processor and st.session_state.selected_client:
-        # Assurer que le client est une chaîne valide
-        client_to_process = str(st.session_state.selected_client)
-        ok, msg, _ = st.session_state.rental_processor.appliquer_location(
-            client_to_process, accepter=accepter
-        )
-        st.session_state.message = msg
-        update_propositions_view()
-        # st.rerun() # Pas besoin de rerun ici car le on_click est déjà dans un bloc de rerender
+        try:
+            # Assurer que le client est une chaîne valide
+            client_to_process = str(st.session_state.selected_client)
+            ok, msg, _ = st.session_state.rental_processor.appliquer_location(
+                client_to_process, accepter=accepter
+            )
+            st.session_state.message = msg
+            update_propositions_view()
+        except Exception as e:
+            st.session_state.message = f"❌ Erreur lors du traitement : {str(e)}"
     elif not st.session_state.selected_client:
         st.session_state.message = "⚠️ Veuillez sélectionner un client à traiter."
     else:
@@ -148,16 +158,14 @@ with col_file_2:
 with col_file_3:
     wcliegps_file = st.file_uploader("Fichier Clients/Zones", type=["xlsx"])
 with col_button:
-    # Espace pour le bouton
-    st.markdown("<br>", unsafe_allow_html=True) # Petit espace
+    st.markdown("<br>", unsafe_allow_html=True)
     if st.button("Exécuter le traitement complet", type="primary"):
         if liv_file and ydlogist_file and wcliegps_file:
             processor = DeliveryProcessor()
             try:
                 with st.spinner("Traitement des données en cours..."):
-                    df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes = processor.process_delivery_data(
-                        liv_file, ydlogist_file, wcliegps_file
-                    )
+                    # Récupération des 6 valeurs
+                    df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes, df_livraisons_original = processor.process_delivery_data(liv_file, ydlogist_file, wcliegps_file)
                 
                 # Stockage des résultats dans l'état de session
                 st.session_state.df_optimized_estafettes = df_optimized_estafettes
@@ -165,14 +173,16 @@ with col_button:
                 st.session_state.df_city = df_city
                 st.session_state.df_grouped_zone = df_grouped_zone
                 st.session_state.df_zone = df_zone 
+                st.session_state.df_livraisons_original = df_livraisons_original
+                st.session_state.df_livraisons = df_grouped_zone  # Pour la section transfert
                 
-                # 🆕 Initialisation du processeur de location et des propositions
-                st.session_state.rental_processor = TruckRentalProcessor(df_optimized_estafettes)
+                # Initialisation avec les données originales
+                st.session_state.rental_processor = TruckRentalProcessor(df_optimized_estafettes, df_livraisons_original)
                 update_propositions_view()
                 
                 st.session_state.data_processed = True
                 st.session_state.message = "Traitement terminé avec succès ! Les résultats s'affichent ci-dessous."
-                st.rerun() # Rerun pour mettre à jour l'interface
+                st.rerun()
 
             except Exception as e:
                 st.error(f"❌ Erreur lors du traitement : {str(e)}")
@@ -216,6 +226,7 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
 
+    # Créer une copie du DataFrame
     df_liv = st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').copy()
 
     # Transformer les articles en liste avec retour à la ligne
@@ -228,27 +239,77 @@ with tab_grouped:
         unsafe_allow_html=True
     )
 
+    # Bouton de téléchargement (garder le format original pour l'export)
+    from io import BytesIO
+    excel_buffer_grouped = BytesIO()
+    with pd.ExcelWriter(excel_buffer_grouped, engine='openpyxl') as writer:
+        st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').to_excel(writer, index=False, sheet_name="Livraisons Client Ville")
+    excel_buffer_grouped.seek(0)
+    
+    st.download_button(
+        label="💾 Télécharger Livraisons Client/Ville",
+        data=excel_buffer_grouped,
+        file_name="Livraisons_Client_Ville.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
     # Stockage pour la section 5
     if "df_livraisons" not in st.session_state:
         st.session_state.df_livraisons = df_liv.copy()
-
-
-
 
 # --- Onglet Besoin Estafette par Ville ---
 with tab_city:
     st.subheader("Besoin Estafette par Ville")
     show_df(st.session_state.df_city, use_container_width=True)
+    
+    # Bouton de téléchargement
+    excel_buffer_city = BytesIO()
+    with pd.ExcelWriter(excel_buffer_city, engine='openpyxl') as writer:
+        st.session_state.df_city.to_excel(writer, index=False, sheet_name="Besoin Estafette Ville")
+    excel_buffer_city.seek(0)
+    
+    st.download_button(
+        label="💾 Télécharger Besoin par Ville",
+        data=excel_buffer_city,
+        file_name="Besoin_Estafette_Ville.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 # --- Onglet Livraisons Client & Ville + Zone ---
 with tab_zone_group:
     st.subheader("Livraisons par Client & Ville + Zone")
     show_df(st.session_state.df_grouped_zone, use_container_width=True)
+    
+    # Bouton de téléchargement
+    excel_buffer_zone_group = BytesIO()
+    with pd.ExcelWriter(excel_buffer_zone_group, engine='openpyxl') as writer:
+        st.session_state.df_grouped_zone.to_excel(writer, index=False, sheet_name="Livraisons Client Ville Zone")
+    excel_buffer_zone_group.seek(0)
+    
+    st.download_button(
+        label="💾 Télécharger Livraisons Client/Ville/Zone",
+        data=excel_buffer_zone_group,
+        file_name="Livraisons_Client_Ville_Zone.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 # --- Onglet Besoin Estafette par Zone ---
 with tab_zone_summary:
     st.subheader("Besoin Estafette par Zone")
     show_df(st.session_state.df_zone, use_container_width=True)
+    
+    # Bouton de téléchargement
+    excel_buffer_zone = BytesIO()
+    with pd.ExcelWriter(excel_buffer_zone, engine='openpyxl') as writer:
+        st.session_state.df_zone.to_excel(writer, index=False, sheet_name="Besoin Estafette Zone")
+    excel_buffer_zone.seek(0)
+    
+    st.download_button(
+        label="💾 Télécharger Besoin par Zone",
+        data=excel_buffer_zone,
+        file_name="Besoin_Estafette_Zone.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 # --- Onglet Graphiques ---
 with tab_charts:
@@ -283,7 +344,7 @@ with tab_charts:
 
 st.markdown("---")
 
-    # =====================================================
+# =====================================================
 # 3. PROPOSITION DE LOCATION DE CAMION (Section 3)
 # =====================================================
 st.header("3. 🚚 Proposition de location de camion")
@@ -294,34 +355,40 @@ if st.session_state.propositions is not None and not st.session_state.propositio
     
     with col_prop:
         st.markdown("### Propositions ouvertes")
-        # Affichage des propositions ouvertes avec show_df
-        show_df(
-            st.session_state.propositions,
-            use_container_width=True,
-            column_order=["Client", "Poids total (kg)", "Volume total (m³)", "Raison"],
-            hide_index=True
-        )
         
-        # Sélection du client (assure qu'un client non None est sélectionné par défaut si possible)
-        client_options = st.session_state.propositions['Client'].astype(str).tolist()
-        client_options_with_empty = [""] + client_options
-        
-        # Index de sélection par défaut
-        default_index = 0
-        if st.session_state.selected_client in client_options:
-             default_index = client_options_with_empty.index(st.session_state.selected_client)
-        elif len(client_options) > 0:
-             default_index = 1  # Sélectionne le premier client par défaut s'il y en a
+        # CORRECTION : Vérifier si la colonne 'Client' existe
+        if 'Client' in st.session_state.propositions.columns:
+            # Affichage des propositions ouvertes avec show_df
+            show_df(
+                st.session_state.propositions,
+                use_container_width=True,
+                column_order=["Client", "Poids total (kg)", "Volume total (m³)", "Raison"],
+                hide_index=True
+            )
+            
+            # Sélection du client
+            client_options = st.session_state.propositions['Client'].astype(str).tolist()
+            client_options_with_empty = [""] + client_options
+            
+            # Index de sélection par défaut
+            default_index = 0
+            if st.session_state.selected_client in client_options:
+                 default_index = client_options_with_empty.index(st.session_state.selected_client)
+            elif len(client_options) > 0:
+                 default_index = 1
 
-        st.session_state.selected_client = st.selectbox(
-            "Client à traiter :", 
-            options=client_options_with_empty, 
-            index=default_index,
-            key='client_select' 
-        )
+            st.session_state.selected_client = st.selectbox(
+                "Client à traiter :", 
+                options=client_options_with_empty, 
+                index=default_index,
+                key='client_select' 
+            )
+        else:
+            st.warning("⚠️ Format de données incorrect dans les propositions.")
+            st.session_state.selected_client = None
 
         col_btn_acc, col_btn_ref = st.columns(2)
-        is_client_selected = st.session_state.selected_client != ""
+        is_client_selected = st.session_state.selected_client != "" and st.session_state.selected_client is not None
         
         with col_btn_acc:
             st.button(
@@ -341,16 +408,18 @@ if st.session_state.propositions is not None and not st.session_state.propositio
     with col_details:
         st.markdown("### Détails de la commande client")
         if is_client_selected:
-            resume, details_df_styled = st.session_state.rental_processor.get_details_client(
-                st.session_state.selected_client
-            )
-            st.text(resume)
-            # Affichage du DataFrame stylisé avec show_df pour 3 décimales
-            show_df(details_df_styled, use_container_width=True, hide_index=True)
+            try:
+                resume, details_df_styled = st.session_state.rental_processor.get_details_client(
+                    st.session_state.selected_client
+                )
+                st.text(resume)
+                show_df(details_df_styled, use_container_width=True, hide_index=True)
+            except Exception as e:
+                st.error(f"❌ Erreur lors de la récupération des détails : {str(e)}")
         else:
             st.info("Sélectionnez un client pour afficher les détails de la commande/estafettes.")
 else:
-    st.success("🎉 Aucune proposition de location de camion en attente de décision.")
+    st.success(" Aucune proposition de location de camion en attente de décision.")
 
 st.markdown("---")
 
@@ -359,40 +428,90 @@ st.markdown("---")
 # =====================================================
 st.header("4. 🚐 Voyages par Estafette Optimisé (Inclut Camions Loués)")
 
+try:
+    # Récupération sécurisée du DataFrame
+    if st.session_state.rental_processor:
+        df_optimized_estafettes = st.session_state.rental_processor.get_df_result()
+    elif "df_voyages" in st.session_state:
+        df_optimized_estafettes = st.session_state.df_voyages.copy()
+    else:
+        st.error("❌ Données non disponibles. Veuillez exécuter le traitement complet.")
+        st.stop()
+    
+    # Vérifier que le DataFrame n'est pas vide
+    if df_optimized_estafettes.empty:
+        st.warning("⚠️ Aucune donnée à afficher.")
+        st.stop()
+    
+    # CORRECTION : Nettoyer les colonnes en double
+    df_clean = df_optimized_estafettes.loc[:, ~df_optimized_estafettes.columns.duplicated()]
+    
+    # Vérifier les colonnes disponibles
+    #st.info(f"📊 Colonnes disponibles: {', '.join(df_clean.columns)}")
+    
+    # Définir l'ordre des colonnes pour l'affichage
+    colonnes_ordre = [
+        "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé",
+        "Client(s) inclus", "Représentant(s) inclus", "BL inclus", 
+        "Taux d'occupation (%)", "Location_camion", "Location_proposee", "Code Véhicule"
+    ]
+    
+    # Filtrer seulement les colonnes qui existent
+    colonnes_finales = [col for col in colonnes_ordre if col in df_clean.columns]
+    
+    # Créer le DataFrame d'affichage
+    df_display = df_clean[colonnes_finales].copy()
+    
+    # Formater les colonnes numériques
+    if "Poids total chargé" in df_display.columns:
+        df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
+    if "Volume total chargé" in df_display.columns:
+        df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+    if "Taux d'occupation (%)" in df_display.columns:
+        df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
+    
+    # Afficher le tableau
+    show_df(df_display, use_container_width=True)
+    
+    # Préparer l'export Excel
+    df_export = df_clean.copy()
+    if "Poids total chargé" in df_export.columns:
+        df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
+    if "Volume total chargé" in df_export.columns:
+        df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
+    
+    # Bouton de téléchargement
+    from io import BytesIO
+    excel_buffer = BytesIO()
+    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+        df_export.to_excel(writer, index=False, sheet_name="Voyages Optimisés")
+    excel_buffer.seek(0)
+    
+    st.download_button(
+        label="💾 Télécharger Voyages Estafette Optimisés",
+        data=excel_buffer,
+        file_name="Voyages_Estafette_Optimises.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    
+    # Mise à jour pour les sections suivantes
+    st.session_state.df_voyages = df_clean
 
-# --- Création d'une copie pour l'affichage (avec unités) ---
-df_display = df_optimized_estafettes.copy()
-df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
-
-# --- Affichage avec show_df ---
-show_df(df_display, use_container_width=True)
-
-# --- Préparer un DataFrame pour export Excel ---
-df_export = df_optimized_estafettes.copy()
-df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
-df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
-
-# --- Bouton de téléchargement Excel ---
-from io import BytesIO
-path_optimized = "Voyages_Estafette_Optimises.xlsx"
-excel_buffer = BytesIO()
-with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-    df_export.to_excel(writer, index=False, sheet_name="Voyages Optimisés")
-excel_buffer.seek(0)
-
-st.download_button(
-    label="💾 Télécharger Voyages Estafette Optimisés",
-    data=excel_buffer,
-    file_name=path_optimized,
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
-
-# --- Mise à jour dans session_state pour la section 5 ---
-st.session_state.df_voyages = df_optimized_estafettes
-
-
+except KeyError as e:
+    st.error(f"❌ Erreur de colonne manquante : {e}")
+    st.info("🔄 Tentative de récupération des données...")
+    
+    # Tentative de récupération
+    if st.session_state.rental_processor:
+        st.session_state.df_voyages = st.session_state.rental_processor.df_base.copy()
+        st.rerun()
+        
+except Exception as e:
+    st.error(f"❌ Erreur lors de l'affichage des voyages optimisés: {str(e)}")
+    # Afficher les données brutes pour debug
+    st.write("Données brutes pour debug:")
+    if st.session_state.rental_processor:
+        st.write("Colonnes du df_base:", list(st.session_state.rental_processor.df_base.columns))
 # =====================================================
 # 5️⃣ TRANSFERT DES BLs ENTRE ESTAFETTES / CAMIONS
 # =====================================================
@@ -402,7 +521,7 @@ MAX_POIDS = 1550  # kg
 MAX_VOLUME = 4.608  # m³
 
 if "df_voyages" not in st.session_state:
-    st.warning("⚠️ Vous devez d'abord exécuter la section 3 (résultat final après location).")
+    st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
 elif "df_livraisons" not in st.session_state:
     st.warning("⚠️ Le DataFrame des livraisons détaillées n'est pas disponible.")
 else:
@@ -500,14 +619,231 @@ else:
                                 file_name="voyages_apres_transfert.xlsx",
                                 mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                             )
-
-                   
-
 # =====================================================
-# 6️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
+# 6️⃣ AJOUT D'OBJETS MANUELS AUX VÉHICULES
+# =====================================================
+st.markdown("## 📦 AJOUT D'OBJETS MANUELS AUX VÉHICULES")
+
+if "df_voyages" in st.session_state:
+    # Initialiser le gestionnaire de transfert si pas déjà fait
+    if "transfer_manager" not in st.session_state:
+        st.session_state.transfer_manager = TruckTransferManager(
+            st.session_state.df_voyages, 
+            st.session_state.df_livraisons
+        )
+    
+    df_voyages = st.session_state.df_voyages.copy()
+    
+    #st.info("""
+    #**Fonctionnalité :** Ajouter des objets manuels (colis urgents, matériel supplémentaire) 
+    #à un véhicule existant. Le système vérifie automatiquement la capacité disponible.
+    #""")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        # Sélection de la zone
+        zones_disponibles = sorted(df_voyages["Zone"].dropna().unique().tolist())
+        zone_objet = st.selectbox("🌍 Zone", zones_disponibles, key="zone_objet")
+    
+    with col2:
+        # Sélection du véhicule dans la zone choisie
+        if zone_objet:
+            vehicules_zone = sorted(
+                df_voyages[df_voyages["Zone"] == zone_objet]["Véhicule N°"].dropna().unique().tolist()
+            )
+            vehicule_objet = st.selectbox("🚚 Véhicule", vehicules_zone, key="vehicule_objet")
+        else:
+            vehicule_objet = st.selectbox("🚚 Véhicule", [], key="vehicule_objet")
+    
+    with col3:
+        # Informations sur le véhicule sélectionné
+        if zone_objet and vehicule_objet:
+            vehicule_data = df_voyages[
+                (df_voyages["Zone"] == zone_objet) & 
+                (df_voyages["Véhicule N°"] == vehicule_objet)
+            ].iloc[0]
+            
+            is_camion = vehicule_data.get("Code Véhicule", "") == "CAMION-LOUE"
+            capacite_poids = 30500 if is_camion else 1550
+            capacite_volume = 77.5 if is_camion else 4.608
+            
+            poids_actuel = vehicule_data.get("Poids total chargé", 0)
+            volume_actuel = vehicule_data.get("Volume total chargé", 0)
+            
+            st.metric(
+                "📊 Capacité utilisée", 
+                f"{poids_actuel:.1f}kg / {capacite_poids}kg",
+                f"{volume_actuel:.3f}m³ / {capacite_volume}m³"
+            )
+    
+    # Formulaire d'ajout d'objet
+    st.markdown("### 📝 Détails de l'objet à ajouter")
+    
+    col4, col5, col6 = st.columns(3)
+    
+    with col4:
+        nom_objet = st.text_input("🏷️ Nom de l'objet", placeholder="Ex: Matériel urgent, Colis oublié...")
+    
+    with col5:
+        poids_objet = st.number_input("⚖️ Poids (kg)", min_value=0.0, max_value=1000.0, value=10.0, step=0.1)
+    
+    with col6:
+        volume_objet = st.number_input("📦 Volume (m³)", min_value=0.0, max_value=10.0, value=0.1, step=0.01)
+    
+    # Bouton d'ajout
+    if st.button("➕ Ajouter l'objet au véhicule", type="primary"):
+        if not nom_objet:
+            st.error("❌ Veuillez donner un nom à l'objet.")
+        elif zone_objet and vehicule_objet:
+            try:
+                # Appel de la méthode add_manual_object
+                success, message, df_updated = st.session_state.transfer_manager.add_manual_object(
+                    df_voyages=df_voyages,
+                    vehicle=vehicule_objet,
+                    zone=zone_objet,
+                    name=nom_objet,
+                    weight=poids_objet,
+                    volume=volume_objet
+                )
+                
+                if success:
+                    st.success(message)
+                    
+                    # =====================================================
+                    # MÉCANISME DE MISE À JOUR FORCÉE DE TOUTES LES DONNÉES
+                    # =====================================================
+                    
+                    # 1. Mettre à jour le DataFrame principal dans session_state
+                    st.session_state.df_voyages = df_updated
+                    
+                    # 2. Synchroniser le gestionnaire de transfert
+                    st.session_state.transfer_manager.df_voyages = df_updated.copy()
+                    
+                    # 3. Synchroniser le processeur de location si disponible
+                    if st.session_state.rental_processor:
+                        try:
+                            # Méthode 1 : Mettre à jour directement le df_base
+                            st.session_state.rental_processor.df_base = df_updated.copy()
+                            
+                            # Méthode 2 : Recréer le processeur si nécessaire
+                            st.session_state.rental_processor = TruckRentalProcessor(
+                                df_updated, 
+                                st.session_state.df_livraisons_original
+                            )
+                            
+                            st.success("✅ Processeur de location synchronisé")
+                        except Exception as e:
+                            st.warning(f"⚠️ Synchronisation partielle du processeur : {str(e)}")
+                    
+                    # 4. Mettre à jour les propositions de location si elles existent
+                    if st.session_state.propositions is not None:
+                        try:
+                            st.session_state.propositions = st.session_state.rental_processor.detecter_propositions()
+                        except:
+                            pass  # Ignorer si la mise à jour des propositions échoue
+                    
+                    # 5. Mettre à jour les voyages validés si ils existent
+                    if 'df_voyages_valides' in st.session_state:
+                        try:
+                            # Recréer les voyages validés à partir des nouvelles données
+                            mask_valides = df_updated["Véhicule N°"].isin(
+                                st.session_state.df_voyages_valides["Véhicule N°"]
+                            )
+                            st.session_state.df_voyages_valides = df_updated[mask_valides].copy()
+                        except:
+                            pass  # Ignorer si la mise à jour des validations échoue
+                    
+                    # Afficher le véhicule mis à jour
+                    vehicule_update = df_updated[
+                        (df_updated["Zone"] == zone_objet) & 
+                        (df_updated["Véhicule N°"] == vehicule_objet)
+                    ].iloc[0]
+                    
+                    st.info(f"""
+                    **Véhicule mis à jour :**
+                    - Poids total : {vehicule_update['Poids total chargé']:.1f} kg
+                    - Volume total : {vehicule_update['Volume total chargé']:.3f} m³
+                    - Taux d'occupation : {vehicule_update['Taux d\'occupation (%)']:.1f}%
+                    - BLs inclus : {vehicule_update['BL inclus']}
+                    """)
+                    
+                    # Afficher un résumé des modifications
+                    st.success("🔄 Toutes les données ont été mises à jour avec succès !")
+                    
+                    # FORCER L'ACTUALISATION COMPLÈTE DE L'APPLICATION
+                    st.rerun()
+                    
+                else:
+                    st.error(message)
+                    
+            except Exception as e:
+                st.error(f"❌ Erreur lors de l'ajout de l'objet : {str(e)}")
+                # Debug information
+                st.error(f"Debug - Zone: {zone_objet}, Véhicule: {vehicule_objet}")
+        else:
+            st.error("❌ Veuillez sélectionner une zone et un véhicule.")
+    
+    # Affichage des objets ajoutés récemment
+    st.markdown("### 📋 Historique des objets ajoutés")
+    
+    # Rechercher les objets manuels dans les BLs
+    objets_manuels = []
+    for idx, row in df_voyages.iterrows():
+        bls = str(row.get("BL inclus", ""))
+        if "OBJ-" in bls:
+            for bl in bls.split(";"):
+                if bl.startswith("OBJ-"):
+                    # Trouver le véhicule correspondant dans les données mises à jour
+                    vehicule_info = df_voyages[
+                        (df_voyages["Zone"] == row["Zone"]) & 
+                        (df_voyages["Véhicule N°"] == row["Véhicule N°"])
+                    ]
+                    if not vehicule_info.empty:
+                        poids_vehicule = vehicule_info["Poids total chargé"].iloc[0]
+                        volume_vehicule = vehicule_info["Volume total chargé"].iloc[0]
+                        
+                        objets_manuels.append({
+                            "Véhicule": row["Véhicule N°"],
+                            "Zone": row["Zone"],
+                            "Objet": bl,
+                            "Poids Véhicule": f"{poids_vehicule:.1f} kg",
+                            "Volume Véhicule": f"{volume_vehicule:.3f} m³",
+                            "Type": "Camion" if row.get("Code Véhicule", "") == "CAMION-LOUE" else "Estafette"
+                        })
+    
+    if objets_manuels:
+        df_objets = pd.DataFrame(objets_manuels)
+        show_df(df_objets, use_container_width=True)
+        
+        # Bouton pour supprimer tous les objets (optionnel)
+        col_clear1, col_clear2 = st.columns([3, 1])
+        with col_clear2:
+            if st.button("🗑️ Supprimer tous les objets", type="secondary"):
+                # Réinitialiser les données sans objets manuels
+                df_sans_objets = st.session_state.df_voyages.copy()
+                for idx, row in df_sans_objets.iterrows():
+                    bls_originaux = str(row["BL inclus"]).split(";")
+                    bls_filtres = [bl for bl in bls_originaux if not bl.startswith("OBJ-")]
+                    df_sans_objets.at[idx, "BL inclus"] = ";".join(bls_filtres)
+                
+                # Réappliquer la mise à jour forcée
+                st.session_state.df_voyages = df_sans_objets
+                st.session_state.transfer_manager.df_voyages = df_sans_objets.copy()
+                if st.session_state.rental_processor:
+                    st.session_state.rental_processor.df_base = df_sans_objets.copy()
+                
+                st.success("✅ Tous les objets manuels ont été supprimés")
+                st.rerun()
+    else:
+        st.info(" Aucun objet manuel ajouté pour le moment.")
+
+else:
+    st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
+# =====================================================
+# 7️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
 # =====================================================
 st.markdown("## ✅ VALIDATION DES VOYAGES APRÈS TRANSFERT")
-
 
 from io import BytesIO
 
@@ -525,66 +861,66 @@ def to_excel(df, sheet_name="Voyages Validés"):
     return output.getvalue()
 
 # --- Création du DataFrame de validation à partir du df_voyages ---
-voyages_apres_transfert = st.session_state.df_voyages.copy()
-df_validation = voyages_apres_transfert.copy()
+if "df_voyages" in st.session_state:
+    voyages_apres_transfert = st.session_state.df_voyages.copy()
+    df_validation = voyages_apres_transfert.copy()
 
-if "validations" not in st.session_state:
-    st.session_state.validations = {}
+    if "validations" not in st.session_state:
+        st.session_state.validations = {}
 
+    # --- Affichage interactif des voyages ---
+    for idx, row in df_validation.iterrows():
+        with st.expander(f"🚚 Voyage {row['Véhicule N°']} | Zone : {row['Zone']}"):
+            st.write("**Informations du voyage :**")
+            row_display = row.to_frame().T.copy()
+            if "Poids total chargé" in row_display.columns:
+                row_display["Poids total chargé"] = row_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
+            if "Volume total chargé" in row_display.columns:
+                row_display["Volume total chargé"] = row_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+            show_df(row_display, use_container_width=True)
 
+            choix = st.radio(
+                f"Valider ce voyage ? (Estafette {row['Véhicule N°']})",
+                ["Oui", "Non"],
+                index=0 if st.session_state.validations.get(idx) == "Oui" 
+                      else 1 if st.session_state.validations.get(idx) == "Non" 
+                      else 0,
+                key=f"validation_{idx}"
+            )
+            st.session_state.validations[idx] = choix
 
+    # --- Bouton pour appliquer les validations ---
+    if st.button("🧮 Appliquer la validation"):
+        valid_indexes = [i for i, v in st.session_state.validations.items() if v == "Oui"]
+        valid_indexes = [i for i in valid_indexes if i in df_validation.index]
 
-# --- Affichage interactif des voyages ---
-for idx, row in df_validation.iterrows():
-    with st.expander(f"🚚 Voyage {row['Véhicule N°']} | Zone : {row['Zone']}"):
-        st.write("**Informations du voyage :**")
-        row_display = row.to_frame().T.copy()
-        if "Poids total chargé" in row_display.columns:
-            row_display["Poids total chargé"] = row_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-        if "Volume total chargé" in row_display.columns:
-            row_display["Volume total chargé"] = row_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-        show_df(row_display, use_container_width=True)
+        df_voyages_valides = df_validation.loc[valid_indexes].reset_index(drop=True)
+        st.session_state.df_voyages_valides = df_voyages_valides
 
-        choix = st.radio(
-            f"Valider ce voyage ? (Estafette {row['Véhicule N°']})",
-            ["Oui", "Non"],
-            index=0 if st.session_state.validations.get(idx) == "Oui" 
-                  else 1 if st.session_state.validations.get(idx) == "Non" 
-                  else 0,
-            key=f"validation_{idx}"
+        st.success(f"✅ {len(df_voyages_valides)} voyage(s) validé(s).")
+        st.markdown("### 📦 Voyages Validés")
+
+        # --- Affichage Streamlit avec unités ---
+        df_display = df_voyages_valides.copy()
+        if "Poids total chargé" in df_display.columns:
+            df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
+        if "Volume total chargé" in df_display.columns:
+            df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+        show_df(df_display, use_container_width=True)
+
+        # --- Export Excel arrondi ---
+        excel_data = to_excel(df_voyages_valides)
+        st.download_button(
+            label="💾 Télécharger les voyages validés (XLSX)",
+            data=excel_data,
+            file_name="Voyages_valides.xlsx",
+            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
-        st.session_state.validations[idx] = choix
-
-# --- Bouton pour appliquer les validations ---
-if st.button("🧮 Appliquer la validation"):
-    valid_indexes = [i for i, v in st.session_state.validations.items() if v == "Oui"]
-    valid_indexes = [i for i in valid_indexes if i in df_validation.index]
-
-    df_voyages_valides = df_validation.loc[valid_indexes].reset_index(drop=True)
-    st.session_state.df_voyages_valides = df_voyages_valides
-
-    st.success(f"✅ {len(df_voyages_valides)} voyage(s) validé(s).")
-    st.markdown("### 📦 Voyages Validés")
-
-    # --- Affichage Streamlit avec unités ---
-    df_display = df_voyages_valides.copy()
-    if "Poids total chargé" in df_display.columns:
-        df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-    if "Volume total chargé" in df_display.columns:
-        df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-    show_df(df_display, use_container_width=True)
-
-    # --- Export Excel arrondi ---
-    excel_data = to_excel(df_voyages_valides)
-    st.download_button(
-        label="💾 Télécharger les voyages validés (XLSX)",
-        data=excel_data,
-        file_name="Voyages_valides.xlsx",
-        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
+else:
+    st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
 
 # =====================================================
-# 7️⃣ ATTRIBUTION DES VÉHICULES ET CHAUFFEURS
+# 8️⃣ ATTRIBUTION DES VÉHICULES ET CHAUFFEURS
 # =====================================================
 st.markdown("## 🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS")
 
@@ -594,8 +930,6 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
 
     if "attributions" not in st.session_state:
         st.session_state.attributions = {}
-
-    
 
     for idx, row in df_attribution.iterrows():
         with st.expander(f"🚚 Voyage {row['Véhicule N°']} | Zone : {row['Zone']}"):
@@ -607,28 +941,53 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                 row_display["Volume total chargé"] = row_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
             show_df(row_display, use_container_width=True)
 
-            vehicule_selectionne = st.selectbox(
-                f"Véhicule pour le voyage {row['Véhicule N°']}",
-                VEHICULES_DISPONIBLES,
-                index=0 if st.session_state.attributions.get(idx, {}).get("Véhicule") else 0,
-                key=f"vehicule_{idx}"
-            )
-            chauffeur_selectionne = st.selectbox(
-                f"Chauffeur pour le voyage {row['Véhicule N°']}",
-                list(CHAUFFEURS_DETAILS.values()),
-                index=0 if st.session_state.attributions.get(idx, {}).get("Chauffeur") else 0,
-                key=f"chauffeur_{idx}"
-            )
+            col_veh, col_chauf = st.columns(2)
+            
+            with col_veh:
+                vehicule_selectionne = st.selectbox(
+                    f"Véhicule pour le voyage {row['Véhicule N°']}",
+                    VEHICULES_DISPONIBLES,
+                    index=0 if st.session_state.attributions.get(idx, {}).get("Véhicule") else 0,
+                    key=f"vehicule_{idx}"
+                )
+            
+            with col_chauf:
+                # MODIFICATION : Afficher matricule + nom dans le selectbox
+                options_chauffeurs = [f"{matricule} - {nom}" for matricule, nom in CHAUFFEURS_DETAILS.items() if matricule != 'Matricule']
+                
+                # Trouver l'index par défaut
+                default_index = 0
+                chauffeur_actuel = st.session_state.attributions.get(idx, {}).get("Chauffeur_complet")
+                if chauffeur_actuel and chauffeur_actuel in options_chauffeurs:
+                    default_index = options_chauffeurs.index(chauffeur_actuel)
+                
+                chauffeur_selectionne_complet = st.selectbox(
+                    f"Chauffeur pour le voyage {row['Véhicule N°']}",
+                    options_chauffeurs,
+                    index=default_index,
+                    key=f"chauffeur_{idx}"
+                )
+                
+                # Extraire le matricule et le nom du chauffeur sélectionné
+                if chauffeur_selectionne_complet:
+                    matricule_chauffeur = chauffeur_selectionne_complet.split(" - ")[0]
+                    nom_chauffeur = chauffeur_selectionne_complet.split(" - ")[1]
+                else:
+                    matricule_chauffeur = ""
+                    nom_chauffeur = ""
 
             st.session_state.attributions[idx] = {
                 "Véhicule": vehicule_selectionne,
-                "Chauffeur": chauffeur_selectionne
+                "Chauffeur_complet": chauffeur_selectionne_complet,
+                "Matricule_chauffeur": matricule_chauffeur,
+                "Nom_chauffeur": nom_chauffeur
             }
 
     if st.button("✅ Appliquer les attributions"):
 
         df_attribution["Véhicule attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Véhicule"])
-        df_attribution["Chauffeur attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Chauffeur"])
+        df_attribution["Chauffeur attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Nom_chauffeur"])
+        df_attribution["Matricule chauffeur"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Matricule_chauffeur"])
 
         
         st.markdown("### 📦 Voyages avec Véhicule et Chauffeur")
@@ -661,7 +1020,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
 
-        # --- Export PDF corrigé ---
+        # --- Export PDF ---
         from fpdf import FPDF
 
         def to_pdf(df, title="Voyages Attribués"):
@@ -701,3 +1060,453 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             file_name="Voyages_attribues.pdf",
             mime='application/pdf'
         )
+        
+        # Mettre à jour le session state
+        st.session_state.df_voyages_valides = df_attribution
+        st.success("✅ Attributions appliquées avec succès !")
+        
+else:
+    st.warning("⚠️ Vous devez d'abord valider les voyages dans la section 7.")
+
+
+# =====================================================
+# 9️⃣ RAPPORTS AVANCÉS ET ANALYTICS
+# =====================================================
+st.markdown("## 📊 RAPPORTS AVANCÉS ET ANALYTICS")
+
+if "df_voyages" in st.session_state and "df_livraisons_original" in st.session_state:
+    
+    # Initialiser le générateur de rapports
+    from backend import AdvancedReportGenerator
+    report_generator = AdvancedReportGenerator(
+        st.session_state.df_voyages, 
+        st.session_state.df_livraisons_original
+    )
+    
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "📈 Rapport Analytique", 
+        "👤 Rapport Client", 
+        "💰 Analyse Coûts", 
+        "✅ Validation Données"
+    ])
+    
+    with tab1:
+        st.subheader("Rapport Analytique Complet")
+        if st.button("🔄 Générer le rapport analytique"):
+            with st.spinner("Génération du rapport en cours..."):
+                rapport = report_generator.generer_rapport_analytique()
+                st.text_area("Rapport détaillé", rapport, height=400)
+    
+    with tab2:
+        st.subheader("Rapport Spécifique Client")
+        clients_disponibles = sorted(st.session_state.df_livraisons_original["Client de l'estafette"].unique())
+        client_rapport = st.selectbox("Sélectionner un client", clients_disponibles)
+        
+        if st.button("📋 Générer rapport client"):
+            with st.spinner("Génération du rapport client..."):
+                rapport_client = report_generator.generer_rapport_client(client_rapport)
+                st.text_area(f"Rapport pour {client_rapport}", rapport_client, height=300)
+    
+    with tab3:
+        st.subheader("Analyse des Coûts")
+        col_cost1, col_cost2 = st.columns(2)
+        
+        with col_cost1:
+            cout_estafette = st.number_input("Coût unitaire estafette (TND)", value=150, min_value=50, max_value=500)
+        with col_cost2:
+            cout_camion = st.number_input("Coût unitaire camion (TND)", value=800, min_value=300, max_value=2000)
+        
+        if st.button("💰 Calculer les coûts"):
+            from backend import calculer_couts_estimation
+            couts = calculer_couts_estimation(
+                st.session_state.df_voyages, 
+                cout_estafette, 
+                cout_camion
+            )
+            
+            if 'erreur' not in couts:
+                st.success(couts['cout_estimation'])
+                
+                # Graphique des coûts
+                import plotly.express as px
+                df_couts = pd.DataFrame({
+                    'Type': ['Estafettes', 'Camions'],
+                    'Coût Total (TND)': [
+                        couts['estafettes'] * couts['cout_estafette_unitaire'],
+                        couts['camions'] * couts['cout_camion_unitaire']
+                    ]
+                })
+                
+                fig = px.pie(df_couts, values='Coût Total (TND)', names='Type', 
+                            title='Répartition des coûts par type de véhicule')
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.error(couts['erreur'])
+    
+    with tab4:
+        st.subheader("Validation d'Intégrité des Données")
+        if st.button("🔍 Vérifier l'intégrité des données"):
+            from backend import verifier_integrite_donnees
+            resultat_validation = verifier_integrite_donnees(
+                st.session_state.df_voyages,
+                st.session_state.df_livraisons_original
+            )
+            
+            if "✅" in resultat_validation:
+                st.success(resultat_validation)
+            else:
+                st.warning(resultat_validation)
+
+else:
+    st.warning("⚠️ Vous devez d'abord traiter les données .")
+
+st.markdown("---")
+
+# =====================================================
+# 🔟 GÉNÉRATION DES CODES VOYAGE
+# =====================================================
+st.markdown("## 🏷️ GÉNÉRATION DES CODES VOYAGE")
+
+if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_valides.empty:
+    
+    df_final = st.session_state.df_voyages_valides.copy()
+    
+    #st.info("""
+    #**Génération automatique des codes voyage uniques pour chaque mission.**
+    #Le format : **Véhicule/Date/NuméroSéquentiel**
+    #""")
+    
+    # Configuration des paramètres de génération
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        date_voyage = st.date_input(
+            "📅 Date de voyage",
+            value=pd.Timestamp.now().date(),
+            help="Date prévue pour les livraisons"
+        )
+    
+    with col2:
+        numero_debut = st.number_input(
+            "🔢 Numéro séquentiel de départ",
+            min_value=1,
+            max_value=1000,
+            value=1,
+            help="Numéro de départ pour la séquence"
+        )
+    
+    with col3:
+        st.markdown("<br>", unsafe_allow_html=True)
+        generer_codes = st.button("🏷️ Générer les codes voyage", type="primary")
+    
+    if generer_codes:
+        try:
+            # Préparation des données pour le code voyage
+            df_final['Date Voyage Format'] = date_voyage.strftime('%Y%m%d')
+            
+            # Création du numéro séquentiel pour chaque voyage
+            df_final['Numero Séquentiel'] = range(numero_debut, numero_debut + len(df_final))
+            df_final['Numero Séquentiel Formatted'] = df_final['Numero Séquentiel'].apply(lambda x: f"{x:03d}")
+            
+            # Création du Code voyage
+            df_final['Code voyage'] = (
+                df_final['Véhicule N°'].astype(str) + '/' +
+                df_final['Date Voyage Format'].astype(str) + '/' +
+                df_final['Numero Séquentiel Formatted'].astype(str)
+            )
+            
+            # Mettre à jour le session state
+            st.session_state.df_voyages_valides = df_final
+            
+            st.success(f"✅ {len(df_final)} codes voyage générés avec succès !")
+            
+            # Afficher un aperçu des codes générés
+            st.markdown("### 📋 Aperçu des codes voyage générés")
+            df_apercu = df_final[['Véhicule N°', 'Zone', 'Code voyage']].copy()
+            show_df(df_apercu, use_container_width=True)
+            
+            print("✅ Colonne 'Code voyage' créée avec succès.")
+            
+        except Exception as e:
+            st.error(f"❌ Erreur lors de la génération des codes voyage : {str(e)}")
+    
+    # Afficher les codes existants si déjà générés
+    elif 'Code voyage' in df_final.columns:
+        st.success("✅ Codes voyage déjà générés")
+        df_apercu = df_final[['Véhicule N°', 'Zone', 'Code voyage']].copy()
+        show_df(df_apercu, use_container_width=True)
+        
+        # Option pour regénérer les codes
+        if st.button("🔄 Regénérer les codes voyage"):
+            del df_final['Code voyage']
+            del df_final['Date Voyage Format']
+            del df_final['Numero Séquentiel']
+            del df_final['Numero Séquentiel Formatted']
+            st.session_state.df_voyages_valides = df_final
+            st.rerun()
+
+else:
+    st.warning("⚠️ Vous devez d'abord valider les voyages.")
+
+# =====================================================
+# 📤 EXPORT FINAL ET PLANNING COMPLET - VERSION OPTIMISÉE
+# =====================================================
+st.markdown("## 📤 EXPORT FINAL ET PLANNING COMPLET")
+
+if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_valides.empty:
+    
+    df_export_final = st.session_state.df_voyages_valides.copy()
+    
+    # =====================================================
+    # GARANTIR QUE TOUTES LES COLONNES REQUISES EXISTENT
+    # =====================================================
+    
+    # Vérifier et créer la colonne "Chauffeur" si nécessaire
+    if "Chauffeur" not in df_export_final.columns:
+        # Priorité 1 : Utiliser "Chauffeur attribué"
+        if "Chauffeur attribué" in df_export_final.columns:
+            df_export_final["Chauffeur"] = df_export_final["Chauffeur attribué"]
+            st.success("✅ Colonne 'Chauffeur' créée à partir de 'Chauffeur attribué'")
+        # Priorité 2 : Utiliser "Matricule chauffeur" avec format
+        elif "Matricule chauffeur" in df_export_final.columns:
+            df_export_final["Chauffeur"] = df_export_final["Matricule chauffeur"].apply(
+                lambda x: f"Chauffeur {x}" if pd.notna(x) and x != "" else "À attribuer"
+            )
+            #st.success("✅ Colonne 'Chauffeur' créée à partir de 'Matricule chauffeur'")
+        # Fallback
+        else:
+            df_export_final["Chauffeur"] = "À attribuer"
+            st.warning("⚠️ Colonne 'Chauffeur' créée vide")
+    
+    # Vérifier que "Code voyage" existe
+    if "Code voyage" not in df_export_final.columns:
+        st.error("❌ La colonne 'Code voyage' est manquante. Veuillez d'abord générer les codes voyage dans la section 10.")
+        st.stop()
+    
+    #st.info("""
+    #**Exportez l'ensemble du planning de livraisons** avec l'ordre des colonnes suivant :
+    #- Code voyage, Zone, Véhicule N°, Chauffeur, BL inclus, Client(s) inclus, Poids total chargé, Volume total chargé
+    #""")
+    
+    col_export1, col_export2 = st.columns(2)
+    
+    with col_export1:
+        nom_fichier = st.text_input(
+            "📝 Nom du fichier d'export", 
+            value=f"Planning_Livraisons_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}",
+            help="Le fichier sera sauvegardé avec l'extension .xlsx"
+        )
+    
+    with col_export2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🚀 Générer l'export complet", type="primary"):
+            try:
+                from backend import exporter_planning_excel
+                
+                # Préparer les données supplémentaires
+                donnees_supplementaires = {}
+                
+                # Ajouter les données de base si disponibles
+                if st.session_state.df_grouped is not None:
+                    donnees_supplementaires['Livraisons_Client_Ville'] = st.session_state.df_grouped
+                if st.session_state.df_city is not None:
+                    donnees_supplementaires['Besoin_Estafette_Ville'] = st.session_state.df_city
+                if st.session_state.df_zone is not None:
+                    donnees_supplementaires['Besoin_Estafette_Zone'] = st.session_state.df_zone
+                
+                # Générer l'export
+                # Dans la section où vous appelez exporter_planning_excel, remplacez par :
+                    success, message = exporter_planning_excel(
+                        df_export_final,
+                        f"{nom_fichier}.xlsx",
+                        donnees_supplementaires,
+                        st.session_state.df_livraisons_original  # ← AJOUT DE CE PARAMÈTRE
+                    )
+                                    
+                if success:
+                    st.success(message)
+                    
+                    # Aperçu du format d'export
+                    #st.subheader("👁️ Aperçu du format d'export")
+                    #colonnes_apercu = ["Code voyage", "Zone", "Ville", "Véhicule N°", "Chauffeur", "BL inclus", "Client(s) inclus", "Poids total chargé", "Volume total chargé"]
+                    #df_apercu = df_export_final[colonnes_apercu].head(5).copy()
+                    
+                    # Formater l'affichage
+                    if "Poids total chargé" in df_apercu.columns:
+                        df_apercu["Poids total chargé"] = df_apercu["Poids total chargé"].map(lambda x: f"{x:.1f} kg")
+                    if "Volume total chargé" in df_apercu.columns:
+                        df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+                    
+                    show_df(df_apercu, use_container_width=True)
+                    
+                    # Proposer le téléchargement
+                    with open(f"{nom_fichier}.xlsx", "rb") as file:
+                        btn = st.download_button(
+                            label="💾 Télécharger le planning complet",
+                            data=file,
+                            file_name=f"{nom_fichier}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                else:
+                    st.error(message)
+                    
+            except Exception as e:
+                st.error(f"❌ Erreur lors de l'export : {str(e)}")
+
+    # =====================================================
+    # APERÇU DU PLANNING FINAL
+    # =====================================================
+    st.markdown("### 👁️ Aperçu du Planning Final")
+    
+    df_apercu_final = df_export_final.copy()
+    
+    # Colonnes à afficher (format d'export final)
+    colonnes_apercu = ["Code voyage", "Zone", "Véhicule N°", "Chauffeur", "BL inclus", "Client(s) inclus", "Poids total chargé", "Volume total chargé"]
+    colonnes_apercu = [col for col in colonnes_apercu if col in df_apercu_final.columns]
+    
+    # Formater l'affichage pour l'aperçu
+    if "Poids total chargé" in df_apercu_final.columns:
+        df_apercu_final["Poids total chargé"] = df_apercu_final["Poids total chargé"].map(lambda x: f"{x:.1f} kg")
+    if "Volume total chargé" in df_apercu_final.columns:
+        df_apercu_final["Volume total chargé"] = df_apercu_final["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+    
+    show_df(df_apercu_final[colonnes_apercu], use_container_width=True)
+
+else:
+    st.warning("⚠️ Vous devez d'abord valider les voyages  et générer les codes voyage.")
+
+# =====================================================
+# 🎯 RÉSUMÉ ET TABLEAU DE BORD FINAL
+# =====================================================
+st.markdown("## 🎯 RÉSUMÉ DU PLANNING")
+
+if "df_voyages" in st.session_state:
+    df_final = st.session_state.df_voyages.copy()
+    
+    # Calcul des métriques principales
+    total_vehicules = len(df_final)
+    estafettes = len(df_final[df_final["Code Véhicule"] == "ESTAFETTE"])
+    camions = len(df_final[df_final["Code Véhicule"] == "CAMION-LOUE"])
+    poids_total = df_final["Poids total chargé"].sum()
+    volume_total = df_final["Volume total chargé"].sum()
+    taux_moyen = df_final["Taux d'occupation (%)"].mean() if "Taux d'occupation (%)" in df_final.columns else 0
+    
+    # Affichage des métriques
+    col_metric1, col_metric2, col_metric3, col_metric4 = st.columns(4)
+    
+    with col_metric1:
+        st.metric("🚚 Total Véhicules", total_vehicules)
+    
+    with col_metric2:
+        st.metric("🚐 Estafettes", estafettes)
+    
+    with col_metric3:
+        st.metric("🚛 Camions", camions)
+    
+    with col_metric4:
+        st.metric("⚖️ Poids Total", f"{poids_total:.0f} kg")
+    
+    col_metric5, col_metric6, col_metric7, col_metric8 = st.columns(4)
+    
+    with col_metric5:
+        st.metric("📦 Volume Total", f"{volume_total:.1f} m³")
+    
+    with col_metric6:
+        st.metric("📊 Taux Occupation Moyen", f"{taux_moyen:.1f}%")
+    
+    with col_metric7:
+        # Calcul de l'efficacité
+        efficacite = "🟢 Bonne" if taux_moyen > 70 else "🟡 Moyenne" if taux_moyen > 50 else "🔴 Faible"
+        st.metric("🎯 Efficacité", efficacite)
+    
+    with col_metric8:
+        # Statut de complétion
+        status = "✅ Complet" if 'df_voyages_valides' in st.session_state else "🟡 En cours"
+        st.metric("📋 Statut", status)
+    
+    # Graphique de répartition par zone
+    st.subheader("📊 Répartition par Zone")
+    if 'Zone' in df_final.columns:
+        repartition_zone = df_final.groupby("Zone").size().reset_index(name="Nombre de véhicules")
+        
+        if not repartition_zone.empty:
+            import plotly.express as px
+            fig_zone = px.bar(
+                repartition_zone, 
+                x="Zone", 
+                y="Nombre de véhicules",
+                title="Nombre de véhicules par zone",
+                color="Nombre de véhicules"
+            )
+            st.plotly_chart(fig_zone, use_container_width=True)
+    
+    # Graphique de répartition par type de véhicule
+    st.subheader("🚗 Répartition par Type de Véhicule")
+    if "Code Véhicule" in df_final.columns:
+        repartition_type = df_final["Code Véhicule"].value_counts().reset_index()
+        repartition_type.columns = ["Type Véhicule", "Nombre"]
+        
+        fig_type = px.pie(
+            repartition_type, 
+            values="Nombre", 
+            names="Type Véhicule",
+            title="Répartition des types de véhicules"
+        )
+        st.plotly_chart(fig_type, use_container_width=True)
+
+else:
+    st.warning("⚠️ Le planning n'est pas encore généré.")
+
+# =====================================================
+# 🏁 PIED DE PAGE
+# =====================================================
+st.markdown("---")
+st.markdown(
+    """
+    <div style='text-align: center; color: #666;'>
+        <p>🚚 <strong>Système d'Optimisation des Livraisons</strong> - Développé par Zaineb KCHAOU</p>
+        <p>📧 Support : Zaineb.KCHAOU@sopal.com | 📞 Hotline : +216 23 130 088</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+# =====================================================
+# 📱 STYLE RESPONSIVE ET AMÉLIORATIONS VISUELLES
+# =====================================================
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        color: #1f77b4;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .metric-card {
+        background-color: #f0f2f6;
+        padding: 1rem;
+        border-radius: 10px;
+        border-left: 5px solid #1f77b4;
+    }
+    .success-box {
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        border-radius: 5px;
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+    .warning-box {
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 5px;
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+    .info-box {
+        background-color: #d1ecf1;
+        border: 1px solid #bee5eb;
+        border-radius: 5px;
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+</style>
+""", unsafe_allow_html=True)
