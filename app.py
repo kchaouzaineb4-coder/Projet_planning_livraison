@@ -671,9 +671,50 @@ if "df_voyages" in st.session_state:
                 
                 if success:
                     st.success(message)
-                    # Mettre à jour les données de session
+                    
+                    # =====================================================
+                    # MÉCANISME DE MISE À JOUR FORCÉE DE TOUTES LES DONNÉES
+                    # =====================================================
+                    
+                    # 1. Mettre à jour le DataFrame principal dans session_state
                     st.session_state.df_voyages = df_updated
-                    st.session_state.transfer_manager.df_voyages = df_updated
+                    
+                    # 2. Synchroniser le gestionnaire de transfert
+                    st.session_state.transfer_manager.df_voyages = df_updated.copy()
+                    
+                    # 3. Synchroniser le processeur de location si disponible
+                    if st.session_state.rental_processor:
+                        try:
+                            # Méthode 1 : Mettre à jour directement le df_base
+                            st.session_state.rental_processor.df_base = df_updated.copy()
+                            
+                            # Méthode 2 : Recréer le processeur si nécessaire
+                            st.session_state.rental_processor = TruckRentalProcessor(
+                                df_updated, 
+                                st.session_state.df_livraisons_original
+                            )
+                            
+                            st.success("✅ Processeur de location synchronisé")
+                        except Exception as e:
+                            st.warning(f"⚠️ Synchronisation partielle du processeur : {str(e)}")
+                    
+                    # 4. Mettre à jour les propositions de location si elles existent
+                    if st.session_state.propositions is not None:
+                        try:
+                            st.session_state.propositions = st.session_state.rental_processor.detecter_propositions()
+                        except:
+                            pass  # Ignorer si la mise à jour des propositions échoue
+                    
+                    # 5. Mettre à jour les voyages validés si ils existent
+                    if 'df_voyages_valides' in st.session_state:
+                        try:
+                            # Recréer les voyages validés à partir des nouvelles données
+                            mask_valides = df_updated["Véhicule N°"].isin(
+                                st.session_state.df_voyages_valides["Véhicule N°"]
+                            )
+                            st.session_state.df_voyages_valides = df_updated[mask_valides].copy()
+                        except:
+                            pass  # Ignorer si la mise à jour des validations échoue
                     
                     # Afficher le véhicule mis à jour
                     vehicule_update = df_updated[
@@ -689,11 +730,19 @@ if "df_voyages" in st.session_state:
                     - BLs inclus : {vehicule_update['BL inclus']}
                     """)
                     
+                    # Afficher un résumé des modifications
+                    st.success("🔄 Toutes les données ont été mises à jour avec succès !")
+                    
+                    # FORCER L'ACTUALISATION COMPLÈTE DE L'APPLICATION
+                    st.rerun()
+                    
                 else:
                     st.error(message)
                     
             except Exception as e:
                 st.error(f"❌ Erreur lors de l'ajout de l'objet : {str(e)}")
+                # Debug information
+                st.error(f"Debug - Zone: {zone_objet}, Véhicule: {vehicule_objet}")
         else:
             st.error("❌ Veuillez sélectionner une zone et un véhicule.")
     
@@ -707,24 +756,52 @@ if "df_voyages" in st.session_state:
         if "OBJ-" in bls:
             for bl in bls.split(";"):
                 if bl.startswith("OBJ-"):
-                    objets_manuels.append({
-                        "Véhicule": row["Véhicule N°"],
-                        "Zone": row["Zone"],
-                        "Objet": bl,
-                        "Poids": row["Poids total chargé"],
-                        "Volume": row["Volume total chargé"]
-                    })
+                    # Trouver le véhicule correspondant dans les données mises à jour
+                    vehicule_info = df_voyages[
+                        (df_voyages["Zone"] == row["Zone"]) & 
+                        (df_voyages["Véhicule N°"] == row["Véhicule N°"])
+                    ]
+                    if not vehicule_info.empty:
+                        poids_vehicule = vehicule_info["Poids total chargé"].iloc[0]
+                        volume_vehicule = vehicule_info["Volume total chargé"].iloc[0]
+                        
+                        objets_manuels.append({
+                            "Véhicule": row["Véhicule N°"],
+                            "Zone": row["Zone"],
+                            "Objet": bl,
+                            "Poids Véhicule": f"{poids_vehicule:.1f} kg",
+                            "Volume Véhicule": f"{volume_vehicule:.3f} m³",
+                            "Type": "Camion" if row.get("Code Véhicule", "") == "CAMION-LOUE" else "Estafette"
+                        })
     
     if objets_manuels:
         df_objets = pd.DataFrame(objets_manuels)
         show_df(df_objets, use_container_width=True)
+        
+        # Bouton pour supprimer tous les objets (optionnel)
+        col_clear1, col_clear2 = st.columns([3, 1])
+        with col_clear2:
+            if st.button("🗑️ Supprimer tous les objets", type="secondary"):
+                # Réinitialiser les données sans objets manuels
+                df_sans_objets = st.session_state.df_voyages.copy()
+                for idx, row in df_sans_objets.iterrows():
+                    bls_originaux = str(row["BL inclus"]).split(";")
+                    bls_filtres = [bl for bl in bls_originaux if not bl.startswith("OBJ-")]
+                    df_sans_objets.at[idx, "BL inclus"] = ";".join(bls_filtres)
+                
+                # Réappliquer la mise à jour forcée
+                st.session_state.df_voyages = df_sans_objets
+                st.session_state.transfer_manager.df_voyages = df_sans_objets.copy()
+                if st.session_state.rental_processor:
+                    st.session_state.rental_processor.df_base = df_sans_objets.copy()
+                
+                st.success("✅ Tous les objets manuels ont été supprimés")
+                st.rerun()
     else:
         st.info("ℹ️ Aucun objet manuel ajouté pour le moment.")
 
 else:
     st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
-
-st.markdown("---")
 # =====================================================
 # 7️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
 # =====================================================
