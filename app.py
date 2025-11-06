@@ -35,43 +35,34 @@ def show_df_multiline(df, column_to_multiline):
         as_index=False
     ).agg({column_to_multiline: lambda x: "<br>".join(x.astype(str))})
 
-    # CSS amélioré pour un meilleur espacement
+    # CSS pour forcer l'affichage des <br> sur plusieurs lignes
     css = """
     <style>
     table {
         width: 100%;
         border-collapse: collapse;
-        font-family: Arial, sans-serif;
     }
     th, td {
         border: 1px solid #555;
-        padding: 10px;
+        padding: 8px;
         text-align: left;
         vertical-align: top;
+        white-space: normal;
+        word-wrap: break-word;
     }
     th {
-        background-color: #2c3e50;
+        background-color: #222;
         color: white;
-        font-weight: bold;
     }
     td {
-        color: #333;
-        background-color: #f9f9f9;
-    }
-    /* Espacement amélioré pour les lignes */
-    tr:hover td {
-        background-color: #e8f4f8;
-    }
-    /* Style spécifique pour les cellules multilignes */
-    .multiline-cell {
-        line-height: 1.6;
-        white-space: normal !important;
+        color: #ddd;
     }
     </style>
     """
 
-    html = df_display.to_html(escape=False, index=False, classes='multiline-cell')
+    html = df_display.to_html(escape=False, index=False)
     st.markdown(css + html, unsafe_allow_html=True)
+
 # =====================================================
 # 📌 Constantes pour les véhicules et chauffeurs
 # =====================================================
@@ -234,12 +225,9 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 # --- Onglet Livraisons Client/Ville ---
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
-    show_df_multiline(
-        st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'),
-        column_to_multiline="Article"  # ← Articles avec <br> pour les sauts de ligne
-    )
+    show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), use_container_width=True)
     
-    # Bouton de téléchargement (reste identique)
+    # Bouton de téléchargement
     from io import BytesIO
     excel_buffer_grouped = BytesIO()
     with pd.ExcelWriter(excel_buffer_grouped, engine='openpyxl') as writer:
@@ -274,10 +262,7 @@ with tab_city:
 # --- Onglet Livraisons Client & Ville + Zone ---
 with tab_zone_group:
     st.subheader("Livraisons par Client & Ville + Zone")
-    show_df_multiline(
-        st.session_state.df_grouped_zone,
-        column_to_multiline="Article"  # ← Ici aussi
-    )
+    show_df(st.session_state.df_grouped_zone, use_container_width=True)
     
     # Bouton de téléchargement
     excel_buffer_zone_group = BytesIO()
@@ -291,6 +276,7 @@ with tab_zone_group:
         file_name="Livraisons_Client_Ville_Zone.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
 # --- Onglet Besoin Estafette par Zone ---
 with tab_zone_summary:
     st.subheader("Besoin Estafette par Zone")
@@ -1172,8 +1158,7 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
     #st.info("""
     #**Génération automatique des codes voyage uniques pour chaque mission.**
     #Le format : **Véhicule/Date/NuméroSéquentiel**
-    #
-    # """)
+    #""")
     
     # Configuration des paramètres de génération
     col1, col2, col3 = st.columns(3)
