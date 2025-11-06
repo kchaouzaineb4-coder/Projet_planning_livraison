@@ -489,18 +489,23 @@ try:
     # Filtrer seulement les colonnes qui existent
     colonnes_finales = [col for col in colonnes_ordre if col in df_clean.columns]
     
-    # Créer le DataFrame d'affichage avec formatage multiligne
+    # Créer le DataFrame d'affichage
     df_display = df_clean[colonnes_finales].copy()
     
-    # MODIFICATION : Appliquer l'affichage multiligne pour les colonnes "Client(s) inclus" et "BL inclus"
+    # MODIFICATION : Appliquer l'affichage multiligne pour les colonnes avec séparateur ";"
     if "Client(s) inclus" in df_display.columns:
         df_display["Client(s) inclus"] = df_display["Client(s) inclus"].astype(str).apply(
-            lambda x: "<br>".join(client.strip() for client in x.split(";"))
+            lambda x: "\n".join(client.strip() for client in x.split(";")) if x != "nan" else ""
+        )
+    
+    if "Représentant(s) inclus" in df_display.columns:
+        df_display["Représentant(s) inclus"] = df_display["Représentant(s) inclus"].astype(str).apply(
+            lambda x: "\n".join(repr.strip() for repr in x.split(";")) if x != "nan" else ""
         )
     
     if "BL inclus" in df_display.columns:
         df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
-            lambda x: "<br>".join(bl.strip() for bl in x.split(";"))
+            lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
         )
     
     # Formater les colonnes numériques
@@ -511,11 +516,18 @@ try:
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    # MODIFICATION : Afficher avec HTML au lieu de show_df
-    st.markdown(
-        df_display.to_html(escape=False, index=False),
-        unsafe_allow_html=True
-    )
+    # MODIFICATION : CSS pour les sauts de ligne + affichage avec show_df
+    st.markdown("""
+    <style>
+    .dataframe td {
+        white-space: pre-line !important;
+        line-height: 1.4;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Afficher le tableau
+    show_df(df_display, use_container_width=True)
     
     # Préparer l'export Excel (garder le format original)
     df_export = df_clean.copy()
