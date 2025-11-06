@@ -413,6 +413,20 @@ st.markdown("---")
 st.header("4. 🚐 Voyages par Estafette Optimisé (Inclut Camions Loués)")
 
 try:
+    # Récupération sécurisée du DataFrame
+    if st.session_state.rental_processor:
+        df_optimized_estafettes = st.session_state.rental_processor.get_df_result()
+    elif "df_voyages" in st.session_state:
+        df_optimized_estafettes = st.session_state.df_voyages.copy()
+    else:
+        st.error("❌ Données non disponibles. Veuillez exécuter le traitement complet.")
+        st.stop()
+    
+    # Vérifier que le DataFrame n'est pas vide
+    if df_optimized_estafettes.empty:
+        st.warning("⚠️ Aucune donnée à afficher.")
+        st.stop()
+    
     # CORRECTION : Nettoyer les colonnes en double
     df_clean = df_optimized_estafettes.loc[:, ~df_optimized_estafettes.columns.duplicated()]
     
@@ -467,13 +481,21 @@ try:
     # Mise à jour pour les sections suivantes
     st.session_state.df_voyages = df_clean
 
+except KeyError as e:
+    st.error(f"❌ Erreur de colonne manquante : {e}")
+    st.info("🔄 Tentative de récupération des données...")
+    
+    # Tentative de récupération
+    if st.session_state.rental_processor:
+        st.session_state.df_voyages = st.session_state.rental_processor.df_base.copy()
+        st.rerun()
+        
 except Exception as e:
     st.error(f"❌ Erreur lors de l'affichage des voyages optimisés: {str(e)}")
     # Afficher les données brutes pour debug
     st.write("Données brutes pour debug:")
-    st.write("Colonnes:", list(df_optimized_estafettes.columns))
-    st.write("Doublons:", df_optimized_estafettes.columns.duplicated().sum())
-
+    if st.session_state.rental_processor:
+        st.write("Colonnes du df_base:", list(st.session_state.rental_processor.df_base.columns))
 # =====================================================
 # 5️⃣ TRANSFERT DES BLs ENTRE ESTAFETTES / CAMIONS
 # =====================================================

@@ -592,30 +592,57 @@ class TruckRentalProcessor:
                 return pd.DataFrame()
 
     def get_df_result(self):
-            """Retourne le DataFrame optimisé final."""
-            df_result = self.df_base.copy()
-            
-            df_result.rename(columns={
-                "Poids total": "Poids total chargé",
-                "Volume total": "Volume total chargé",
-                "Client(s) inclus": "Client(s) inclus",
-                "Représentant": "Représentant(s) inclus",
-                "Camion N°": "Véhicule N°" 
-            }, inplace=True)
-            
-            df_result['Code_Tri'] = df_result['Code Véhicule'].apply(lambda x: 0 if x == CAMION_CODE else 1)
-            df_result = df_result.sort_values(by=["Code_Tri", "Estafette N°", "Véhicule N°", "Zone"], ascending=[True, True, True, True])
-            df_result = df_result.drop(columns=['Code_Tri', 'Estafette N°'], errors='ignore')
-            
-            final_cols_display = [
-                "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé", 
-                "Client(s) inclus", "Représentant(s) inclus", "BL inclus", "Taux d'occupation (%)",
-                "Location_camion", "Location_proposee", "Code Véhicule"
-            ]
-            
-            return df_result[[col for col in final_cols_display if col in df_result.columns]]
-
-
+        """Retourne le DataFrame optimisé final."""
+        df_result = self.df_base.copy()
+        
+        # Renommer les colonnes si nécessaire
+        rename_mapping = {
+            "Poids total": "Poids total chargé",
+            "Volume total": "Volume total chargé", 
+            "Représentant": "Représentant(s) inclus"
+        }
+        
+        # Appliquer seulement les renommages qui existent
+        rename_mapping = {k: v for k, v in rename_mapping.items() if k in df_result.columns}
+        if rename_mapping:
+            df_result.rename(columns=rename_mapping, inplace=True)
+        
+        # S'assurer que "Véhicule N°" existe
+        if "Camion N°" in df_result.columns and "Véhicule N°" not in df_result.columns:
+            df_result["Véhicule N°"] = df_result["Camion N°"]
+        
+        # Préparer le tri
+        df_result['Code_Tri'] = df_result['Code Véhicule'].apply(lambda x: 0 if x == CAMION_CODE else 1)
+        
+        # Définir l'ordre de tri par défaut
+        sort_columns = ["Code_Tri", "Zone"]
+        sort_ascending = [True, True]
+        
+        # Ajouter les colonnes de tri si elles existent
+        if "Estafette N°" in df_result.columns:
+            sort_columns.insert(1, "Estafette N°")
+            sort_ascending.insert(1, True)
+        
+        if "Véhicule N°" in df_result.columns:
+            sort_columns.append("Véhicule N°")
+            sort_ascending.append(True)
+        
+        # Appliquer le tri
+        df_result = df_result.sort_values(by=sort_columns, ascending=sort_ascending)
+        
+        # Nettoyer les colonnes temporaires
+        df_result = df_result.drop(columns=['Code_Tri'], errors='ignore')
+        
+        # Ordre d'affichage final
+        final_columns = [
+            "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé",
+            "Client(s) inclus", "Représentant(s) inclus", "BL inclus", "Taux d'occupation (%)",
+            "Location_camion", "Location_proposee", "Code Véhicule"
+        ]
+        
+        # Filtrer seulement les colonnes qui existent
+        available_columns = [col for col in final_columns if col in df_result.columns]
+        return df_result[available_columns]
 # =====================================================
 # CLASSE DE GESTION DES TRANSFERTS DE BL
 # =====================================================
