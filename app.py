@@ -492,21 +492,8 @@ try:
     # Créer le DataFrame d'affichage
     df_display = df_clean[colonnes_finales].copy()
     
-    # MODIFICATION : Appliquer l'affichage multiligne pour les colonnes avec séparateur ";"
-    if "Client(s) inclus" in df_display.columns:
-        df_display["Client(s) inclus"] = df_display["Client(s) inclus"].astype(str).apply(
-            lambda x: "\n".join(client.strip() for client in x.split(";")) if x != "nan" else ""
-        )
-    
-    if "Représentant(s) inclus" in df_display.columns:
-        df_display["Représentant(s) inclus"] = df_display["Représentant(s) inclus"].astype(str).apply(
-            lambda x: "\n".join(repr.strip() for repr in x.split(";")) if x != "nan" else ""
-        )
-    
-    if "BL inclus" in df_display.columns:
-        df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
-            lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
-        )
+    # MODIFICATION : NE PAS modifier les colonnes pour le multiligne
+    # Streamlit gère mieux l'affichage sans transformation des données
     
     # Formater les colonnes numériques
     if "Poids total chargé" in df_display.columns:
@@ -516,20 +503,13 @@ try:
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    # MODIFICATION : CSS pour les sauts de ligne + affichage avec show_df
-    st.markdown("""
-    <style>
-    .dataframe td {
-        white-space: pre-line !important;
-        line-height: 1.4;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Afficher le tableau
+    # MODIFICATION : Afficher simplement avec show_df sans CSS personnalisé
     show_df(df_display, use_container_width=True)
     
-    # Préparer l'export Excel (garder le format original)
+    # Information pour l'utilisateur
+    st.info("💡 **Astuce** : Les listes de clients, représentants et BL sont séparées par des points-virgules (;).")
+    
+    # Préparer l'export Excel
     df_export = df_clean.copy()
     if "Poids total chargé" in df_export.columns:
         df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
