@@ -1124,15 +1124,15 @@ def calculer_couts_estimation(df_voyages, cout_estafette=150, cout_camion=800):
     except Exception as e:
         return {'erreur': f"❌ Erreur dans le calcul des coûts : {str(e)}"}
 
-def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None):
+def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None, df_livraisons_original=None):
     """Exporte le planning complet vers Excel avec formatage personnalisé."""
     try:
         with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
             # =====================================================
-            # ORDRE EXACT DES COLONNES DEMANDÉ
+            # ORDRE EXACT DES COLONNES DEMANDÉ AVEC VILLE
             # =====================================================
             colonnes_demandees = [
-                "Code voyage", "Zone", "Véhicule N°", "Chauffeur", 
+                "Code voyage", "Zone", "Ville", "Véhicule N°", "Chauffeur", 
                 "BL inclus", "Client(s) inclus", "Poids total chargé", 
                 "Volume total chargé"
             ]
@@ -1158,10 +1158,50 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None)
                 else:
                     df_voyages["Chauffeur"] = "À attribuer"
             
-            # 2. Filtrer seulement les colonnes qui existent
+            # 2. AJOUT DE LA COLONNE "VILLE" - NOUVELLE FONCTIONNALITÉ
+            if "Ville" not in df_voyages.columns and df_livraisons_original is not None:
+                st.info("🔄 Ajout de la colonne Ville depuis les données originales...")
+                
+                # Créer un mapping BL -> Ville depuis les données originales
+                mapping_ville = {}
+                
+                # Parcourir les données originales pour créer le mapping
+                for idx, row in df_livraisons_original.iterrows():
+                    bl = str(row.get("No livraison", ""))
+                    ville = str(row.get("Ville", ""))
+                    if bl and bl != "nan" and ville and ville != "nan":
+                        mapping_ville[bl] = ville
+                
+                # Fonction pour extraire les villes à partir des BLs d'un véhicule
+                def get_villes_from_bls(bls_inclus):
+                    if pd.isna(bls_inclus) or bls_inclus == "":
+                        return ""
+                    
+                    bls_list = str(bls_inclus).split(';')
+                    villes_trouvees = set()
+                    
+                    for bl in bls_list:
+                        bl_clean = bl.strip()
+                        if bl_clean in mapping_ville:
+                            villes_trouvees.add(mapping_ville[bl_clean])
+                        # Ignorer les objets manuels (OBJ-)
+                        elif not bl_clean.startswith('OBJ-'):
+                            # Chercher le BL dans les données originales
+                            for original_bl, original_ville in mapping_ville.items():
+                                if bl_clean == original_bl:
+                                    villes_trouvees.add(original_ville)
+                                    break
+                    
+                    return ", ".join(sorted(villes_trouvees)) if villes_trouvees else "Ville inconnue"
+                
+                # Appliquer la fonction pour créer la colonne Ville
+                df_voyages["Ville"] = df_voyages["BL inclus"].apply(get_villes_from_bls)
+                st.success("✅ Colonne 'Ville' ajoutée avec succès")
+            
+            # 3. Filtrer seulement les colonnes qui existent
             colonnes_finales = [col for col in colonnes_demandees if col in df_voyages.columns]
             
-            # 3. Vérifier qu'on a au moins les colonnes de base
+            # 4. Vérifier qu'on a au moins les colonnes de base
             colonnes_requises = ["Zone", "Véhicule N°", "BL inclus", "Client(s) inclus"]
             colonnes_manquantes = [col for col in colonnes_requises if col not in colonnes_finales]
             
@@ -1169,7 +1209,7 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None)
                 print(f"❌ Colonnes manquantes : {', '.join(colonnes_manquantes)}")
                 return False, f"Colonnes manquantes : {', '.join(colonnes_manquantes)}"
             
-            # 4. Réorganiser le DataFrame avec l'ordre exact demandé
+            # 5. Réorganiser le DataFrame avec l'ordre exact demandé
             df_voyages_ordered = df_voyages[colonnes_finales].copy()
             
             # =====================================================

@@ -1256,7 +1256,7 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
             df_export_final["Chauffeur"] = df_export_final["Matricule chauffeur"].apply(
                 lambda x: f"Chauffeur {x}" if pd.notna(x) and x != "" else "À attribuer"
             )
-            st.success("✅ Colonne 'Chauffeur' créée à partir de 'Matricule chauffeur'")
+            #st.success("✅ Colonne 'Chauffeur' créée à partir de 'Matricule chauffeur'")
         # Fallback
         else:
             df_export_final["Chauffeur"] = "À attribuer"
@@ -1267,10 +1267,10 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
         st.error("❌ La colonne 'Code voyage' est manquante. Veuillez d'abord générer les codes voyage dans la section 10.")
         st.stop()
     
-    st.info("""
-    **Exportez l'ensemble du planning de livraisons** avec l'ordre des colonnes suivant :
-    - Code voyage, Zone, Véhicule N°, Chauffeur, BL inclus, Client(s) inclus, Poids total chargé, Volume total chargé
-    """)
+    #st.info("""
+    #**Exportez l'ensemble du planning de livraisons** avec l'ordre des colonnes suivant :
+    #- Code voyage, Zone, Véhicule N°, Chauffeur, BL inclus, Client(s) inclus, Poids total chargé, Volume total chargé
+    #""")
     
     col_export1, col_export2 = st.columns(2)
     
@@ -1299,18 +1299,20 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                     donnees_supplementaires['Besoin_Estafette_Zone'] = st.session_state.df_zone
                 
                 # Générer l'export
-                success, message = exporter_planning_excel(
-                    df_export_final,
-                    f"{nom_fichier}.xlsx",
-                    donnees_supplementaires
-                )
-                
+                # Dans la section où vous appelez exporter_planning_excel, remplacez par :
+                    success, message = exporter_planning_excel(
+                        df_export_final,
+                        f"{nom_fichier}.xlsx",
+                        donnees_supplementaires,
+                        st.session_state.df_livraisons_original  # ← AJOUT DE CE PARAMÈTRE
+                    )
+                                    
                 if success:
                     st.success(message)
                     
                     # Aperçu du format d'export
                     #st.subheader("👁️ Aperçu du format d'export")
-                    #colonnes_apercu = ["Code voyage", "Zone", "Véhicule N°", "Chauffeur", "BL inclus", "Client(s) inclus", "Poids total chargé", "Volume total chargé"]
+                    #colonnes_apercu = ["Code voyage", "Zone", "Ville", "Véhicule N°", "Chauffeur", "BL inclus", "Client(s) inclus", "Poids total chargé", "Volume total chargé"]
                     #df_apercu = df_export_final[colonnes_apercu].head(5).copy()
                     
                     # Formater l'affichage
@@ -1355,7 +1357,7 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
     show_df(df_apercu_final[colonnes_apercu], use_container_width=True)
 
 else:
-    st.warning("⚠️ Vous devez d'abord valider les voyages dans la section 7 et générer les codes voyage dans la section 10.")
+    st.warning("⚠️ Vous devez d'abord valider les voyages  et générer les codes voyage.")
 
 # =====================================================
 # 🎯 RÉSUMÉ ET TABLEAU DE BORD FINAL
@@ -1437,7 +1439,7 @@ if "df_voyages" in st.session_state:
         st.plotly_chart(fig_type, use_container_width=True)
 
 else:
-    st.warning("⚠️ Le planning n'est pas encore généré. Veuillez traiter les données dans la section 1.")
+    st.warning("⚠️ Le planning n'est pas encore généré.")
 
 # =====================================================
 # 🏁 PIED DE PAGE
