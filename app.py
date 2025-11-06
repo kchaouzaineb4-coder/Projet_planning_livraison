@@ -64,6 +64,106 @@ def show_df_multiline(df, column_to_multiline):
     st.markdown(css + html, unsafe_allow_html=True)
 
 # =====================================================
+# === NOUVELLE FONCTION : show_livraisons_multiline ===
+# =====================================================
+def show_livraisons_multiline(df):
+    """
+    Affiche le tableau des livraisons avec les articles sur plusieurs lignes
+    comme dans l'exemple fourni.
+    """
+    if df.empty:
+        st.info("Aucune donnée à afficher")
+        return
+    
+    # Créer une copie du DataFrame
+    df_display = df.copy()
+    
+    # S'assurer que la colonne Article existe
+    if 'Article' not in df_display.columns:
+        st.error("La colonne 'Article' n'existe pas dans les données")
+        return
+    
+    # Grouper par livraison et agréger les articles avec des sauts de ligne
+    group_cols = ['No livraison', 'Client', 'Ville', 'Représentant', 'Poids total', 'Volume total']
+    group_cols = [col for col in group_cols if col in df_display.columns]
+    
+    df_grouped = df_display.groupby(group_cols, as_index=False).agg({
+        'Article': lambda x: '<br>'.join(x.astype(str))
+    })
+    
+    # CSS pour l'affichage multiligne
+    css = """
+    <style>
+    .livraisons-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: Arial, sans-serif;
+    }
+    .livraisons-table th {
+        background-color: #2c3e50;
+        color: white;
+        padding: 10px;
+        text-align: left;
+        border: 1px solid #34495e;
+        font-weight: bold;
+    }
+    .livraisons-table td {
+        padding: 8px 10px;
+        border: 1px solid #bdc3c7;
+        vertical-align: top;
+    }
+    .livraisons-table tr:nth-child(even) {
+        background-color: #ecf0f1;
+    }
+    .livraisons-table tr:hover {
+        background-color: #d6dbdf;
+    }
+    .article-cell {
+        white-space: normal !important;
+        line-height: 1.4;
+    }
+    </style>
+    """
+    
+    # Générer le HTML du tableau
+    html = f"""
+    {css}
+    <table class='livraisons-table'>
+        <thead>
+            <tr>
+                <th>No livraison</th>
+                <th>Client</th>
+                <th>Ville</th>
+                <th>Représentant</th>
+                <th>Article</th>
+                <th>Poids total</th>
+                <th>Volume total</th>
+            </tr>
+        </thead>
+        <tbody>
+    """
+    
+    for _, row in df_grouped.iterrows():
+        html += f"""
+            <tr>
+                <td>{row['No livraison']}</td>
+                <td>{row['Client']}</td>
+                <td>{row['Ville']}</td>
+                <td>{row['Représentant']}</td>
+                <td class='article-cell'>{row['Article']}</td>
+                <td>{row['Poids total']:.3f}</td>
+                <td>{row['Volume total']:.3f}</td>
+            </tr>
+        """
+    
+    html += """
+        </tbody>
+    </table>
+    """
+    
+    st.markdown(html, unsafe_allow_html=True)
+
+# =====================================================
 # 📌 Constantes pour les véhicules et chauffeurs
 # =====================================================
 VEHICULES_DISPONIBLES = [
@@ -225,9 +325,14 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 # --- Onglet Livraisons Client/Ville ---
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
-    show_df(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'), use_container_width=True)
     
-    # Bouton de téléchargement
+    # REMPLACÉ : Utilisation de la nouvelle fonction d'affichage multiligne
+    if st.session_state.df_grouped is not None:
+        show_livraisons_multiline(st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore'))
+    else:
+        st.info("Aucune donnée disponible pour l'affichage")
+    
+    # Bouton de téléchargement (garder le format original pour l'export)
     from io import BytesIO
     excel_buffer_grouped = BytesIO()
     with pd.ExcelWriter(excel_buffer_grouped, engine='openpyxl') as writer:
@@ -262,7 +367,12 @@ with tab_city:
 # --- Onglet Livraisons Client & Ville + Zone ---
 with tab_zone_group:
     st.subheader("Livraisons par Client & Ville + Zone")
-    show_df(st.session_state.df_grouped_zone, use_container_width=True)
+    
+    # UTILISATION DE LA NOUVELLE FONCTION AUSSI ICI
+    if st.session_state.df_grouped_zone is not None:
+        show_livraisons_multiline(st.session_state.df_grouped_zone)
+    else:
+        st.info("Aucune donnée disponible pour l'affichage")
     
     # Bouton de téléchargement
     excel_buffer_zone_group = BytesIO()
