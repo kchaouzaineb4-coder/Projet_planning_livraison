@@ -496,124 +496,125 @@ class TruckRentalProcessor:
             return False, f"❌ Erreur lors de l'application de la décision: {str(e)}", self.df_base
 
     def _reoptimiser_estafettes_par_zone(self, bls_a_garder, zones_affectees):
-        """Réoptimise complètement les estafettes pour les BLs restants après transfert."""
-        try:
-            if not bls_a_garder:
-                return pd.DataFrame()
-            
-            # Récupérer les données complètes des BLs à garder
-            df_bls_data = self.df_livraisons_original[
-                self.df_livraisons_original["No livraison"].isin(bls_a_garder)
-            ]
-            
-            if df_bls_data.empty:
-                return pd.DataFrame()
-            
-            resultats_optimises = []
-            estafette_num = 1  # Recommencer la numérotation
-            
-            # Optimiser par zone
-            for zone in zones_affectees:
-                df_zone = df_bls_data[df_bls_data["Zone"] == zone]
+            """Réoptimise complètement les estafettes pour les BLs restants après transfert."""
+            try:
+                if not bls_a_garder:
+                    return pd.DataFrame()
                 
-                if df_zone.empty:
-                    continue
-                    
-                # Trier par poids décroissant pour l'optimisation
-                df_zone_sorted = df_zone.sort_values(by="Poids total", ascending=False).reset_index()
-                estafettes_zone = []
+                # Récupérer les données complètes des BLs à garder
+                df_bls_data = self.df_livraisons_original[
+                    self.df_livraisons_original["No livraison"].isin(bls_a_garder)
+                ]
                 
-                # Algorithme d'optimisation (bin packing)
-                for idx, row in df_zone_sorted.iterrows():
-                    bl = str(row["No livraison"])
-                    poids = row["Poids total"]
-                    volume = row["Volume total"]
-                    client = str(row["Client de l'estafette"])
-                    representant = str(row["Représentant"])
-                    placed = False
+                if df_bls_data.empty:
+                    return pd.DataFrame()
+                
+                resultats_optimises = []
+                estafette_num = 1  # Recommencer la numérotation
+                
+                # Optimiser par zone
+                for zone in zones_affectees:
+                    df_zone = df_bls_data[df_bls_data["Zone"] == zone]
                     
-                    # Essayer de placer dans une estafette existante
-                    for e in estafettes_zone:
-                        if (e["poids"] + poids <= CAPACITE_POIDS_ESTAFETTE and 
-                            e["volume"] + volume <= CAPACITE_VOLUME_ESTAFETTE):
-                            e["poids"] += poids
-                            e["volume"] += volume
-                            e["bls"].append(bl)
-                            e["clients"].add(client)
-                            e["representants"].add(representant)
-                            placed = True
-                            break
+                    if df_zone.empty:
+                        continue
+                        
+                    # Trier par poids décroissant pour l'optimisation
+                    df_zone_sorted = df_zone.sort_values(by="Poids total", ascending=False).reset_index()
+                    estafettes_zone = []
                     
-                    # Si pas placé, créer une nouvelle estafette
-                    if not placed:
-                        estafettes_zone.append({
-                            "poids": poids,
-                            "volume": volume,
-                            "bls": [bl],
-                            "clients": {client},
-                            "representants": {representant},
-                            "num_global": estafette_num
-                        })
-                        estafette_num += 1
+                    # Algorithme d'optimisation (bin packing)
+                    for idx, row in df_zone_sorted.iterrows():
+                        bl = str(row["No livraison"])
+                        poids = row["Poids total"]
+                        volume = row["Volume total"]
+                        client = str(row["Client de l'estafette"])
+                        representant = str(row["Représentant"])
+                        placed = False
+                        
+                        # Essayer de placer dans une estafette existante
+                        for e in estafettes_zone:
+                            if (e["poids"] + poids <= CAPACITE_POIDS_ESTAFETTE and 
+                                e["volume"] + volume <= CAPACITE_VOLUME_ESTAFETTE):
+                                e["poids"] += poids
+                                e["volume"] += volume
+                                e["bls"].append(bl)
+                                e["clients"].add(client)
+                                e["representants"].add(representant)
+                                placed = True
+                                break
+                        
+                        # Si pas placé, créer une nouvelle estafette
+                        if not placed:
+                            estafettes_zone.append({
+                                "poids": poids,
+                                "volume": volume,
+                                "bls": [bl],
+                                "clients": {client},
+                                "representants": {representant},
+                                "num_global": estafette_num
+                            })
+                            estafette_num += 1
 
-                # Formater les résultats pour la zone
-                for e in estafettes_zone:
-                    clients_list = ", ".join(sorted(list(e["clients"])))
-                    representants_list = ", ".join(sorted(list(e["representants"])))
-                    
-                    # Calcul du taux d'occupation
-                    taux_poids = (e["poids"] / CAPACITE_POIDS_ESTAFETTE) * 100
-                    taux_volume = (e["volume"] / CAPACITE_VOLUME_ESTAFETTE) * 100
-                    taux_occupation = max(taux_poids, taux_volume)
-                    
-                    resultats_optimises.append({
-                        "Zone": zone,
-                        "Estafette N°": e["num_global"],
-                        "Poids total": e["poids"],
-                        "Volume total": e["volume"],
-                        "Client(s) inclus": clients_list,
-                        "Représentant(s) inclus": representants_list,
-                        "BL inclus": ";".join(e["bls"]),
-                        "Taux d'occupation (%)": taux_occupation,
-                        "Location_camion": False,
-                        "Location_proposee": False,
-                        "Code Véhicule": "ESTAFETTE",
-                        "Camion N°": f"E{e['num_global']}"
-                    })
-            
-            # Créer le DataFrame final
-            if resultats_optimises:
-                return pd.DataFrame(resultats_optimises)
-            else:
-                return pd.DataFrame()
+                    # Formater les résultats pour la zone
+                    for e in estafettes_zone:
+                        clients_list = ", ".join(sorted(list(e["clients"])))
+                        representants_list = ", ".join(sorted(list(e["representants"])))
+                        
+                        # Calcul du taux d'occupation
+                        taux_poids = (e["poids"] / CAPACITE_POIDS_ESTAFETTE) * 100
+                        taux_volume = (e["volume"] / CAPACITE_VOLUME_ESTAFETTE) * 100
+                        taux_occupation = max(taux_poids, taux_volume)
+                        
+                        resultats_optimises.append({
+                            "Zone": zone,
+                            "Estafette N°": e["num_global"],
+                            "Poids total": e["poids"],
+                            "Volume total": e["volume"],
+                            "Client(s) inclus": clients_list,
+                            "Représentant(s) inclus": representants_list,
+                            "BL inclus": ";".join(e["bls"]),
+                            "Taux d'occupation (%)": taux_occupation,
+                            "Location_camion": False,
+                            "Location_proposee": False,
+                            "Code Véhicule": "ESTAFETTE",
+                            "Camion N°": f"E{e['num_global']}"
+                        })
                 
-        except Exception as e:
-            print(f"❌ Erreur lors de la réoptimisation: {e}")
-            return pd.DataFrame()
+                # Créer le DataFrame final
+                if resultats_optimises:
+                    return pd.DataFrame(resultats_optimises)
+                else:
+                    return pd.DataFrame()
+                    
+            except Exception as e:
+                print(f"❌ Erreur lors de la réoptimisation: {e}")
+                return pd.DataFrame()
 
     def get_df_result(self):
-        """Retourne le DataFrame optimisé final."""
-        df_result = self.df_base.copy()
-        
-        df_result.rename(columns={
-            "Poids total": "Poids total chargé",
-            "Volume total": "Volume total chargé",
-            "Client(s) inclus": "Client(s) inclus",
-            "Représentant": "Représentant(s) inclus",
-            "Camion N°": "Véhicule N°" 
-        }, inplace=True)
-        
-        df_result['Code_Tri'] = df_result['Code Véhicule'].apply(lambda x: 0 if x == CAMION_CODE else 1)
-        df_result = df_result.sort_values(by=["Code_Tri", "Estafette N°", "Véhicule N°", "Zone"], ascending=[True, True, True, True])
-        df_result = df_result.drop(columns=['Code_Tri', 'Estafette N°'], errors='ignore')
-        
-        final_cols_display = [
-            "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé", 
-            "Client(s) inclus", "Représentant(s) inclus", "BL inclus", "Taux d'occupation (%)",
-            "Location_camion", "Location_proposee", "Code Véhicule"
-        ]
-        
-        return df_result[[col for col in final_cols_display if col in df_result.columns]]
+            """Retourne le DataFrame optimisé final."""
+            df_result = self.df_base.copy()
+            
+            df_result.rename(columns={
+                "Poids total": "Poids total chargé",
+                "Volume total": "Volume total chargé",
+                "Client(s) inclus": "Client(s) inclus",
+                "Représentant": "Représentant(s) inclus",
+                "Camion N°": "Véhicule N°" 
+            }, inplace=True)
+            
+            df_result['Code_Tri'] = df_result['Code Véhicule'].apply(lambda x: 0 if x == CAMION_CODE else 1)
+            df_result = df_result.sort_values(by=["Code_Tri", "Estafette N°", "Véhicule N°", "Zone"], ascending=[True, True, True, True])
+            df_result = df_result.drop(columns=['Code_Tri', 'Estafette N°'], errors='ignore')
+            
+            final_cols_display = [
+                "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé", 
+                "Client(s) inclus", "Représentant(s) inclus", "BL inclus", "Taux d'occupation (%)",
+                "Location_camion", "Location_proposee", "Code Véhicule"
+            ]
+            
+            return df_result[[col for col in final_cols_display if col in df_result.columns]]
+
 
 # =====================================================
 # CLASSE DE GESTION DES TRANSFERTS DE BL
