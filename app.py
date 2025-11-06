@@ -2,22 +2,95 @@ import streamlit as st
 import pandas as pd
 from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME 
 import plotly.express as px
-
+import numpy as np
 
 # =====================================================
-# === Fonction show_df pour arrondir à 3 décimales ===
+# === Fonction show_df AVEC FILTRES INTÉGRÉS ===
 # =====================================================
 def show_df(df, **kwargs):
     """
-    Affiche un DataFrame avec tous les nombres arrondis à 3 décimales.
-    kwargs sont transmis à st.dataframe.
+    Affiche un DataFrame avec filtres interactifs et tous les nombres arrondis à 3 décimales.
     """
-    if isinstance(df, pd.DataFrame):
+    if isinstance(df, pd.DataFrame) and not df.empty:
         df_to_display = df.copy()
         df_to_display = df_to_display.round(3)
+        
+        # =====================================================
+        # FILTRES INTERACTIFS
+        # =====================================================
+        st.markdown("#### 🔍 Filtres")
+        
+        # Filtre global rapide
+        search_all = st.text_input("🔎 Rechercher dans toutes les colonnes:", key=f"search_all_{id(df)}")
+        
+        if search_all:
+            mask = pd.Series([False] * len(df_to_display))
+            for col in df_to_display.columns:
+                try:
+                    mask = mask | df_to_display[col].astype(str).str.contains(search_all, case=False, na=False)
+                except:
+                    continue
+            df_to_display = df_to_display[mask]
+        
+        # Filtres par colonne (selectbox pour les colonnes avec peu de valeurs uniques)
+        num_cols = min(3, len(df_to_display.columns))
+        if num_cols > 0:
+            filter_cols = st.columns(num_cols)
+            
+            for idx, col in enumerate(df_to_display.columns):
+                if idx < num_cols:
+                    with filter_cols[idx]:
+                        try:
+                            # Pour les colonnes avec peu de valeurs uniques
+                            if df_to_display[col].nunique() <= 20 and df_to_display[col].nunique() > 0:
+                                unique_vals = ["Tous"] + sorted(df_to_display[col].dropna().unique().tolist())
+                                selected = st.selectbox(
+                                    f"Filtrer {col}:",
+                                    options=unique_vals,
+                                    key=f"filter_{col}_{id(df)}"
+                                )
+                                if selected != "Tous":
+                                    df_to_display = df_to_display[df_to_display[col] == selected]
+                            # Pour les colonnes numériques
+                            elif pd.api.types.is_numeric_dtype(df_to_display[col]):
+                                min_val = float(df_to_display[col].min())
+                                max_val = float(df_to_display[col].max())
+                                if min_val != max_val:
+                                    values = st.slider(
+                                        f"Plage {col}:",
+                                        min_val, max_val, (min_val, max_val),
+                                        key=f"slider_{col}_{id(df)}"
+                                    )
+                                    df_to_display = df_to_display[
+                                        (df_to_display[col] >= values[0]) & 
+                                        (df_to_display[col] <= values[1])
+                                    ]
+                        except Exception as e:
+                            # Si erreur sur un filtre, continuer
+                            continue
+        
+        # Informations et réinitialisation
+        col_reset, col_info = st.columns([1, 2])
+        with col_reset:
+            if st.button("🔄 Réinitialiser", key=f"reset_{id(df)}"):
+                st.rerun()
+        
+        with col_info:
+            st.info(f"📊 {len(df_to_display)} ligne(s) sur {len(df)} après filtrage")
+        
+        # =====================================================
+        # AFFICHAGE DU TABLEAU FILTRÉ
+        # =====================================================
         st.dataframe(df_to_display, **kwargs)
+        
+        return df_to_display
+    
+    elif isinstance(df, pd.DataFrame) and df.empty:
+        st.warning("⚠️ Le tableau est vide")
+        return df
     else:
         st.dataframe(df, **kwargs)
+        return df
 
 # =====================================================
 # === Fonction show_df_multiline avec affichage HTML ===
@@ -430,9 +503,6 @@ try:
     # CORRECTION : Nettoyer les colonnes en double
     df_clean = df_optimized_estafettes.loc[:, ~df_optimized_estafettes.columns.duplicated()]
     
-    # Vérifier les colonnes disponibles
-    #st.info(f"📊 Colonnes disponibles: {', '.join(df_clean.columns)}")
-    
     # Définir l'ordre des colonnes pour l'affichage
     colonnes_ordre = [
         "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé",
@@ -454,7 +524,7 @@ try:
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    # Afficher le tableau
+    # Afficher le tableau AVEC FILTRES
     show_df(df_display, use_container_width=True)
     
     # Préparer l'export Excel
@@ -492,10 +562,7 @@ except KeyError as e:
         
 except Exception as e:
     st.error(f"❌ Erreur lors de l'affichage des voyages optimisés: {str(e)}")
-    # Afficher les données brutes pour debug
-    st.write("Données brutes pour debug:")
-    if st.session_state.rental_processor:
-        st.write("Colonnes du df_base:", list(st.session_state.rental_processor.df_base.columns))
+
 # =====================================================
 # 5️⃣ TRANSFERT DES BLs ENTRE ESTAFETTES / CAMIONS
 # =====================================================
@@ -603,6 +670,7 @@ else:
                                 file_name="voyages_apres_transfert.xlsx",
                                 mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                             )
+
 # =====================================================
 # 6️⃣ AJOUT D'OBJETS MANUELS AUX VÉHICULES
 # =====================================================
@@ -617,11 +685,6 @@ if "df_voyages" in st.session_state:
         )
     
     df_voyages = st.session_state.df_voyages.copy()
-    
-    #st.info("""
-    #**Fonctionnalité :** Ajouter des objets manuels (colis urgents, matériel supplémentaire) 
-    #à un véhicule existant. Le système vérifie automatiquement la capacité disponible.
-    #""")
     
     col1, col2, col3 = st.columns(3)
     
@@ -694,68 +757,16 @@ if "df_voyages" in st.session_state:
                 if success:
                     st.success(message)
                     
-                    # =====================================================
-                    # MÉCANISME DE MISE À JOUR FORCÉE DE TOUTES LES DONNÉES
-                    # =====================================================
-                    
-                    # 1. Mettre à jour le DataFrame principal dans session_state
+                    # Mise à jour des données
                     st.session_state.df_voyages = df_updated
-                    
-                    # 2. Synchroniser le gestionnaire de transfert
                     st.session_state.transfer_manager.df_voyages = df_updated.copy()
                     
-                    # 3. Synchroniser le processeur de location si disponible
                     if st.session_state.rental_processor:
                         try:
-                            # Méthode 1 : Mettre à jour directement le df_base
                             st.session_state.rental_processor.df_base = df_updated.copy()
-                            
-                            # Méthode 2 : Recréer le processeur si nécessaire
-                            st.session_state.rental_processor = TruckRentalProcessor(
-                                df_updated, 
-                                st.session_state.df_livraisons_original
-                            )
-                            
-                            st.success("✅ Processeur de location synchronisé")
                         except Exception as e:
                             st.warning(f"⚠️ Synchronisation partielle du processeur : {str(e)}")
                     
-                    # 4. Mettre à jour les propositions de location si elles existent
-                    if st.session_state.propositions is not None:
-                        try:
-                            st.session_state.propositions = st.session_state.rental_processor.detecter_propositions()
-                        except:
-                            pass  # Ignorer si la mise à jour des propositions échoue
-                    
-                    # 5. Mettre à jour les voyages validés si ils existent
-                    if 'df_voyages_valides' in st.session_state:
-                        try:
-                            # Recréer les voyages validés à partir des nouvelles données
-                            mask_valides = df_updated["Véhicule N°"].isin(
-                                st.session_state.df_voyages_valides["Véhicule N°"]
-                            )
-                            st.session_state.df_voyages_valides = df_updated[mask_valides].copy()
-                        except:
-                            pass  # Ignorer si la mise à jour des validations échoue
-                    
-                    # Afficher le véhicule mis à jour
-                    vehicule_update = df_updated[
-                        (df_updated["Zone"] == zone_objet) & 
-                        (df_updated["Véhicule N°"] == vehicule_objet)
-                    ].iloc[0]
-                    
-                    st.info(f"""
-                    **Véhicule mis à jour :**
-                    - Poids total : {vehicule_update['Poids total chargé']:.1f} kg
-                    - Volume total : {vehicule_update['Volume total chargé']:.3f} m³
-                    - Taux d'occupation : {vehicule_update['Taux d\'occupation (%)']:.1f}%
-                    - BLs inclus : {vehicule_update['BL inclus']}
-                    """)
-                    
-                    # Afficher un résumé des modifications
-                    st.success("🔄 Toutes les données ont été mises à jour avec succès !")
-                    
-                    # FORCER L'ACTUALISATION COMPLÈTE DE L'APPLICATION
                     st.rerun()
                     
                 else:
@@ -763,8 +774,6 @@ if "df_voyages" in st.session_state:
                     
             except Exception as e:
                 st.error(f"❌ Erreur lors de l'ajout de l'objet : {str(e)}")
-                # Debug information
-                st.error(f"Debug - Zone: {zone_objet}, Véhicule: {vehicule_objet}")
         else:
             st.error("❌ Veuillez sélectionner une zone et un véhicule.")
     
@@ -824,6 +833,7 @@ if "df_voyages" in st.session_state:
 
 else:
     st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
+
 # =====================================================
 # 7️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
 # =====================================================
@@ -1003,47 +1013,6 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             file_name="Voyages_attribues.xlsx",
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
-
-        # --- Export PDF ---
-        from fpdf import FPDF
-
-        def to_pdf(df, title="Voyages Attribués"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", 'B', 14)
-            pdf.cell(0, 10, title, ln=True, align="C")
-            pdf.ln(5)
-
-            pdf.set_font("Arial", '', 10)
-
-            # Créer une copie formatée pour le PDF avec unités
-            df_pdf = df.copy()
-            if "Poids total chargé" in df_pdf.columns:
-                df_pdf["Poids total chargé"] = df_pdf["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-            if "Volume total chargé" in df_pdf.columns:
-                df_pdf["Volume total chargé"] = df_pdf["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-
-            col_widths = [pdf.get_string_width(col)+6 for col in df_pdf.columns]
-
-            # En-têtes
-            for i, col in enumerate(df_pdf.columns):
-                pdf.cell(col_widths[i], 8, str(col), border=1, align='C')
-            pdf.ln()
-
-            # Lignes
-            for _, row in df_pdf.iterrows():
-                for i, col in enumerate(df_pdf.columns):
-                    pdf.cell(col_widths[i], 8, str(row[col]), border=1)
-                pdf.ln()
-
-            return pdf.output(dest='S').encode('latin1')
-
-        st.download_button(
-            label="📄 Télécharger le tableau final (PDF)",
-            data=to_pdf(df_attribution),
-            file_name="Voyages_attribues.pdf",
-            mime='application/pdf'
-        )
         
         # Mettre à jour le session state
         st.session_state.df_voyages_valides = df_attribution
@@ -1209,8 +1178,6 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
             df_apercu = df_final[['Véhicule N°', 'Zone', 'Code voyage']].copy()
             show_df(df_apercu, use_container_width=True)
             
-            print("✅ Colonne 'Code voyage' créée avec succès.")
-            
         except Exception as e:
             st.error(f"❌ Erreur lors de la génération des codes voyage : {str(e)}")
     
@@ -1256,7 +1223,6 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
             df_export_final["Chauffeur"] = df_export_final["Matricule chauffeur"].apply(
                 lambda x: f"Chauffeur {x}" if pd.notna(x) and x != "" else "À attribuer"
             )
-            #st.success("✅ Colonne 'Chauffeur' créée à partir de 'Matricule chauffeur'")
         # Fallback
         else:
             df_export_final["Chauffeur"] = "À attribuer"
@@ -1266,11 +1232,6 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
     if "Code voyage" not in df_export_final.columns:
         st.error("❌ La colonne 'Code voyage' est manquante. Veuillez d'abord générer les codes voyage dans la section 10.")
         st.stop()
-    
-    #st.info("""
-    #**Exportez l'ensemble du planning de livraisons** avec l'ordre des colonnes suivant :
-    #- Code voyage, Zone, Véhicule N°, Chauffeur, BL inclus, Client(s) inclus, Poids total chargé, Volume total chargé
-    #""")
     
     col_export1, col_export2 = st.columns(2)
     
@@ -1299,29 +1260,15 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                     donnees_supplementaires['Besoin_Estafette_Zone'] = st.session_state.df_zone
                 
                 # Générer l'export
-                # Dans la section où vous appelez exporter_planning_excel, remplacez par :
-                    success, message = exporter_planning_excel(
-                        df_export_final,
-                        f"{nom_fichier}.xlsx",
-                        donnees_supplementaires,
-                        st.session_state.df_livraisons_original  # ← AJOUT DE CE PARAMÈTRE
-                    )
-                                    
+                success, message = exporter_planning_excel(
+                    df_export_final,
+                    f"{nom_fichier}.xlsx",
+                    donnees_supplementaires,
+                    st.session_state.df_livraisons_original  # AJOUT DE CE PARAMÈTRE
+                )
+                                
                 if success:
                     st.success(message)
-                    
-                    # Aperçu du format d'export
-                    #st.subheader("👁️ Aperçu du format d'export")
-                    #colonnes_apercu = ["Code voyage", "Zone", "Ville", "Véhicule N°", "Chauffeur", "BL inclus", "Client(s) inclus", "Poids total chargé", "Volume total chargé"]
-                    #df_apercu = df_export_final[colonnes_apercu].head(5).copy()
-                    
-                    # Formater l'affichage
-                    if "Poids total chargé" in df_apercu.columns:
-                        df_apercu["Poids total chargé"] = df_apercu["Poids total chargé"].map(lambda x: f"{x:.1f} kg")
-                    if "Volume total chargé" in df_apercu.columns:
-                        df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-                    
-                    show_df(df_apercu, use_container_width=True)
                     
                     # Proposer le téléchargement
                     with open(f"{nom_fichier}.xlsx", "rb") as file:
