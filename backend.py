@@ -774,7 +774,7 @@ class TruckTransferManager:
 
         except Exception as e:
             return False, f"❌ Erreur lors de l'ajout de l'objet : {str(e)}", df_voyages
-
+        
 # =====================================================
 # CLASSE DE VALIDATION DES VOYAGES
 # =====================================================
