@@ -278,9 +278,21 @@ with tab_city:
 # --- Onglet Livraisons Client & Ville + Zone ---
 with tab_zone_group:
     st.subheader("Livraisons par Client & Ville + Zone")
-    show_df(st.session_state.df_grouped_zone, use_container_width=True)
+
+    # Créer une copie du DataFrame
+    df_liv_zone = st.session_state.df_grouped_zone.copy()
+
+    # Transformer les articles en liste avec retour à la ligne
+    if "Article" in df_liv_zone.columns:
+        df_liv_zone["Article"] = df_liv_zone["Article"].astype(str).apply(lambda x: "<br>".join(a.strip() for a in x.split(",")))
+
+    # Affichage avec HTML dans st.markdown
+    st.markdown(
+        df_liv_zone.to_html(escape=False, index=False),
+        unsafe_allow_html=True
+    )
     
-    # Bouton de téléchargement
+    # Bouton de téléchargement (garder le format original pour l'export)
     excel_buffer_zone_group = BytesIO()
     with pd.ExcelWriter(excel_buffer_zone_group, engine='openpyxl') as writer:
         st.session_state.df_grouped_zone.to_excel(writer, index=False, sheet_name="Livraisons Client Ville Zone")
@@ -292,7 +304,6 @@ with tab_zone_group:
         file_name="Livraisons_Client_Ville_Zone.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
 # --- Onglet Besoin Estafette par Zone ---
 with tab_zone_summary:
     st.subheader("Besoin Estafette par Zone")
