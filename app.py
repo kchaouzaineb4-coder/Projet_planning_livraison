@@ -424,7 +424,26 @@ if st.session_state.propositions is not None and not st.session_state.propositio
                     st.session_state.selected_client
                 )
                 st.text(resume)
-                show_df(details_df_styled, use_container_width=True, hide_index=True)
+                
+                # MODIFICATION : Appliquer l'affichage multiligne pour la colonne "BL inclus"
+                if "BL inclus" in details_df_styled.columns:
+                    # Créer une copie du DataFrame
+                    details_df_multiline = details_df_styled.copy()
+                    
+                    # Transformer les BL inclus en liste avec retour à la ligne
+                    details_df_multiline["BL inclus"] = details_df_multiline["BL inclus"].astype(str).apply(
+                        lambda x: "<br>".join(bl.strip() for bl in x.split(";"))
+                    )
+                    
+                    # Affichage avec HTML dans st.markdown
+                    st.markdown(
+                        details_df_multiline.to_html(escape=False, index=False),
+                        unsafe_allow_html=True
+                    )
+                else:
+                    # Si pas de colonne "BL inclus", afficher normalement
+                    show_df(details_df_styled, use_container_width=True, hide_index=True)
+                    
             except Exception as e:
                 st.error(f"❌ Erreur lors de la récupération des détails : {str(e)}")
         else:
