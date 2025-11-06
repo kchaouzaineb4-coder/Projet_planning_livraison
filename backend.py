@@ -1141,26 +1141,29 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
             # CORRECTION : UTILISATION DES COLONNES EXISTANTES
             # =====================================================
             
+            # Faire une copie pour éviter les modifications sur l'original
+            df_voyages_working = df_voyages.copy()
+            
             # 1. Vérifier et mapper "Chauffeur" vers les colonnes existantes
-            if "Chauffeur" not in df_voyages.columns:
+            if "Chauffeur" not in df_voyages_working.columns:
                 # Priorité 1 : Utiliser "Chauffeur attribué"
-                if "Chauffeur attribué" in df_voyages.columns:
-                    df_voyages["Chauffeur"] = df_voyages["Chauffeur attribué"]
+                if "Chauffeur attribué" in df_voyages_working.columns:
+                    df_voyages_working["Chauffeur"] = df_voyages_working["Chauffeur attribué"]
                 # Priorité 2 : Utiliser "Nom_chauffeur" 
-                elif "Nom_chauffeur" in df_voyages.columns:
-                    df_voyages["Chauffeur"] = df_voyages["Nom_chauffeur"]
+                elif "Nom_chauffeur" in df_voyages_working.columns:
+                    df_voyages_working["Chauffeur"] = df_voyages_working["Nom_chauffeur"]
                 # Priorité 3 : Utiliser "Matricule chauffeur" avec format
-                elif "Matricule chauffeur" in df_voyages.columns:
-                    df_voyages["Chauffeur"] = df_voyages["Matricule chauffeur"].apply(
+                elif "Matricule chauffeur" in df_voyages_working.columns:
+                    df_voyages_working["Chauffeur"] = df_voyages_working["Matricule chauffeur"].apply(
                         lambda x: f"Chauffeur {x}" if pd.notna(x) and x != "" else "À attribuer"
                     )
                 # Fallback : Colonne vide
                 else:
-                    df_voyages["Chauffeur"] = "À attribuer"
+                    df_voyages_working["Chauffeur"] = "À attribuer"
             
             # 2. AJOUT DE LA COLONNE "VILLE" - NOUVELLE FONCTIONNALITÉ
-            if "Ville" not in df_voyages.columns and df_livraisons_original is not None:
-                st.info("🔄 Ajout de la colonne Ville depuis les données originales...")
+            if "Ville" not in df_voyages_working.columns and df_livraisons_original is not None:
+                print("🔄 Ajout de la colonne Ville depuis les données originales...")
                 
                 # Créer un mapping BL -> Ville depuis les données originales
                 mapping_ville = {}
@@ -1195,51 +1198,62 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
                     return ", ".join(sorted(villes_trouvees)) if villes_trouvees else "Ville inconnue"
                 
                 # Appliquer la fonction pour créer la colonne Ville
-                df_voyages["Ville"] = df_voyages["BL inclus"].apply(get_villes_from_bls)
-                st.success("✅ Colonne 'Ville' ajoutée avec succès")
+                df_voyages_working["Ville"] = df_voyages_working["BL inclus"].apply(get_villes_from_bls)
+                print("✅ Colonne 'Ville' ajoutée avec succès")
             
             # 3. Filtrer seulement les colonnes qui existent
-            colonnes_finales = [col for col in colonnes_demandees if col in df_voyages.columns]
+            colonnes_finales = [col for col in colonnes_demandees if col in df_voyages_working.columns]
             
-            # 4. Vérifier qu'on a au moins les colonnes de base
-            colonnes_requises = ["Zone", "Véhicule N°", "BL inclus", "Client(s) inclus"]
-            colonnes_manquantes = [col for col in colonnes_requises if col not in colonnes_finales]
-            
-            if colonnes_manquantes:
-                print(f"❌ Colonnes manquantes : {', '.join(colonnes_manquantes)}")
-                return False, f"Colonnes manquantes : {', '.join(colonnes_manquantes)}"
-            
-            # 5. Réorganiser le DataFrame avec l'ordre exact demandé
-            df_voyages_ordered = df_voyages[colonnes_finales].copy()
+            # 4. Vérifier qu'on a au moins les colonnes de base et que le DataFrame n'est pas vide
+            if df_voyages_working.empty:
+                # Créer une feuille vide avec les colonnes demandées pour éviter l'erreur
+                df_voyages_ordered = pd.DataFrame(columns=colonnes_finales)
+                print("⚠️ DataFrame vide - création d'une structure vide")
+            else:
+                colonnes_requises = ["Zone", "Véhicule N°", "BL inclus", "Client(s) inclus"]
+                colonnes_manquantes = [col for col in colonnes_requises if col not in colonnes_finales]
+                
+                if colonnes_manquantes:
+                    print(f"❌ Colonnes manquantes : {', '.join(colonnes_manquantes)}")
+                    # Créer quand même l'export avec les colonnes disponibles
+                    df_voyages_ordered = df_voyages_working[colonnes_finales].copy()
+                else:
+                    # 5. Réorganiser le DataFrame avec l'ordre exact demandé
+                    df_voyages_ordered = df_voyages_working[colonnes_finales].copy()
             
             # =====================================================
             # FORMATAGE DES VALEURS NUMÉRIQUES
             # =====================================================
-            if "Poids total chargé" in df_voyages_ordered.columns:
+            if "Poids total chargé" in df_voyages_ordered.columns and not df_voyages_ordered.empty:
                 df_voyages_ordered["Poids total chargé"] = df_voyages_ordered["Poids total chargé"].round(3)
             
-            if "Volume total chargé" in df_voyages_ordered.columns:
+            if "Volume total chargé" in df_voyages_ordered.columns and not df_voyages_ordered.empty:
                 df_voyages_ordered["Volume total chargé"] = df_voyages_ordered["Volume total chargé"].round(3)
             
             # =====================================================
             # FEUILLE PRINCIPALE - PLANNING LIVRAISONS
             # =====================================================
-            df_voyages_ordered.to_excel(writer, sheet_name='Planning Livraisons', index=False)
+            # CORRECTION : Vérifier que le DataFrame n'est pas vide avant d'exporter
+            if not df_voyages_ordered.empty:
+                df_voyages_ordered.to_excel(writer, sheet_name='Planning Livraisons', index=False)
+            else:
+                # Créer une feuille vide avec les colonnes pour éviter l'erreur
+                pd.DataFrame(columns=colonnes_finales).to_excel(writer, sheet_name='Planning Livraisons', index=False)
             
             # =====================================================
             # FEUILLE DE SYNTHÈSE (optionnelle)
             # =====================================================
             try:
-                nb_estafettes = len(df_voyages[df_voyages["Code Véhicule"] == "ESTAFETTE"]) if "Code Véhicule" in df_voyages.columns else 0
-                nb_camions = len(df_voyages[df_voyages["Code Véhicule"] == "CAMION-LOUE"]) if "Code Véhicule" in df_voyages.columns else 0
-                poids_total = df_voyages['Poids total chargé'].sum() if 'Poids total chargé' in df_voyages.columns else 0
-                volume_total = df_voyages['Volume total chargé'].sum() if 'Volume total chargé' in df_voyages.columns else 0
-                taux_moyen = df_voyages['Taux d\'occupation (%)'].mean() if 'Taux d\'occupation (%)' in df_voyages.columns else 0
+                nb_estafettes = len(df_voyages_working[df_voyages_working["Code Véhicule"] == "ESTAFETTE"]) if "Code Véhicule" in df_voyages_working.columns else 0
+                nb_camions = len(df_voyages_working[df_voyages_working["Code Véhicule"] == "CAMION-LOUE"]) if "Code Véhicule" in df_voyages_working.columns else 0
+                poids_total = df_voyages_working['Poids total chargé'].sum() if 'Poids total chargé' in df_voyages_working.columns else 0
+                volume_total = df_voyages_working['Volume total chargé'].sum() if 'Volume total chargé' in df_voyages_working.columns else 0
+                taux_moyen = df_voyages_working['Taux d\'occupation (%)'].mean() if 'Taux d\'occupation (%)' in df_voyages_working.columns else 0
                 
                 synthèse_data = {
                     'Metric': ['Total Véhicules', 'Estafettes', 'Camions', 'Poids Total', 'Volume Total', 'Taux Occupation Moyen'],
                     'Valeur': [
-                        len(df_voyages),
+                        len(df_voyages_working),
                         nb_estafettes,
                         nb_camions,
                         f"{poids_total:.1f} kg",
@@ -1250,53 +1264,66 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
                 pd.DataFrame(synthèse_data).to_excel(writer, sheet_name='Synthèse', index=False)
             except Exception as e:
                 print(f"⚠️ Erreur lors de la création de la synthèse : {e}")
+                # Créer une synthèse basique pour éviter l'erreur
+                pd.DataFrame({'Metric': ['Erreur'], 'Valeur': ['Données non disponibles']}).to_excel(writer, sheet_name='Synthèse', index=False)
             
             # =====================================================
             # FEUILLE STATS PAR ZONE (optionnelle)
             # =====================================================
             try:
-                if 'Zone' in df_voyages.columns:
+                if 'Zone' in df_voyages_working.columns and not df_voyages_working.empty:
                     agg_dict = {'Véhicule N°': 'count'}
                     
-                    if 'Poids total chargé' in df_voyages.columns:
+                    if 'Poids total chargé' in df_voyages_working.columns:
                         agg_dict['Poids total chargé'] = ['sum', 'mean']
-                    if 'Volume total chargé' in df_voyages.columns:
+                    if 'Volume total chargé' in df_voyages_working.columns:
                         agg_dict['Volume total chargé'] = ['sum', 'mean']
-                    if 'Taux d\'occupation (%)' in df_voyages.columns:
+                    if 'Taux d\'occupation (%)' in df_voyages_working.columns:
                         agg_dict['Taux d\'occupation (%)'] = 'mean'
                     
-                    stats_zone = df_voyages.groupby('Zone').agg(agg_dict).round(2)
+                    stats_zone = df_voyages_working.groupby('Zone').agg(agg_dict).round(2)
                     
                     if isinstance(stats_zone.columns, pd.MultiIndex):
                         stats_zone.columns = ['_'.join(col).strip() for col in stats_zone.columns.values]
                     
                     stats_zone.to_excel(writer, sheet_name='Stats par Zone')
+                else:
+                    # Créer une feuille stats vide
+                    pd.DataFrame(columns=['Zone', 'Nombre_Véhicules']).to_excel(writer, sheet_name='Stats par Zone', index=False)
             except Exception as e:
                 print(f"⚠️ Erreur lors de la création des stats par zone : {e}")
+                pd.DataFrame(columns=['Zone', 'Nombre_Véhicules']).to_excel(writer, sheet_name='Stats par Zone', index=False)
             
             # =====================================================
             # DONNÉES SUPPLÉMENTAIRES
             # =====================================================
             if donnees_supplementaires:
                 for nom_feuille, data in donnees_supplementaires.items():
-                    if isinstance(data, pd.DataFrame):
+                    if isinstance(data, pd.DataFrame) and not data.empty:
                         nom_feuille = nom_feuille[:31]
                         data.to_excel(writer, sheet_name=nom_feuille, index=False)
+                    else:
+                        # Créer une feuille vide pour cette donnée supplémentaire
+                        pd.DataFrame({f'Info': [f'Données non disponibles pour {nom_feuille}']}).to_excel(writer, sheet_name=nom_feuille[:31], index=False)
             
             # =====================================================
             # FEUILLE COMPLÈTE (toutes les colonnes) - pour référence
             # =====================================================
             try:
-                df_voyages_complet = df_voyages.copy()
-                # Formater les valeurs numériques pour l'export complet
-                if "Poids total chargé" in df_voyages_complet.columns:
-                    df_voyages_complet["Poids total chargé"] = df_voyages_complet["Poids total chargé"].round(3)
-                if "Volume total chargé" in df_voyages_complet.columns:
-                    df_voyages_complet["Volume total chargé"] = df_voyages_complet["Volume total chargé"].round(3)
-                
-                df_voyages_complet.to_excel(writer, sheet_name='Données Complètes', index=False)
+                if not df_voyages_working.empty:
+                    df_voyages_complet = df_voyages_working.copy()
+                    # Formater les valeurs numériques pour l'export complet
+                    if "Poids total chargé" in df_voyages_complet.columns:
+                        df_voyages_complet["Poids total chargé"] = df_voyages_complet["Poids total chargé"].round(3)
+                    if "Volume total chargé" in df_voyages_complet.columns:
+                        df_voyages_complet["Volume total chargé"] = df_voyages_complet["Volume total chargé"].round(3)
+                    
+                    df_voyages_complet.to_excel(writer, sheet_name='Données Complètes', index=False)
+                else:
+                    pd.DataFrame(columns=list(df_voyages_working.columns)).to_excel(writer, sheet_name='Données Complètes', index=False)
             except Exception as e:
                 print(f"⚠️ Erreur lors de la création de la feuille complète : {e}")
+                pd.DataFrame({'Erreur': ['Impossible de créer la feuille complète']}).to_excel(writer, sheet_name='Données Complètes', index=False)
         
         return True, f"✅ Planning exporté avec succès : {file_path}"
     
