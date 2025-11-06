@@ -403,7 +403,7 @@ if st.session_state.propositions is not None and not st.session_state.propositio
         else:
             st.info("Sélectionnez un client pour afficher les détails de la commande/estafettes.")
 else:
-    st.success("🎉 Aucune proposition de location de camion en attente de décision.")
+    st.success(" Aucune proposition de location de camion en attente de décision.")
 
 st.markdown("---")
 
@@ -431,7 +431,7 @@ try:
     df_clean = df_optimized_estafettes.loc[:, ~df_optimized_estafettes.columns.duplicated()]
     
     # Vérifier les colonnes disponibles
-    st.info(f"📊 Colonnes disponibles: {', '.join(df_clean.columns)}")
+    #st.info(f"📊 Colonnes disponibles: {', '.join(df_clean.columns)}")
     
     # Définir l'ordre des colonnes pour l'affichage
     colonnes_ordre = [
@@ -618,10 +618,10 @@ if "df_voyages" in st.session_state:
     
     df_voyages = st.session_state.df_voyages.copy()
     
-    st.info("""
-    **Fonctionnalité :** Ajouter des objets manuels (colis urgents, matériel supplémentaire) 
-    à un véhicule existant. Le système vérifie automatiquement la capacité disponible.
-    """)
+    #st.info("""
+    #**Fonctionnalité :** Ajouter des objets manuels (colis urgents, matériel supplémentaire) 
+    #à un véhicule existant. Le système vérifie automatiquement la capacité disponible.
+    #""")
     
     col1, col2, col3 = st.columns(3)
     
@@ -820,7 +820,7 @@ if "df_voyages" in st.session_state:
                 st.success("✅ Tous les objets manuels ont été supprimés")
                 st.rerun()
     else:
-        st.info("ℹ️ Aucun objet manuel ajouté pour le moment.")
+        st.info(" Aucun objet manuel ajouté pour le moment.")
 
 else:
     st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
@@ -1020,7 +1020,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             mime='application/pdf'
         )
 else:
-    st.warning("⚠️ Vous devez d'abord valider les voyages dans la section 6.")
+    st.warning("⚠️ Vous devez d'abord valider les voyages.")
 
 
 
@@ -1201,7 +1201,7 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
             st.rerun()
 
 else:
-    st.warning("⚠️ Vous devez d'abord valider les voyages dans la section 7.")
+    st.warning("⚠️ Vous devez d'abord valider les voyages.")
 
 # =====================================================
 # 📤 EXPORT FINAL ET PLANNING COMPLET
