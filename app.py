@@ -1067,9 +1067,9 @@ if "df_voyages" in st.session_state and "df_livraisons_original" in st.session_s
         col_cost1, col_cost2 = st.columns(2)
         
         with col_cost1:
-            cout_estafette = st.number_input("Coût unitaire estafette (€)", value=150, min_value=50, max_value=500)
+            cout_estafette = st.number_input("Coût unitaire estafette (TND)", value=150, min_value=50, max_value=500)
         with col_cost2:
-            cout_camion = st.number_input("Coût unitaire camion (€)", value=800, min_value=300, max_value=2000)
+            cout_camion = st.number_input("Coût unitaire camion (TND)", value=800, min_value=300, max_value=2000)
         
         if st.button("💰 Calculer les coûts"):
             from backend import calculer_couts_estimation
