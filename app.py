@@ -2092,14 +2092,15 @@ if "df_voyages" in st.session_state:
         if not repartition_zone.empty:
             import plotly.express as px
             fig_zone = px.bar(
-                repartition_zone, 
+                px.bar(repartition_zone, 
                 x="Zone", 
                 y="Nombre de véhicules",
                 title="Nombre de véhicules par zone",
-                color="Nombre de véhicules"
-            )
-            st.plotly_chart(fig_zone, use_container_width=True)
-    
+                color="Nombre de véhicules",
+                color_continuous_scale='viridis'  # Échelle de couleurs plus visible
+            ),
+            use_container_width=True
+        )
     # Graphique de répartition par type de véhicule
     st.subheader("🚗 Répartition par Type de Véhicule")
     if "Code Véhicule" in df_final.columns:
