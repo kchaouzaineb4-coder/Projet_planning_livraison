@@ -325,54 +325,33 @@ with tab_zone_summary:
 # --- Onglet Graphiques ---
 with tab_charts:
     st.subheader("Statistiques par Ville")
-
-    # 🎨 Palette de couleurs plus visible
-    couleurs = ["#003f5c", "#2f4b7c", "#665191", "#a05195", "#d45087", "#ff7c43", "#ffa600"]
-
     col1, col2 = st.columns(2)
     with col1:
         st.plotly_chart(
-            px.bar(
-                st.session_state.df_city, x="Ville", y="Poids total",
-                title="Poids total livré par ville",
-                color="Ville",
-                color_discrete_sequence=couleurs
-            ),
+            px.bar(st.session_state.df_city, x="Ville", y="Poids total",
+                   title="Poids total livré par ville"),
             use_container_width=True
         )
     with col2:
         st.plotly_chart(
-            px.bar(
-                st.session_state.df_city, x="Ville", y="Volume total",
-                title="Volume total livré par ville (m³)",
-                color="Ville",
-                color_discrete_sequence=couleurs
-            ),
+            px.bar(st.session_state.df_city, x="Ville", y="Volume total",
+                   title="Volume total livré par ville (m³)"),
             use_container_width=True
         )
 
     col3, col4 = st.columns(2)
     with col3:
         st.plotly_chart(
-            px.bar(
-                st.session_state.df_city, x="Ville", y="Nombre livraisons",
-                title="Nombre de livraisons par ville",
-                color="Ville",
-                color_discrete_sequence=couleurs
-            ),
+            px.bar(st.session_state.df_city, x="Ville", y="Nombre livraisons",
+                   title="Nombre de livraisons par ville"),
             use_container_width=True
         )
     with col4:
         st.plotly_chart(
-            px.bar(
-                st.session_state.df_city, x="Ville", y="Besoin estafette réel",
-                title="Besoin en Estafettes par ville",
-                color="Ville",
-                color_discrete_sequence=couleurs
-            ),
+            px.bar(st.session_state.df_city, x="Ville", y="Besoin estafette réel",
+                   title="Besoin en Estafettes par ville"),
             use_container_width=True
         )
-
 
 st.markdown("---")
 
