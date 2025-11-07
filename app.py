@@ -1035,6 +1035,48 @@ def to_excel(df, sheet_name="Voyages Validés"):
         df_export.to_excel(writer, index=False, sheet_name=sheet_name)
     return output.getvalue()
 
+# --- CSS pour améliorer l'apparence ---
+st.markdown("""
+<style>
+.voyage-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 20px;
+    margin: 10px 0;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.voyage-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+.metric-card {
+    background: #f8f9fa;
+    border-left: 4px solid #667eea;
+    padding: 12px;
+    margin: 8px 0;
+    border-radius: 5px;
+}
+.bl-list {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 5px;
+    padding: 10px;
+    margin: 10px 0;
+    max-height: 150px;
+    overflow-y: auto;
+}
+.validation-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # --- Création du DataFrame de validation à partir du df_voyages ---
 if "df_voyages" in st.session_state:
     voyages_apres_transfert = st.session_state.df_voyages.copy()
@@ -1043,54 +1085,164 @@ if "df_voyages" in st.session_state:
     if "validations" not in st.session_state:
         st.session_state.validations = {}
 
-    # --- Affichage interactif des voyages ---
+    # --- Affichage amélioré des voyages ---
+    st.markdown("### 📋 Liste des Voyages à Valider")
+    
     for idx, row in df_validation.iterrows():
-        with st.expander(f"🚚 Voyage {row['Véhicule N°']} | Zone : {row['Zone']}"):
-            st.write("**Informations du voyage :**")
-            row_display = row.to_frame().T.copy()
-            if "Poids total chargé" in row_display.columns:
-                row_display["Poids total chargé"] = row_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-            if "Volume total chargé" in row_display.columns:
-                row_display["Volume total chargé"] = row_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-            show_df(row_display, use_container_width=True)
+        # Création d'une carte pour chaque voyage
+        with st.container():
+            st.markdown(f"""
+            <div class="voyage-card">
+                <div class="voyage-header">
+                    <h4>🚚 Voyage {row['Véhicule N°']} | Zone: {row['Zone']}</h4>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            # Métriques principales
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <strong>📦 Poids Total</strong><br>
+                    {row['Poids total chargé']:.3f} kg
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <strong>📏 Volume Total</strong><br>
+                    {row['Volume total chargé']:.3f} m³
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col3:
+                taux_occupation = row.get('Taux d\'occupation (%)', 'N/A')
+                if taux_occupation != 'N/A':
+                    taux_text = f"{taux_occupation:.1f}%"
+                else:
+                    taux_text = "N/A"
+                st.markdown(f"""
+                <div class="metric-card">
+                    <strong>📊 Taux d'Occupation</strong><br>
+                    {taux_text}
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Informations détaillées
+            col4, col5 = st.columns(2)
+            
+            with col4:
+                clients = row.get('Client(s) inclus', '')
+                if clients:
+                    st.markdown(f"**👥 Clients:** {clients}")
+                
+                representants = row.get('Représentant(s) inclus', '')
+                if representants:
+                    st.markdown(f"**👨‍💼 Représentants:** {representants}")
+            
+            with col5:
+                location = "✅ Oui" if row.get('Location_camion') else "❌ Non"
+                st.markdown(f"**🚛 Location:** {location}")
+                
+                code_vehicule = row.get('Code Véhicule', 'N/A')
+                st.markdown(f"**🔧 Code Véhicule:** {code_vehicule}")
+            
+            # Liste des BL avec défilement
+            bls = row.get('BL inclus', '')
+            if bls:
+                bls_list = bls.split(';')
+                bls_html = "<br>".join([f"• {bl.strip()}" for bl in bls_list])
+                st.markdown(f"""
+                <div class="bl-list">
+                    <strong>📋 BLs Inclus ({len(bls_list)}):</strong><br>
+                    {bls_html}
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Boutons de validation côte à côte
+            st.markdown("**✅ Validation du voyage:**")
+            col_oui, col_non = st.columns(2)
+            
+            with col_oui:
+                if st.button(f"✅ Valider {row['Véhicule N°']}", key=f"btn_oui_{idx}", 
+                           use_container_width=True, type="primary" if st.session_state.validations.get(idx) == "Oui" else "secondary"):
+                    st.session_state.validations[idx] = "Oui"
+                    st.rerun()
+            
+            with col_non:
+                if st.button(f"❌ Rejeter {row['Véhicule N°']}", key=f"btn_non_{idx}",
+                           use_container_width=True, type="primary" if st.session_state.validations.get(idx) == "Non" else "secondary"):
+                    st.session_state.validations[idx] = "Non"
+                    st.rerun()
+            
+            # Afficher le statut actuel
+            statut = st.session_state.validations.get(idx)
+            if statut == "Oui":
+                st.success(f"✅ Voyage {row['Véhicule N°']} validé")
+            elif statut == "Non":
+                st.error(f"❌ Voyage {row['Véhicule N°']} rejeté")
+            else:
+                st.info("⏳ En attente de validation")
+            
+            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("---")
 
-            choix = st.radio(
-                f"Valider ce voyage ? (Estafette {row['Véhicule N°']})",
-                ["Oui", "Non"],
-                index=0 if st.session_state.validations.get(idx) == "Oui" 
-                      else 1 if st.session_state.validations.get(idx) == "Non" 
-                      else 0,
-                key=f"validation_{idx}"
-            )
-            st.session_state.validations[idx] = choix
+    # --- Résumé des validations ---
+    st.markdown("### 📊 Résumé des Validations")
+    total_voyages = len(df_validation)
+    valides = sum(1 for v in st.session_state.validations.values() if v == "Oui")
+    rejetes = sum(1 for v in st.session_state.validations.values() if v == "Non")
+    en_attente = total_voyages - valides - rejetes
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Voyages", total_voyages)
+    with col2:
+        st.metric("✅ Validés", valides)
+    with col3:
+        st.metric("❌ Rejetés", rejetes)
+    with col4:
+        st.metric("⏳ En Attente", en_attente)
 
     # --- Bouton pour appliquer les validations ---
-    if st.button("🧮 Appliquer la validation"):
+    if st.button("🚀 Finaliser la Validation", type="primary", use_container_width=True):
         valid_indexes = [i for i, v in st.session_state.validations.items() if v == "Oui"]
         valid_indexes = [i for i in valid_indexes if i in df_validation.index]
 
-        df_voyages_valides = df_validation.loc[valid_indexes].reset_index(drop=True)
-        st.session_state.df_voyages_valides = df_voyages_valides
+        if valid_indexes:
+            df_voyages_valides = df_validation.loc[valid_indexes].reset_index(drop=True)
+            st.session_state.df_voyages_valides = df_voyages_valides
 
-        st.success(f"✅ {len(df_voyages_valides)} voyage(s) validé(s).")
-        st.markdown("### 📦 Voyages Validés")
+            st.success(f"✅ {len(df_voyages_valides)} voyage(s) validé(s) avec succès!")
+            
+            # Affichage des voyages validés
+            st.markdown("### 🎉 Voyages Validés - Résumé Final")
+            
+            for idx, row_valide in df_voyages_valides.iterrows():
+                with st.expander(f"🚚 {row_valide['Véhicule N°']} - Zone {row_valide['Zone']}", expanded=True):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Poids", f"{row_valide['Poids total chargé']:.3f} kg")
+                        st.metric("Clients", row_valide.get('Client(s) inclus', 'N/A'))
+                    with col2:
+                        st.metric("Volume", f"{row_valide['Volume total chargé']:.3f} m³")
+                        st.metric("Représentants", row_valide.get('Représentant(s) inclus', 'N/A'))
 
-        # --- Affichage Streamlit avec unités ---
-        df_display = df_voyages_valides.copy()
-        if "Poids total chargé" in df_display.columns:
-            df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-        if "Volume total chargé" in df_display.columns:
-            df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-        show_df(df_display, use_container_width=True)
+            # --- Export Excel ---
+            excel_data = to_excel(df_voyages_valides)
+            st.download_button(
+                label="💾 Télécharger les voyages validés (XLSX)",
+                data=excel_data,
+                file_name="Voyages_valides.xlsx",
+                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                use_container_width=True
+            )
+        else:
+            st.warning("⚠️ Aucun voyage n'a été validé. Veuillez valider au moins un voyage.")
 
-        # --- Export Excel arrondi ---
-        excel_data = to_excel(df_voyages_valides)
-        st.download_button(
-            label="💾 Télécharger les voyages validés (XLSX)",
-            data=excel_data,
-            file_name="Voyages_valides.xlsx",
-            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
 else:
     st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
 
