@@ -486,24 +486,8 @@ try:
     # Filtrer seulement les colonnes qui existent
     colonnes_finales = [col for col in colonnes_ordre if col in df_clean.columns]
     
-    # Créer le DataFrame d'affichage avec retours à la ligne POUR STREAMLIT
+    # Créer le DataFrame d'affichage POUR STREAMLIT
     df_display = df_clean[colonnes_finales].copy()
-    
-    # Transformer les colonnes avec retours à la ligne HTML pour l'affichage Streamlit
-    if "Client(s) inclus" in df_display.columns:
-        df_display["Client(s) inclus"] = df_display["Client(s) inclus"].astype(str).apply(
-            lambda x: "<br>".join(client.strip() for client in x.split(",")) if x != "nan" else ""
-        )
-    
-    if "Représentant(s) inclus" in df_display.columns:
-        df_display["Représentant(s) inclus"] = df_display["Représentant(s) inclus"].astype(str).apply(
-            lambda x: "<br>".join(rep.strip() for rep in x.split(",")) if x != "nan" else ""
-        )
-    
-    if "BL inclus" in df_display.columns:
-        df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
-            lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
-        )
     
     # Formater les colonnes numériques pour l'affichage
     if "Poids total" in df_display.columns:
@@ -513,14 +497,16 @@ try:
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    # AFFICHAGE STREAMLIT avec HTML pour les retours à la ligne
-    st.markdown(
-        df_display.to_html(escape=False, index=False),
-        unsafe_allow_html=True
+    # AFFICHAGE STABLE - Utiliser st.dataframe avec colonnes configurées
+    st.dataframe(
+        df_display,
+        use_container_width=True,
+        height=400,
+        hide_index=True
     )
     
     # Information pour l'utilisateur
-    #st.info("Les listes de clients, représentants et BL sont affichées avec des retours à la ligne.")
+    st.info("Les listes de clients, représentants et BL sont affichées avec des séparateurs.")
     
     # Préparer l'export Excel avec retours à la ligne \n
     df_export = df_clean.copy()
@@ -574,11 +560,11 @@ try:
         for col_idx, col_name in enumerate(df_export.columns):
             if col_name in wrap_columns:
                 col_letter = openpyxl.utils.get_column_letter(col_idx + 1)
-                for row in range(2, len(df_export) + 2):  # Commence à la ligne 2 (après l'en-tête)
+                for row in range(2, len(df_export) + 2):
                     cell = worksheet[f"{col_letter}{row}"]
                     cell.alignment = Alignment(wrap_text=True, vertical='top')
         
-        # Ajuster la largeur des colonnes pour une meilleure visibilité
+        # Ajuster la largeur des colonnes
         for column in worksheet.columns:
             max_length = 0
             column_letter = openpyxl.utils.get_column_letter(column[0].column)
@@ -588,20 +574,20 @@ try:
                         max_length = len(str(cell.value))
                 except:
                     pass
-            adjusted_width = min(max_length + 2, 50)  # Largeur max de 50
+            adjusted_width = min(max_length + 2, 50)
             worksheet.column_dimensions[column_letter].width = adjusted_width
     
     excel_buffer.seek(0)
     
     st.download_button(
         label="Télécharger Voyages Estafette Optimisés",
-        data=excel_buffer,
+        data=ex_buffer,
         file_name="Voyages_Estafette_Optimises.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     
     # Instructions pour Excel
-    #st.info("💡 **Pour Excel** : Les retours à la ligne sont activés. Dans Excel, utilisez 'Alt+Entrée' pour voir les retours à la ligne si nécessaire.")
+    st.info("💡 Pour Excel : Les retours à la ligne sont activés.")
     
     # Mise à jour pour les sections suivantes
     st.session_state.df_voyages = df_clean
@@ -610,14 +596,12 @@ except KeyError as e:
     st.error(f"Erreur de colonne manquante : {e}")
     st.info("Tentative de récupération des données...")
     
-    # Tentative de récupération
     if st.session_state.rental_processor:
         st.session_state.df_voyages = st.session_state.rental_processor.df_base.copy()
         st.rerun()
         
 except Exception as e:
     st.error(f"Erreur lors de l'affichage des voyages optimisés: {str(e)}")
-    # Afficher les données brutes pour debug
     st.write("Données brutes pour debug:")
     if st.session_state.rental_processor:
         st.write("Colonnes du df_base:", list(st.session_state.rental_processor.df_base.columns))
@@ -626,8 +610,8 @@ except Exception as e:
 # =====================================================
 st.markdown("## 🔁 Transfert de BLs entre Estafettes / Camions")
 
-MAX_POIDS = 1550  # kg
-MAX_VOLUME = 4.608  # m³
+MAX_POIDS = 1550
+MAX_VOLUME = 4.608
 
 if "df_voyages" not in st.session_state:
     st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
@@ -662,43 +646,24 @@ else:
                 else:
                     st.subheader(f"📦 BLs actuellement assignés à {source}")
 
-                    # --- Affichage formaté pour Streamlit avec retours à la ligne ---
+                    # AFFICHAGE STABLE - Utiliser st.dataframe
                     df_source_display = df_source[["Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]].copy()
-                    
-                    # Transformer les BL avec retours à la ligne HTML
-                    if "BL inclus" in df_source_display.columns:
-                        df_source_display["BL inclus"] = df_source_display["BL inclus"].astype(str).apply(
-                            lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
-                        )
                     
                     df_source_display["Poids total chargé"] = df_source_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                     df_source_display["Volume total chargé"] = df_source_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
-                    # CSS pour centrer le tableau
-                    st.markdown("""
-                    <style>
-                    .centered-table {
-                        margin-left: auto;
-                        margin-right: auto;
-                        display: table;
-                    }
-                    .centered-table table {
-                        margin: 0 auto;
-                    }
-                    </style>
-                    """, unsafe_allow_html=True)
-                    
-                    # Affichage avec HTML pour les retours à la ligne et centrage
-                    st.markdown(
-                        f'<div class="centered-table">{df_source_display.to_html(escape=False, index=False)}</div>',
-                        unsafe_allow_html=True
+                    # Afficher avec st.dataframe (plus stable)
+                    st.dataframe(
+                        df_source_display,
+                        use_container_width=True,
+                        hide_index=True
                     )
 
                     bls_disponibles = df_source["BL inclus"].iloc[0].split(";")
                     bls_selectionnes = st.multiselect("📋 Sélectionner les BLs à transférer :", bls_disponibles)
 
                     if bls_selectionnes and st.button("🔁 Exécuter le transfert"):
-
+                        # [Le reste du code de transfert reste identique...]
                         df_bls_selection = df_livraisons[df_livraisons["No livraison"].isin(bls_selectionnes)]
                         poids_bls = df_bls_selection["Poids total"].sum()
                         volume_bls = df_bls_selection["Volume total"].sum()
@@ -730,23 +695,18 @@ else:
                             st.session_state.df_voyages = df_voyages
                             st.success(f"✅ Transfert réussi : {len(bls_selectionnes)} BL(s) déplacé(s) de {source} vers {cible}.")
 
-                            # --- Affichage Streamlit avec retours à la ligne ---
                             st.subheader("📊 Voyages après transfert (toutes les zones)")
                             df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
-                            
-                            # Transformer les colonnes avec retours à la ligne HTML
-                            if "BL inclus" in df_display.columns:
-                                df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
-                                    lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
-                                )
                             
                             df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                             df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                             
-                            # Affichage avec HTML pour les retours à la ligne et centrage
-                            st.markdown(
-                                f'<div class="centered-table">{df_display[colonnes_requises].to_html(escape=False, index=False)}</div>',
-                                unsafe_allow_html=True
+                            # Afficher avec st.dataframe (plus stable)
+                            st.dataframe(
+                                df_display[colonnes_requises],
+                                use_container_width=True,
+                                height=400,
+                                hide_index=True
                             )
 
                             # --- Export Excel avec retours à la ligne \n ---
