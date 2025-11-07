@@ -1327,7 +1327,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             with col3:
                 # Afficher les BL avec retours à ligne
                 if 'BL inclus' in row and pd.notna(row['BL inclus']):
-                    st.write("**Bordereaux de livraison:**")
+                    st.write("**BL associés:**")
                     bls = str(row['BL inclus']).replace(';', ',').split(',')
                     for bl in bls:
                         bl_clean = bl.strip()
@@ -1426,7 +1426,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                 with col3:
                     # Afficher les BL avec retours à ligne
                     if 'BL inclus' in row and pd.notna(row['BL inclus']):
-                        st.write("**📄 Bordereaux de livraison:**")
+                        st.write("**📄 BL associés:**")
                         bls = str(row['BL inclus']).replace(';', ',').split(',')
                         # Afficher en colonnes si beaucoup de BL
                         if len(bls) > 5:
