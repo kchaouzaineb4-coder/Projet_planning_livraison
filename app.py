@@ -2076,12 +2076,12 @@ if "df_voyages" in st.session_state:
     
     with col_metric7:
         # Calcul de l'efficacité
-        efficacite = "🟢 Bonne" if taux_moyen > 70 else "🟡 Moyenne" if taux_moyen > 50 else "🔴 Faible"
+        efficacite = " Bonne" if taux_moyen > 70 else " Moyenne" if taux_moyen > 50 else " Faible"
         st.metric("🎯 Efficacité", efficacite)
     
     with col_metric8:
         # Statut de complétion
-        status = "✅ Complet" if 'df_voyages_valides' in st.session_state else "🟡 En cours"
+        status = "✅ Complet" if 'df_voyages_valides' in st.session_state else " En cours"
         st.metric("📋 Statut", status)
     
     # Graphique de répartition par zone
