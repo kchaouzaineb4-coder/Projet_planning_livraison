@@ -497,11 +497,72 @@ try:
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    # AFFICHAGE ALTERNATIF - Utiliser st.table() qui supporte mieux les retours à la ligne
-    st.table(df_display)
+    # AFFICHAGE AMÉLIORÉ - Ligne par ligne avec expanders
+    st.markdown("### 📊 Détail des Voyages Optimisés")
+    
+    for idx, row in df_display.iterrows():
+        with st.expander(f"🚚 {row['Véhicule N°']} - Zone {row['Zone']}", expanded=False):
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("⚖️ Poids Total", row['Poids total chargé'])
+                st.metric("📏 Volume Total", row['Volume total chargé'])
+                
+                # Informations location
+                location_camion = row.get('Location_camion', False)
+                location_proposee = row.get('Location_proposee', False)
+                code_vehicule = row.get('Code Véhicule', 'N/A')
+                
+                st.write("**🚛 Informations Véhicule:**")
+                st.write(f"Location Camion: {'✅ Oui' if location_camion else '❌ Non'}")
+                st.write(f"Location Proposée: {'✅ Oui' if location_proposee else '❌ Non'}")
+                st.write(f"Code Véhicule: {code_vehicule}")
+            
+            with col2:
+                clients = row.get('Client(s) inclus', '')
+                if clients and clients != 'nan':
+                    st.write("**👥 Clients Inclus:**")
+                    # Séparer par virgules et afficher avec retours à la ligne
+                    clients_list = [c.strip() for c in clients.split(",") if c.strip()]
+                    for client in clients_list:
+                        st.write(f"• {client}")
+                else:
+                    st.write("**👥 Clients:** Aucun")
+                
+                representants = row.get('Représentant(s) inclus', '')
+                if representants and representants != 'nan':
+                    st.write("**👨‍💼 Représentants Inclus:**")
+                    # Séparer par virgules et afficher avec retours à la ligne
+                    reps_list = [r.strip() for r in representants.split(",") if r.strip()]
+                    for rep in reps_list:
+                        st.write(f"• {rep}")
+                else:
+                    st.write("**👨‍💼 Représentants:** Aucun")
+            
+            with col3:
+                bls = row.get('BL inclus', '')
+                if bls and bls != 'nan':
+                    # Séparer par points-virgules et afficher avec retours à la ligne
+                    bls_list = [bl.strip() for bl in bls.split(";") if bl.strip()]
+                    st.write(f"**📋 BLs Inclus ({len(bls_list)}):**")
+                    
+                    # Afficher avec défilement si trop long
+                    if len(bls_list) > 10:
+                        with st.container(height=200):
+                            for bl in bls_list:
+                                st.write(f"• {bl}")
+                    else:
+                        for bl in bls_list:
+                            st.write(f"• {bl}")
+                else:
+                    st.write("**📋 BLs:** Aucun")
+                
+                taux = row.get('Taux d\'occupation (%)', '')
+                if taux and taux != 'nan':
+                    st.metric("📊 Taux d'Occupation", taux)
     
     # Information pour l'utilisateur
-    st.info("💡 Les listes de clients, représentants et BL sont affichées avec des retours à la ligne.")
+    st.info("💡 Les listes de clients, représentants et BL sont affichées avec des retours à la ligne pour une meilleure lisibilité.")
     
     # Préparer l'export Excel avec retours à la ligne \n
     df_export = df_clean.copy()
@@ -575,14 +636,15 @@ try:
     excel_buffer.seek(0)
     
     st.download_button(
-        label="💾 Télécharger Voyages Estafette Optimisés",
+        label="💾 Télécharger Voyages Estafette Optimisés (Excel)",
         data=excel_buffer,
         file_name="Voyages_Estafette_Optimises.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
     )
     
     # Instructions pour Excel
-    st.info("💡 **Pour Excel** : Les retours à la ligne sont activés. Dans Excel, utilisez 'Alt+Entrée' pour voir les retours à la ligne si nécessaire.")
+    st.info("💡 **Pour Excel** : Les retours à la ligne sont activés. Les listes de clients, représentants et BL s'affichent sur plusieurs lignes dans les cellules Excel.")
     
     # Mise à jour pour les sections suivantes
     st.session_state.df_voyages = df_clean
