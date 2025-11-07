@@ -2146,6 +2146,7 @@ st.markdown("""
         border-radius: 10px;
         border-left: 5px solid #1f77b4;
     }
+    
     .success-box {
         background-color: #d4edda;
         border: 1px solid #c3e6cb;
