@@ -497,7 +497,7 @@ try:
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    # AFFICHAGE SÉCURISÉ - Utiliser st.dataframe() au lieu de st.markdown()
+    # AFFICHAGE CORRIGÉ - Utiliser st.dataframe() sans HTML
     st.dataframe(
         df_display,
         use_container_width=True,
@@ -505,7 +505,7 @@ try:
     )
     
     # Information pour l'utilisateur
-    st.info("💡 Les données sont affichées sous forme de tableau. Utilisez le fichier Excel pour voir les retours à la ligne.")
+    st.info("💡 Les données sont affichées sous forme de tableau interactif. Utilisez le fichier Excel téléchargeable pour voir les retours à la ligne dans les listes.")
     
     # Préparer l'export Excel avec retours à la ligne \n
     df_export = df_clean.copy()
@@ -579,10 +579,11 @@ try:
     excel_buffer.seek(0)
     
     st.download_button(
-        label="💾 Télécharger Voyages Estafette Optimisés",
+        label="💾 Télécharger Voyages Estafette Optimisés (Excel)",
         data=excel_buffer,
         file_name="Voyages_Estafette_Optimises.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
     )
     
     # Instructions pour Excel
