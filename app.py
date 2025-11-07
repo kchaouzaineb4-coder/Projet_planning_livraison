@@ -476,9 +476,6 @@ try:
     # CORRECTION : Nettoyer les colonnes en double
     df_clean = df_optimized_estafettes.loc[:, ~df_optimized_estafettes.columns.duplicated()]
     
-    # Vérifier les colonnes disponibles
-    #st.info(f"📊 Colonnes disponibles: {', '.join(df_clean.columns)}")
-    
     # Définir l'ordre des colonnes pour l'affichage
     colonnes_ordre = [
         "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé",
@@ -489,10 +486,26 @@ try:
     # Filtrer seulement les colonnes qui existent
     colonnes_finales = [col for col in colonnes_ordre if col in df_clean.columns]
     
-    # Créer le DataFrame d'affichage
+    # Créer le DataFrame d'affichage avec retours à la ligne POUR STREAMLIT
     df_display = df_clean[colonnes_finales].copy()
     
-    # Formater les colonnes numériques
+    # Transformer les colonnes avec retours à la ligne HTML pour l'affichage Streamlit
+    if "Client(s) inclus" in df_display.columns:
+        df_display["Client(s) inclus"] = df_display["Client(s) inclus"].astype(str).apply(
+            lambda x: "<br>".join(client.strip() for client in x.split(",")) if x != "nan" else ""
+        )
+    
+    if "Représentant(s) inclus" in df_display.columns:
+        df_display["Représentant(s) inclus"] = df_display["Représentant(s) inclus"].astype(str).apply(
+            lambda x: "<br>".join(rep.strip() for rep in x.split(",")) if x != "nan" else ""
+        )
+    
+    if "BL inclus" in df_display.columns:
+        df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
+            lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
+        )
+    
+    # Formater les colonnes numériques pour l'affichage
     if "Poids total chargé" in df_display.columns:
         df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
     if "Volume total chargé" in df_display.columns:
@@ -500,21 +513,100 @@ try:
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    # Afficher le tableau
-    show_df(df_display, use_container_width=True)
+    # CSS pour centrer le tableau
+    st.markdown("""
+    <style>
+    .centered-table {
+        margin-left: auto;
+        margin-right: auto;
+        display: table;
+    }
+    .centered-table table {
+        margin: 0 auto;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
-    # Préparer l'export Excel
+    # Affichage avec HTML pour les retours à la ligne et centrage
+    html_content = f"""
+    <div class="centered-table">
+    {df_display.to_html(escape=False, index=False)}
+    </div>
+    """
+    st.markdown(html_content, unsafe_allow_html=True)
+    
+    # Information pour l'utilisateur
+    st.info("💡 Les listes de clients, représentants et BL sont affichées avec des retours à la ligne.")
+    
+    # Préparer l'export Excel avec retours à la ligne \n
     df_export = df_clean.copy()
+    
+    # Transformer les colonnes avec retours à la ligne \n pour Excel
+    if "Client(s) inclus" in df_export.columns:
+        df_export["Client(s) inclus"] = df_export["Client(s) inclus"].astype(str).apply(
+            lambda x: "\n".join(client.strip() for client in x.split(",")) if x != "nan" else ""
+        )
+    
+    if "Représentant(s) inclus" in df_export.columns:
+        df_export["Représentant(s) inclus"] = df_export["Représentant(s) inclus"].astype(str).apply(
+            lambda x: "\n".join(rep.strip() for rep in x.split(",")) if x != "nan" else ""
+        )
+    
+    if "BL inclus" in df_export.columns:
+        df_export["BL inclus"] = df_export["BL inclus"].astype(str).apply(
+            lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
+        )
+    
+    # Formater les colonnes numériques pour l'export
     if "Poids total chargé" in df_export.columns:
         df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
     if "Volume total chargé" in df_export.columns:
         df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
     
-    # Bouton de téléchargement
+    # Bouton de téléchargement avec formatage Excel
     from io import BytesIO
+    import openpyxl
+    from openpyxl.styles import Alignment
+    
     excel_buffer = BytesIO()
+    
     with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
         df_export.to_excel(writer, index=False, sheet_name="Voyages Optimisés")
+        
+        # Récupérer le workbook et worksheet pour appliquer le formatage
+        workbook = writer.book
+        worksheet = writer.sheets["Voyages Optimisés"]
+        
+        # Appliquer le style wrap_text aux colonnes avec retours à la ligne
+        wrap_columns = []
+        if "Client(s) inclus" in df_export.columns:
+            wrap_columns.append("Client(s) inclus")
+        if "Représentant(s) inclus" in df_export.columns:
+            wrap_columns.append("Représentant(s) inclus")
+        if "BL inclus" in df_export.columns:
+            wrap_columns.append("BL inclus")
+        
+        # Appliquer le format wrap_text à toutes les cellules des colonnes concernées
+        for col_idx, col_name in enumerate(df_export.columns):
+            if col_name in wrap_columns:
+                col_letter = openpyxl.utils.get_column_letter(col_idx + 1)
+                for row in range(2, len(df_export) + 2):  # Commence à la ligne 2 (après l'en-tête)
+                    cell = worksheet[f"{col_letter}{row}"]
+                    cell.alignment = Alignment(wrap_text=True, vertical='top')
+        
+        # Ajuster la largeur des colonnes pour une meilleure visibilité
+        for column in worksheet.columns:
+            max_length = 0
+            column_letter = openpyxl.utils.get_column_letter(column[0].column)
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)  # Largeur max de 50
+            worksheet.column_dimensions[column_letter].width = adjusted_width
+    
     excel_buffer.seek(0)
     
     st.download_button(
@@ -523,6 +615,9 @@ try:
         file_name="Voyages_Estafette_Optimises.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+    
+    # Instructions pour Excel
+    st.info("💡 **Pour Excel** : Les retours à la ligne sont activés. Dans Excel, utilisez 'Alt+Entrée' pour voir les retours à la ligne si nécessaire.")
     
     # Mise à jour pour les sections suivantes
     st.session_state.df_voyages = df_clean
