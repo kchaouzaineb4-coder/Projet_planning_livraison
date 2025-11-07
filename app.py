@@ -486,10 +486,10 @@ try:
     # Filtrer seulement les colonnes qui existent
     colonnes_finales = [col for col in colonnes_ordre if col in df_clean.columns]
     
-    # Créer le DataFrame d'affichage avec retours à la ligne
+    # Créer le DataFrame d'affichage avec retours à la ligne pour Streamlit
     df_display = df_clean[colonnes_finales].copy()
     
-    # Transformer les colonnes avec retours à la ligne
+    # Transformer les colonnes avec retours à la ligne HTML pour l'affichage Streamlit
     if "Client(s) inclus" in df_display.columns:
         df_display["Client(s) inclus"] = df_display["Client(s) inclus"].astype(str).apply(
             lambda x: "<br>".join(client.strip() for client in x.split(","))
@@ -505,7 +505,7 @@ try:
             lambda x: "<br>".join(bl.strip() for bl in x.split(";"))
         )
     
-    # Formater les colonnes numériques
+    # Formater les colonnes numériques pour l'affichage
     if "Poids total chargé" in df_display.columns:
         df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
     if "Volume total chargé" in df_display.columns:
@@ -513,7 +513,7 @@ try:
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    # Affichage avec HTML dans st.markdown (comme dans votre exemple)
+    # Affichage avec HTML dans st.markdown
     st.markdown(
         df_display.to_html(escape=False, index=False),
         unsafe_allow_html=True
@@ -522,8 +522,26 @@ try:
     # Information pour l'utilisateur
     st.info("Les listes de clients, représentants et BL sont affichées avec des retours à la ligne.")
     
-    # Préparer l'export Excel (garder le format original)
+    # Préparer l'export Excel avec retours à la ligne \n
     df_export = df_clean.copy()
+    
+    # Transformer les colonnes avec retours à la ligne \n pour Excel
+    if "Client(s) inclus" in df_export.columns:
+        df_export["Client(s) inclus"] = df_export["Client(s) inclus"].astype(str).apply(
+            lambda x: "\n".join(client.strip() for client in x.split(","))
+        )
+    
+    if "Représentant(s) inclus" in df_export.columns:
+        df_export["Représentant(s) inclus"] = df_export["Représentant(s) inclus"].astype(str).apply(
+            lambda x: "\n".join(rep.strip() for rep in x.split(","))
+        )
+    
+    if "BL inclus" in df_export.columns:
+        df_export["BL inclus"] = df_export["BL inclus"].astype(str).apply(
+            lambda x: "\n".join(bl.strip() for bl in x.split(";"))
+        )
+    
+    # Formater les colonnes numériques pour l'export
     if "Poids total chargé" in df_export.columns:
         df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
     if "Volume total chargé" in df_export.columns:
