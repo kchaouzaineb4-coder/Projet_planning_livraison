@@ -674,9 +674,23 @@ else:
                     df_source_display["Poids total chargé"] = df_source_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                     df_source_display["Volume total chargé"] = df_source_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
-                    # Affichage avec HTML pour les retours à la ligne
+                    # CSS pour centrer le tableau
+                    st.markdown("""
+                    <style>
+                    .centered-table {
+                        margin-left: auto;
+                        margin-right: auto;
+                        display: table;
+                    }
+                    .centered-table table {
+                        margin: 0 auto;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
+                    
+                    # Affichage avec HTML pour les retours à la ligne et centrage
                     st.markdown(
-                        df_source_display.to_html(escape=False, index=False),
+                        f'<div class="centered-table">{df_source_display.to_html(escape=False, index=False)}</div>',
                         unsafe_allow_html=True
                     )
 
@@ -729,9 +743,9 @@ else:
                             df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                             df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                             
-                            # Affichage avec HTML pour les retours à la ligne
+                            # Affichage avec HTML pour les retours à la ligne et centrage
                             st.markdown(
-                                df_display[colonnes_requises].to_html(escape=False, index=False),
+                                f'<div class="centered-table">{df_display[colonnes_requises].to_html(escape=False, index=False)}</div>',
                                 unsafe_allow_html=True
                             )
 
