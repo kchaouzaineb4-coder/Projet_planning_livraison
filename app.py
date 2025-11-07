@@ -1272,6 +1272,19 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
 
     df_attribution = st.session_state.df_voyages_valides.copy()
 
+    # Fonction pour formatter les colonnes avec retours à la ligne
+    def formater_colonnes_listes(df):
+        df_formate = df.copy()
+        colonnes_a_formater = ['Client(s) inclus', 'Représentant(s) inclus', 'BL inclus']
+        
+        for col in colonnes_a_formater:
+            if col in df_formate.columns:
+                df_formate[col] = df_formate[col].apply(
+                    lambda x: '\n'.join([elem.strip() for elem in str(x).replace(';', ',').split(',') if elem.strip()]) 
+                    if pd.notna(x) else ""
+                )
+        return df_formate
+
     if "attributions" not in st.session_state:
         st.session_state.attributions = {}
 
@@ -1279,11 +1292,21 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
         with st.expander(f"🚚 Voyage {row['Véhicule N°']} | Zone : {row['Zone']}"):
             st.write("**Informations du voyage :**")
             row_display = row.to_frame().T.copy()
+            
+            # Formater les colonnes avec listes
+            row_display = formater_colonnes_listes(row_display)
+            
             if "Poids total chargé" in row_display.columns:
                 row_display["Poids total chargé"] = row_display["Poids total chargé"].map(lambda x: f"{x:.2f} kg")
             if "Volume total chargé" in row_display.columns:
                 row_display["Volume total chargé"] = row_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-            show_df(row_display, use_container_width=True)
+            
+            # Afficher avec formatage des retours à ligne
+            st.dataframe(
+                row_display,
+                use_container_width=True,
+                height=150
+            )
 
             col_veh, col_chauf = st.columns(2)
             
@@ -1336,25 +1359,58 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
         
         st.markdown("### 📦 Voyages avec Véhicule et Chauffeur")
 
-        # --- Affichage formaté ---
+        # --- Affichage formaté avec retours à ligne ---
         df_display = df_attribution.copy()
+        
+        # Appliquer le formatage des retours à ligne
+        df_display = formater_colonnes_listes(df_display)
+        
         if "Poids total chargé" in df_display.columns:
             df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
         if "Volume total chargé" in df_display.columns:
             df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-        show_df(df_display, use_container_width=True)
+        
+        # Afficher avec retours à ligne
+        st.dataframe(
+            df_display,
+            use_container_width=True,
+            height=400
+        )
 
-        # --- Export Excel ---
+        # --- Export Excel avec retours à ligne ---
         from io import BytesIO
         def to_excel(df):
             df_export = df.copy()
+            
+            # Formater les colonnes avec retours à ligne pour Excel
+            colonnes_a_formater = ['Client(s) inclus', 'Représentant(s) inclus', 'BL inclus']
+            for col in colonnes_a_formater:
+                if col in df_export.columns:
+                    df_export[col] = df_export[col].apply(
+                        lambda x: '\n'.join([elem.strip() for elem in str(x).replace(';', ',').split(',') if elem.strip()]) 
+                        if pd.notna(x) else ""
+                    )
+            
             if "Poids total chargé" in df_export.columns:
                 df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
             if "Volume total chargé" in df_export.columns:
                 df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
+            
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df_export.to_excel(writer, index=False, sheet_name='Voyages_Attribués')
+                
+                # Appliquer le formatage des retours à ligne dans Excel
+                workbook = writer.book
+                worksheet = writer.sheets['Voyages_Attribués']
+                
+                # Formater les cellules avec retours à ligne automatique
+                for col_idx, col_name in enumerate(df_export.columns, 1):
+                    if col_name in colonnes_a_formater:
+                        for row_idx in range(2, len(df_export) + 2):  # +2 pour header
+                            cell = worksheet.cell(row=row_idx, column=col_idx)
+                            cell.alignment = openpyxl.styles.Alignment(wrap_text=True, vertical='top')
+            
             return output.getvalue()
 
         st.download_button(
@@ -1364,8 +1420,9 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
 
-        # --- Export PDF ---
+        # --- Export PDF avec retours à ligne ---
         from fpdf import FPDF
+        import openpyxl  # Ajout pour l'export Excel
 
         def to_pdf(df, title="Voyages Attribués"):
             pdf = FPDF()
@@ -1374,27 +1431,52 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             pdf.cell(0, 10, title, ln=True, align="C")
             pdf.ln(5)
 
-            pdf.set_font("Arial", '', 10)
+            pdf.set_font("Arial", '', 8)  # Taille réduite pour plus d'espace
 
-            # Créer une copie formatée pour le PDF avec unités
+            # Créer une copie formatée pour le PDF avec retours à ligne
             df_pdf = df.copy()
+            
+            # Formater les colonnes avec listes pour PDF
+            colonnes_a_formater = ['Client(s) inclus', 'Représentant(s) inclus', 'BL inclus']
+            for col in colonnes_a_formater:
+                if col in df_pdf.columns:
+                    df_pdf[col] = df_pdf[col].apply(
+                        lambda x: '\n'.join([elem.strip() for elem in str(x).replace(';', ',').split(',') if elem.strip()]) 
+                        if pd.notna(x) else ""
+                    )
+            
             if "Poids total chargé" in df_pdf.columns:
                 df_pdf["Poids total chargé"] = df_pdf["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
             if "Volume total chargé" in df_pdf.columns:
                 df_pdf["Volume total chargé"] = df_pdf["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
 
-            col_widths = [pdf.get_string_width(col)+6 for col in df_pdf.columns]
+            # Calculer les largeurs de colonnes
+            col_widths = [min(40, pdf.get_string_width(str(col)) + 6) for col in df_pdf.columns]
 
             # En-têtes
             for i, col in enumerate(df_pdf.columns):
                 pdf.cell(col_widths[i], 8, str(col), border=1, align='C')
             pdf.ln()
 
-            # Lignes
+            # Lignes avec gestion des retours à ligne
             for _, row in df_pdf.iterrows():
+                max_lines = 1
+                cell_lines = []
+                
+                # Calculer le nombre maximum de lignes par ligne
                 for i, col in enumerate(df_pdf.columns):
-                    pdf.cell(col_widths[i], 8, str(row[col]), border=1)
-                pdf.ln()
+                    cell_content = str(row[col])
+                    lines = cell_content.split('\n')
+                    cell_lines.append(lines)
+                    max_lines = max(max_lines, len(lines))
+                
+                # Écrire chaque ligne de cellules
+                for line_idx in range(max_lines):
+                    for i, col in enumerate(df_pdf.columns):
+                        lines = cell_lines[i]
+                        content = lines[line_idx] if line_idx < len(lines) else ""
+                        pdf.cell(col_widths[i], 6, content, border=1)
+                    pdf.ln()
 
             return pdf.output(dest='S').encode('latin1')
 
@@ -1411,7 +1493,6 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
         
 else:
     st.warning("⚠️ Vous devez d'abord valider les voyages dans la section 7.")
-
 
 # =====================================================
 # 9️⃣ RAPPORTS AVANCÉS ET ANALYTICS
