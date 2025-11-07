@@ -1194,18 +1194,19 @@ if "df_voyages" in st.session_state:
     total_voyages = len(df_validation)
     valides = sum(1 for v in st.session_state.validations.values() if v == "Oui")
     rejetes = sum(1 for v in st.session_state.validations.values() if v == "Non")
-    en_attente = total_voyages - valides - rejetes
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
+
+    col1, col2, col3 = st.columns(3)
+
     with col1:
         st.metric("Total Voyages", total_voyages)
     with col2:
         st.metric("✅ Validés", valides)
     with col3:
         st.metric("❌ Rejetés", rejetes)
-    with col4:
-        st.metric("⏳ En Attente", en_attente)
+
+    # Information supplémentaire sur l'état des validations
+    if valides + rejetes < total_voyages:
+        st.info(f"ℹ️ {total_voyages - (valides + rejetes)} voyage(s) n'ont pas encore été validés")
 
     # --- Bouton pour appliquer les validations ---
     if st.button("🚀 Finaliser la Validation", type="primary", use_container_width=True):
