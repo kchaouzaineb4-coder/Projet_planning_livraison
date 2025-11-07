@@ -478,7 +478,7 @@ try:
     
     # Définir l'ordre des colonnes pour l'affichage
     colonnes_ordre = [
-        "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé",
+        "Zone", "Estafette N°", "Poids total", "Volume total",
         "Client(s) inclus", "Représentant(s) inclus", "BL inclus", 
         "Taux d'occupation (%)", "Location_camion", "Location_proposee", "Code Véhicule"
     ]
@@ -492,24 +492,24 @@ try:
     # Transformer les colonnes avec retours à la ligne HTML pour l'affichage Streamlit
     if "Client(s) inclus" in df_display.columns:
         df_display["Client(s) inclus"] = df_display["Client(s) inclus"].astype(str).apply(
-            lambda x: "<br>".join(client.strip() for client in x.split(","))
+            lambda x: "<br>".join(client.strip() for client in x.split(",")) if x != "nan" else ""
         )
     
     if "Représentant(s) inclus" in df_display.columns:
         df_display["Représentant(s) inclus"] = df_display["Représentant(s) inclus"].astype(str).apply(
-            lambda x: "<br>".join(rep.strip() for rep in x.split(","))
+            lambda x: "<br>".join(rep.strip() for rep in x.split(",")) if x != "nan" else ""
         )
     
     if "BL inclus" in df_display.columns:
         df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
-            lambda x: "<br>".join(bl.strip() for bl in x.split(";"))
+            lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
         )
     
     # Formater les colonnes numériques pour l'affichage
-    if "Poids total chargé" in df_display.columns:
-        df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-    if "Volume total chargé" in df_display.columns:
-        df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+    if "Poids total" in df_display.columns:
+        df_display["Poids total"] = df_display["Poids total"].map(lambda x: f"{x:.3f} kg")
+    if "Volume total" in df_display.columns:
+        df_display["Volume total"] = df_display["Volume total"].map(lambda x: f"{x:.3f} m³")
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
@@ -522,7 +522,7 @@ try:
     # Information pour l'utilisateur
     st.info("Les listes de clients, représentants et BL sont affichées avec des retours à la ligne.")
     
-    # Préparer l'export Excel avec retours à la ligne \n et style wrap_text
+    # Préparer l'export Excel avec retours à la ligne \n
     df_export = df_clean.copy()
     
     # Transformer les colonnes avec retours à la ligne \n pour Excel
@@ -542,13 +542,16 @@ try:
         )
     
     # Formater les colonnes numériques pour l'export
-    if "Poids total chargé" in df_export.columns:
-        df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
-    if "Volume total chargé" in df_export.columns:
-        df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
+    if "Poids total" in df_export.columns:
+        df_export["Poids total"] = df_export["Poids total"].round(3)
+    if "Volume total" in df_export.columns:
+        df_export["Volume total"] = df_export["Volume total"].round(3)
     
     # Bouton de téléchargement avec formatage Excel
     from io import BytesIO
+    import openpyxl
+    from openpyxl.styles import Alignment
+    
     excel_buffer = BytesIO()
     
     with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
@@ -559,9 +562,6 @@ try:
         worksheet = writer.sheets["Voyages Optimisés"]
         
         # Appliquer le style wrap_text aux colonnes avec retours à la ligne
-        from openpyxl.styles import Alignment
-        
-        # Définir les colonnes à formater
         wrap_columns = []
         if "Client(s) inclus" in df_export.columns:
             wrap_columns.append("Client(s) inclus")
