@@ -2101,12 +2101,12 @@ if "df_voyages" in st.session_state:
                 title="Nombre de véhicules par zone",
                 color="Nombre de véhicules",
                 color_continuous_scale=[
-                    "#0A3D62",  # Bleu foncé
-                    "#1E6091",
-                    "#3A86FF",  # Bleu vif
-                    "#4EA8DE",
+                    "#ADE8F4",   # Bleu clair visible
                     "#90E0EF",
-                    "#ADE8F4"   # Bleu clair visible
+                    "#4EA8DE",
+                    "#3A86FF",
+                    "#1E6091",
+                    "#0A3D62" 
                 ],
                 text="Nombre de véhicules"
             )
