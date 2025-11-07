@@ -486,8 +486,24 @@ try:
     # Filtrer seulement les colonnes qui existent
     colonnes_finales = [col for col in colonnes_ordre if col in df_clean.columns]
     
-    # Créer le DataFrame d'affichage avec retours à la ligne pour Streamlit
+    # Créer le DataFrame d'affichage avec retours à la ligne POUR STREAMLIT
     df_display = df_clean[colonnes_finales].copy()
+    
+    # Transformer les colonnes avec retours à la ligne HTML pour l'affichage Streamlit
+    if "Client(s) inclus" in df_display.columns:
+        df_display["Client(s) inclus"] = df_display["Client(s) inclus"].astype(str).apply(
+            lambda x: "<br>".join(client.strip() for client in x.split(",")) if x != "nan" else ""
+        )
+    
+    if "Représentant(s) inclus" in df_display.columns:
+        df_display["Représentant(s) inclus"] = df_display["Représentant(s) inclus"].astype(str).apply(
+            lambda x: "<br>".join(rep.strip() for rep in x.split(",")) if x != "nan" else ""
+        )
+    
+    if "BL inclus" in df_display.columns:
+        df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
+            lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
+        )
     
     # Formater les colonnes numériques pour l'affichage
     if "Poids total" in df_display.columns:
@@ -497,11 +513,10 @@ try:
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    # AFFICHAGE ALTERNATIF - Utiliser st.dataframe au lieu de st.markdown avec HTML
-    st.dataframe(
-        df_display,
-        use_container_width=True,
-        height=400
+    # AFFICHAGE STREAMLIT avec HTML pour les retours à la ligne
+    st.markdown(
+        df_display.to_html(escape=False, index=False),
+        unsafe_allow_html=True
     )
     
     # Information pour l'utilisateur
