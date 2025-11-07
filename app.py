@@ -522,23 +522,23 @@ try:
     # Information pour l'utilisateur
     st.info("Les listes de clients, représentants et BL sont affichées avec des retours à la ligne.")
     
-    # Préparer l'export Excel avec retours à la ligne \n
+    # Préparer l'export Excel avec retours à la ligne \n et style wrap_text
     df_export = df_clean.copy()
     
     # Transformer les colonnes avec retours à la ligne \n pour Excel
     if "Client(s) inclus" in df_export.columns:
         df_export["Client(s) inclus"] = df_export["Client(s) inclus"].astype(str).apply(
-            lambda x: "\n".join(client.strip() for client in x.split(","))
+            lambda x: "\n".join(client.strip() for client in x.split(",")) if x != "nan" else ""
         )
     
     if "Représentant(s) inclus" in df_export.columns:
         df_export["Représentant(s) inclus"] = df_export["Représentant(s) inclus"].astype(str).apply(
-            lambda x: "\n".join(rep.strip() for rep in x.split(","))
+            lambda x: "\n".join(rep.strip() for rep in x.split(",")) if x != "nan" else ""
         )
     
     if "BL inclus" in df_export.columns:
         df_export["BL inclus"] = df_export["BL inclus"].astype(str).apply(
-            lambda x: "\n".join(bl.strip() for bl in x.split(";"))
+            lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
         )
     
     # Formater les colonnes numériques pour l'export
@@ -547,11 +547,50 @@ try:
     if "Volume total chargé" in df_export.columns:
         df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
     
-    # Bouton de téléchargement
+    # Bouton de téléchargement avec formatage Excel
     from io import BytesIO
     excel_buffer = BytesIO()
+    
     with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
         df_export.to_excel(writer, index=False, sheet_name="Voyages Optimisés")
+        
+        # Récupérer le workbook et worksheet pour appliquer le formatage
+        workbook = writer.book
+        worksheet = writer.sheets["Voyages Optimisés"]
+        
+        # Appliquer le style wrap_text aux colonnes avec retours à la ligne
+        from openpyxl.styles import Alignment
+        
+        # Définir les colonnes à formater
+        wrap_columns = []
+        if "Client(s) inclus" in df_export.columns:
+            wrap_columns.append("Client(s) inclus")
+        if "Représentant(s) inclus" in df_export.columns:
+            wrap_columns.append("Représentant(s) inclus")
+        if "BL inclus" in df_export.columns:
+            wrap_columns.append("BL inclus")
+        
+        # Appliquer le format wrap_text à toutes les cellules des colonnes concernées
+        for col_idx, col_name in enumerate(df_export.columns):
+            if col_name in wrap_columns:
+                col_letter = openpyxl.utils.get_column_letter(col_idx + 1)
+                for row in range(2, len(df_export) + 2):  # Commence à la ligne 2 (après l'en-tête)
+                    cell = worksheet[f"{col_letter}{row}"]
+                    cell.alignment = Alignment(wrap_text=True, vertical='top')
+        
+        # Ajuster la largeur des colonnes pour une meilleure visibilité
+        for column in worksheet.columns:
+            max_length = 0
+            column_letter = openpyxl.utils.get_column_letter(column[0].column)
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)  # Largeur max de 50
+            worksheet.column_dimensions[column_letter].width = adjusted_width
+    
     excel_buffer.seek(0)
     
     st.download_button(
@@ -560,6 +599,9 @@ try:
         file_name="Voyages_Estafette_Optimises.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+    
+    # Instructions pour Excel
+    st.info("💡 **Pour Excel** : Les retours à la ligne sont activés. Dans Excel, utilisez 'Alt+Entrée' pour voir les retours à la ligne si nécessaire.")
     
     # Mise à jour pour les sections suivantes
     st.session_state.df_voyages = df_clean
