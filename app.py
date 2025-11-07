@@ -1190,45 +1190,35 @@ if "df_voyages" in st.session_state:
             st.markdown("---")
 
     # --- Résumé des validations ---
-        st.markdown("### 📊 Résumé des Validations")
-        total_voyages = len(df_validation)
+    st.markdown("### 📊 Résumé des Validations")
+    total_voyages = len(df_validation)
+    valides = sum(1 for v in st.session_state.validations.values() if v == "Oui")
+    rejetes = sum(1 for v in st.session_state.validations.values() if v == "Non")
 
-        # FILTRER seulement les validations qui correspondent aux voyages actuels
-        valides = 0
-        rejetes = 0
+    col1, col2, col3 = st.columns(3)
 
-        for idx, validation in st.session_state.validations.items():
-            # Vérifier que l'index existe toujours dans le DataFrame actuel
-            if idx in df_validation.index:
-                if validation == "Oui":
-                    valides += 1
-                elif validation == "Non":
-                    rejetes += 1
+    with col1:
+        st.metric("Total Voyages", total_voyages)
+    with col2:
+        st.metric("✅ Validés", valides)
+    with col3:
+        st.metric("❌ Rejetés", rejetes)
 
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.metric("Total Voyages", total_voyages)
-        with col2:
-            st.metric("✅ Validés", valides)
-        with col3:
-            st.metric("❌ Rejetés", rejetes)
-            # Information supplémentaire sur l'état des validations
-            if valides + rejetes < total_voyages:
-                st.info(f"ℹ️ {total_voyages - (valides + rejetes)} voyage(s) n'ont pas encore été validés")
+    # Information supplémentaire sur l'état des validations
+    if valides + rejetes < total_voyages:
+        st.info(f"ℹ️ {total_voyages - (valides + rejetes)} voyage(s) n'ont pas encore été validés")
 
     # --- Bouton pour appliquer les validations ---
     if st.button("🚀 Finaliser la Validation", type="primary", use_container_width=True):
-        # Filtrer seulement les validations qui existent dans le DataFrame actuel
-        valid_indexes = [
-            i for i, v in st.session_state.validations.items() 
-            if v == "Oui" and i in df_validation.index
-        ]
+        valid_indexes = [i for i, v in st.session_state.validations.items() if v == "Oui"]
+        valid_indexes = [i for i in valid_indexes if i in df_validation.index]
 
         if valid_indexes:
             df_voyages_valides = df_validation.loc[valid_indexes].reset_index(drop=True)
             st.session_state.df_voyages_valides = df_voyages_valides
-                
+
+            st.success(f"✅ {len(df_voyages_valides)} voyage(s) validé(s) avec succès!")
+            
             # Affichage des voyages validés
             st.markdown("### 🎉 Voyages Validés - Résumé Final")
             
