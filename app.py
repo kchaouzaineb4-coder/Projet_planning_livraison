@@ -497,16 +497,15 @@ try:
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    # AFFICHAGE STABLE - Utiliser st.dataframe avec colonnes configurées
+    # AFFICHAGE STREAMLIT avec st.dataframe (évite l'erreur removeChild)
     st.dataframe(
         df_display,
         use_container_width=True,
-        height=400,
-        hide_index=True
+        height=400
     )
     
     # Information pour l'utilisateur
-    st.info("Les listes de clients, représentants et BL sont affichées avec des séparateurs.")
+    st.info("Les listes de clients, représentants et BL sont séparées par des points-virgules (;).")
     
     # Préparer l'export Excel avec retours à la ligne \n
     df_export = df_clean.copy()
@@ -560,11 +559,11 @@ try:
         for col_idx, col_name in enumerate(df_export.columns):
             if col_name in wrap_columns:
                 col_letter = openpyxl.utils.get_column_letter(col_idx + 1)
-                for row in range(2, len(df_export) + 2):
+                for row in range(2, len(df_export) + 2):  # Commence à la ligne 2 (après l'en-tête)
                     cell = worksheet[f"{col_letter}{row}"]
                     cell.alignment = Alignment(wrap_text=True, vertical='top')
         
-        # Ajuster la largeur des colonnes
+        # Ajuster la largeur des colonnes pour une meilleure visibilité
         for column in worksheet.columns:
             max_length = 0
             column_letter = openpyxl.utils.get_column_letter(column[0].column)
@@ -574,14 +573,14 @@ try:
                         max_length = len(str(cell.value))
                 except:
                     pass
-            adjusted_width = min(max_length + 2, 50)
+            adjusted_width = min(max_length + 2, 50)  # Largeur max de 50
             worksheet.column_dimensions[column_letter].width = adjusted_width
     
     excel_buffer.seek(0)
     
     st.download_button(
         label="Télécharger Voyages Estafette Optimisés",
-        data=ex_buffer,
+        data=excel_buffer,
         file_name="Voyages_Estafette_Optimises.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
@@ -596,12 +595,14 @@ except KeyError as e:
     st.error(f"Erreur de colonne manquante : {e}")
     st.info("Tentative de récupération des données...")
     
+    # Tentative de récupération
     if st.session_state.rental_processor:
         st.session_state.df_voyages = st.session_state.rental_processor.df_base.copy()
         st.rerun()
         
 except Exception as e:
     st.error(f"Erreur lors de l'affichage des voyages optimisés: {str(e)}")
+    # Afficher les données brutes pour debug
     st.write("Données brutes pour debug:")
     if st.session_state.rental_processor:
         st.write("Colonnes du df_base:", list(st.session_state.rental_processor.df_base.columns))
@@ -610,8 +611,8 @@ except Exception as e:
 # =====================================================
 st.markdown("## 🔁 Transfert de BLs entre Estafettes / Camions")
 
-MAX_POIDS = 1550
-MAX_VOLUME = 4.608
+MAX_POIDS = 1550  # kg
+MAX_VOLUME = 4.608  # m³
 
 if "df_voyages" not in st.session_state:
     st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
@@ -646,24 +647,24 @@ else:
                 else:
                     st.subheader(f"📦 BLs actuellement assignés à {source}")
 
-                    # AFFICHAGE STABLE - Utiliser st.dataframe
+                    # --- Affichage formaté pour Streamlit ---
                     df_source_display = df_source[["Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]].copy()
                     
                     df_source_display["Poids total chargé"] = df_source_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                     df_source_display["Volume total chargé"] = df_source_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
-                    # Afficher avec st.dataframe (plus stable)
+                    # AFFICHAGE avec st.dataframe (évite l'erreur removeChild)
                     st.dataframe(
                         df_source_display,
                         use_container_width=True,
-                        hide_index=True
+                        height=200
                     )
 
                     bls_disponibles = df_source["BL inclus"].iloc[0].split(";")
                     bls_selectionnes = st.multiselect("📋 Sélectionner les BLs à transférer :", bls_disponibles)
 
                     if bls_selectionnes and st.button("🔁 Exécuter le transfert"):
-                        # [Le reste du code de transfert reste identique...]
+
                         df_bls_selection = df_livraisons[df_livraisons["No livraison"].isin(bls_selectionnes)]
                         poids_bls = df_bls_selection["Poids total"].sum()
                         volume_bls = df_bls_selection["Volume total"].sum()
@@ -695,18 +696,18 @@ else:
                             st.session_state.df_voyages = df_voyages
                             st.success(f"✅ Transfert réussi : {len(bls_selectionnes)} BL(s) déplacé(s) de {source} vers {cible}.")
 
+                            # --- Affichage Streamlit ---
                             st.subheader("📊 Voyages après transfert (toutes les zones)")
                             df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
                             
                             df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                             df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                             
-                            # Afficher avec st.dataframe (plus stable)
+                            # AFFICHAGE avec st.dataframe (évite l'erreur removeChild)
                             st.dataframe(
                                 df_display[colonnes_requises],
                                 use_container_width=True,
-                                height=400,
-                                hide_index=True
+                                height=400
                             )
 
                             # --- Export Excel avec retours à la ligne \n ---
