@@ -1853,6 +1853,19 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
         st.error("❌ La colonne 'Code voyage' est manquante. Veuillez d'abord générer les codes voyage dans la section 10.")
         st.stop()
     
+    # Fonction pour formater les colonnes avec retours à ligne pour l'export Excel
+    def formater_colonnes_retours_ligne(df):
+        df_formate = df.copy()
+        colonnes_a_formater = ['BL inclus', 'Client(s) inclus', 'Représentant(s) inclus']
+        
+        for col in colonnes_a_formater:
+            if col in df_formate.columns:
+                df_formate[col] = df_formate[col].apply(
+                    lambda x: '\n'.join([elem.strip() for elem in str(x).replace(';', ',').split(',') if elem.strip()]) 
+                    if pd.notna(x) else ""
+                )
+        return df_formate
+    
     #st.info("""
     #**Exportez l'ensemble du planning de livraisons** avec l'ordre des colonnes suivant :
     #- Code voyage, Zone, Véhicule N°, Chauffeur, BL inclus, Client(s) inclus, Poids total chargé, Volume total chargé
@@ -1884,15 +1897,17 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                 if st.session_state.df_zone is not None:
                     donnees_supplementaires['Besoin_Estafette_Zone'] = st.session_state.df_zone
                 
+                # Appliquer le formatage avec retours à ligne avant l'export
+                df_export_formate = formater_colonnes_retours_ligne(df_export_final)
+                
                 # Générer l'export
-                # Dans la section où vous appelez exporter_planning_excel, remplacez par :
-                    success, message = exporter_planning_excel(
-                        df_export_final,
-                        f"{nom_fichier}.xlsx",
-                        donnees_supplementaires,
-                        st.session_state.df_livraisons_original  # ← AJOUT DE CE PARAMÈTRE
-                    )
-                                    
+                success, message = exporter_planning_excel(
+                    df_export_formate,  # Utiliser le DataFrame formaté
+                    f"{nom_fichier}.xlsx",
+                    donnees_supplementaires,
+                    st.session_state.df_livraisons_original
+                )
+                                
                 if success:
                     st.success(message)
                     
@@ -1930,6 +1945,9 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
     
     df_apercu_final = df_export_final.copy()
     
+    # Appliquer le formatage avec retours à ligne pour l'aperçu
+    df_apercu_final = formater_colonnes_retours_ligne(df_apercu_final)
+    
     # Colonnes à afficher (format d'export final)
     colonnes_apercu = ["Code voyage", "Zone", "Véhicule N°", "Chauffeur", "BL inclus", "Client(s) inclus", "Poids total chargé", "Volume total chargé"]
     colonnes_apercu = [col for col in colonnes_apercu if col in df_apercu_final.columns]
@@ -1943,7 +1961,7 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
     show_df(df_apercu_final[colonnes_apercu], use_container_width=True)
 
 else:
-    st.warning("⚠️ Vous devez d'abord valider les voyages  et générer les codes voyage.")
+    st.warning("⚠️ Vous devez d'abord valider les voyages et générer les codes voyage.")
 
 # =====================================================
 # 🎯 RÉSUMÉ ET TABLEAU DE BORD FINAL

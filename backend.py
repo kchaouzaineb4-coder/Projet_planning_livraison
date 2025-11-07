@@ -1125,8 +1125,11 @@ def calculer_couts_estimation(df_voyages, cout_estafette=150, cout_camion=800):
         return {'erreur': f"❌ Erreur dans le calcul des coûts : {str(e)}"}
 
 def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None, df_livraisons_original=None):
-    """Exporte le planning complet vers Excel avec formatage personnalisé."""
+    """Exporte le planning complet vers Excel avec formatage personnalisé et retours à ligne."""
     try:
+        import openpyxl
+        from openpyxl.styles import Alignment
+        
         with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
             # =====================================================
             # ORDRE EXACT DES COLONNES DEMANDÉ AVEC VILLE
@@ -1201,10 +1204,19 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
                 df_voyages_working["Ville"] = df_voyages_working["BL inclus"].apply(get_villes_from_bls)
                 print("✅ Colonne 'Ville' ajoutée avec succès")
             
-            # 3. Filtrer seulement les colonnes qui existent
+            # 3. FORMATER LES COLONNES AVEC RETOURS À LIGNE
+            colonnes_retours_ligne = ['BL inclus', 'Client(s) inclus', 'Représentant(s) inclus']
+            for col in colonnes_retours_ligne:
+                if col in df_voyages_working.columns:
+                    df_voyages_working[col] = df_voyages_working[col].apply(
+                        lambda x: '\n'.join([elem.strip() for elem in str(x).replace(';', ',').split(',') if elem.strip()]) 
+                        if pd.notna(x) else ""
+                    )
+            
+            # 4. Filtrer seulement les colonnes qui existent
             colonnes_finales = [col for col in colonnes_demandees if col in df_voyages_working.columns]
             
-            # 4. Vérifier qu'on a au moins les colonnes de base et que le DataFrame n'est pas vide
+            # 5. Vérifier qu'on a au moins les colonnes de base et que le DataFrame n'est pas vide
             if df_voyages_working.empty:
                 # Créer une feuille vide avec les colonnes demandées pour éviter l'erreur
                 df_voyages_ordered = pd.DataFrame(columns=colonnes_finales)
@@ -1218,7 +1230,7 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
                     # Créer quand même l'export avec les colonnes disponibles
                     df_voyages_ordered = df_voyages_working[colonnes_finales].copy()
                 else:
-                    # 5. Réorganiser le DataFrame avec l'ordre exact demandé
+                    # 6. Réorganiser le DataFrame avec l'ordre exact demandé
                     df_voyages_ordered = df_voyages_working[colonnes_finales].copy()
             
             # =====================================================
@@ -1239,6 +1251,46 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
             else:
                 # Créer une feuille vide avec les colonnes pour éviter l'erreur
                 pd.DataFrame(columns=colonnes_finales).to_excel(writer, sheet_name='Planning Livraisons', index=False)
+            
+            # =====================================================
+            # APPLIQUER LE FORMATAGE DES RETOURS À LIGNE DANS EXCEL
+            # =====================================================
+            workbook = writer.book
+            worksheet = writer.sheets['Planning Livraisons']
+            
+            # Style avec retours à ligne et centrage
+            wrap_alignment = Alignment(
+                horizontal='center', 
+                vertical='center', 
+                wrap_text=True
+            )
+            
+            # Appliquer le formatage aux colonnes avec retours à ligne
+            for col_idx, col_name in enumerate(df_voyages_ordered.columns, 1):
+                if col_name in colonnes_retours_ligne:
+                    for row_idx in range(2, len(df_voyages_ordered) + 2):  # +2 pour header
+                        cell = worksheet.cell(row=row_idx, column=col_idx)
+                        cell.alignment = wrap_alignment
+            
+            # Ajuster la hauteur des lignes pour les retours à ligne
+            for row in range(2, len(df_voyages_ordered) + 2):
+                worksheet.row_dimensions[row].height = 40
+            
+            # Ajuster automatiquement la largeur des colonnes
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if cell.value:
+                            # Calculer la longueur maximale en prenant en compte les retours à ligne
+                            lines = str(cell.value).split('\n')
+                            max_line_length = max(len(line) for line in lines)
+                            max_length = max(max_length, max_line_length)
+                    except:
+                        pass
+                adjusted_width = min(50, (max_length + 2))
+                worksheet.column_dimensions[column_letter].width = adjusted_width
             
             # =====================================================
             # FEUILLE DE SYNTHÈSE (optionnelle)
@@ -1329,7 +1381,6 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
     
     except Exception as e:
         return False, f"❌ Erreur lors de l'export Excel : {str(e)}"
-
 # =====================================================
 # GARDEZ CETTE FONCTION INTACTE - NE PAS MODIFIER
 # =====================================================
