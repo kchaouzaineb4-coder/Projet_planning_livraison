@@ -327,7 +327,7 @@ with tab_charts:
     st.subheader("Statistiques par Ville")
 
     # 🎨 Palette de couleurs plus visible
-    couleurs = ["#A8DADC", "#F4A261", "#E9C46A", "#BDE0FE", "#FFC8DD", "#FFAFCC", "#CDB4DB"]
+    couleurs = ["#003f5c", "#2f4b7c", "#665191", "#a05195", "#d45087", "#ff7c43", "#ffa600"]
 
     col1, col2 = st.columns(2)
     with col1:
