@@ -1442,23 +1442,29 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
 
-        # --- Export PDF avec retours à ligne et centrage ---
-        from fpdf import FPDF
-        import openpyxl
-
-        def to_pdf(df, title="Voyages Attribués"):
-            pdf = FPDF()
+        # --- Export PDF AVANCÉ avec mise en page optimisée ---
+        def to_pdf_advanced(df, title="Voyages Attribués"):
+            class PDFWithBackground(FPDF):
+                def header(self):
+                    # En-tête sur chaque page
+                    self.set_font('Arial', 'B', 12)
+                    self.cell(0, 10, title, 0, 1, 'C')
+                    self.ln(5)
+                
+                def footer(self):
+                    # Pied de page sur chaque page
+                    self.set_y(-15)
+                    self.set_font('Arial', 'I', 8)
+                    self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
+            
+            pdf = PDFWithBackground(orientation='L')
             pdf.add_page()
-            pdf.set_font("Arial", 'B', 14)
-            pdf.cell(0, 10, title, ln=True, align="C")
-            pdf.ln(5)
-
-            pdf.set_font("Arial", '', 8)
-
-            # Créer une copie formatée pour le PDF avec retours à ligne
+            pdf.set_auto_page_break(auto=True, margin=15)
+            
+            # Créer une copie formatée
             df_pdf = df.copy()
             
-            # Formater les colonnes avec listes pour PDF
+            # Formater les colonnes
             colonnes_a_formater = ['Client(s) inclus', 'Représentant(s) inclus', 'BL inclus']
             for col in colonnes_a_formater:
                 if col in df_pdf.columns:
@@ -1467,41 +1473,88 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                         if pd.notna(x) else ""
                     )
             
-            if "Poids total chargé" in df_pdf.columns:
-                df_pdf["Poids total chargé"] = df_pdf["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-            if "Volume total chargé" in df_pdf.columns:
-                df_pdf["Volume total chargé"] = df_pdf["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-
-            # Calculer les largeurs de colonnes
-            col_widths = [min(40, pdf.get_string_width(str(col)) + 6) for col in df_pdf.columns]
-
-            # En-têtes CENTRÉS
-            for i, col in enumerate(df_pdf.columns):
-                pdf.cell(col_widths[i], 8, str(col), border=1, align='C')
+            # Formater les nombres
+            numeric_columns = {
+                'Poids total chargé': 'kg',
+                'Volume total chargé': 'm³', 
+                'Taux d\'occupation (%)': '%'
+            }
+            
+            for col, unit in numeric_columns.items():
+                if col in df_pdf.columns:
+                    df_pdf[col] = df_pdf[col].apply(
+                        lambda x: f"{float(x):.1f} {unit}" if x and str(x).strip() else ""
+                    )
+            
+            # Définir les colonnes à afficher avec leurs largeurs
+            col_config = {
+                'Zone': 12,
+                'Véhicule N°': 15,
+                'Poids total chargé': 18,
+                'Volume total chargé': 18,
+                'Client(s) inclus': 22,
+                'Représentant(s) inclus': 22,
+                'BL inclus': 35,
+                'Taux d\'occupation (%)': 18,
+                'Véhicule attribué': 18,
+                'Chauffeur attribué': 22,
+                'Matricule chauffeur': 18
+            }
+            
+            # Filtrer les colonnes existantes
+            colonnes_existantes = [col for col in col_config.keys() if col in df_pdf.columns]
+            widths = [col_config[col] for col in colonnes_existantes]
+            
+            # En-têtes du tableau
+            pdf.set_font("Arial", 'B', 9)
+            for i, col in enumerate(colonnes_existantes):
+                pdf.cell(widths[i], 8, col, border=1, align='C', fill=False)
             pdf.ln()
-
-            # Lignes avec gestion des retours à ligne et CENTRAGE
-            for _, row in df_pdf.iterrows():
-                max_lines = 1
-                cell_lines = []
+            
+            # Données
+            pdf.set_font("Arial", '', 8)
+            
+            for row_idx, (_, row) in enumerate(df_pdf.iterrows()):
+                # Alternance de couleurs pour les lignes
+                if row_idx % 2 == 0:
+                    pdf.set_fill_color(240, 240, 240)  # Gris clair
+                else:
+                    pdf.set_fill_color(255, 255, 255)  # Blanc
                 
-                # Calculer le nombre maximum de lignes par ligne
-                for i, col in enumerate(df_pdf.columns):
-                    cell_content = str(row[col])
-                    lines = cell_content.split('\n')
-                    cell_lines.append(lines)
+                # Calculer la hauteur maximale pour cette ligne
+                max_lines = 1
+                all_lines = []
+                
+                for col in colonnes_existantes:
+                    content = str(row[col]) if pd.notna(row[col]) else ""
+                    lines = content.split('\n')
+                    all_lines.append(lines)
                     max_lines = max(max_lines, len(lines))
                 
-                # Écrire chaque ligne de cellules avec CENTRAGE
+                # Écrire chaque sous-ligne
                 for line_idx in range(max_lines):
-                    for i, col in enumerate(df_pdf.columns):
-                        lines = cell_lines[i]
+                    for i, col in enumerate(colonnes_existantes):
+                        lines = all_lines[i]
                         content = lines[line_idx] if line_idx < len(lines) else ""
-                        pdf.cell(col_widths[i], 6, content, border=1, align='C')
+                        
+                        # Tronquer si nécessaire
+                        if len(content) > 25:
+                            content = content[:22] + "..."
+                        
+                        fill = line_idx == 0  # Remplissage seulement sur la première ligne
+                        pdf.cell(widths[i], 6, content, border=1, align='C', fill=fill)
+                    
                     pdf.ln()
-
+            
             return pdf.output(dest='S').encode('latin1')
 
+        # Utiliser la version avancée
+        st.download_button(
+            label="📄 Télécharger le tableau final (PDF Amélioré)",
+            data=to_pdf_advanced(df_attribution),
+            file_name="Voyages_attribues.pdf",
+            mime='application/pdf'
+        )
         st.download_button(
             label="📄 Télécharger le tableau final (PDF)",
             data=to_pdf(df_attribution),
