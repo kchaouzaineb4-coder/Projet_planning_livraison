@@ -662,11 +662,23 @@ else:
                 else:
                     st.subheader(f"📦 BLs actuellement assignés à {source}")
 
-                    # --- Affichage formaté pour Streamlit ---
+                    # --- Affichage formaté pour Streamlit avec retours à la ligne ---
                     df_source_display = df_source[["Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]].copy()
+                    
+                    # Transformer les BL avec retours à la ligne HTML
+                    if "BL inclus" in df_source_display.columns:
+                        df_source_display["BL inclus"] = df_source_display["BL inclus"].astype(str).apply(
+                            lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
+                        )
+                    
                     df_source_display["Poids total chargé"] = df_source_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                     df_source_display["Volume total chargé"] = df_source_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-                    show_df(df_source_display, use_container_width=True)
+                    
+                    # Affichage avec HTML pour les retours à la ligne
+                    st.markdown(
+                        df_source_display.to_html(escape=False, index=False),
+                        unsafe_allow_html=True
+                    )
 
                     bls_disponibles = df_source["BL inclus"].iloc[0].split(";")
                     bls_selectionnes = st.multiselect("📋 Sélectionner les BLs à transférer :", bls_disponibles)
@@ -704,22 +716,58 @@ else:
                             st.session_state.df_voyages = df_voyages
                             st.success(f"✅ Transfert réussi : {len(bls_selectionnes)} BL(s) déplacé(s) de {source} vers {cible}.")
 
-                            # --- Affichage Streamlit ---
+                            # --- Affichage Streamlit avec retours à la ligne ---
                             st.subheader("📊 Voyages après transfert (toutes les zones)")
                             df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
+                            
+                            # Transformer les colonnes avec retours à la ligne HTML
+                            if "BL inclus" in df_display.columns:
+                                df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
+                                    lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
+                                )
+                            
                             df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                             df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-                            show_df(df_display[colonnes_requises], use_container_width=True)
+                            
+                            # Affichage avec HTML pour les retours à la ligne
+                            st.markdown(
+                                df_display[colonnes_requises].to_html(escape=False, index=False),
+                                unsafe_allow_html=True
+                            )
 
-                            # --- Export Excel arrondi ---
+                            # --- Export Excel avec retours à la ligne \n ---
                             df_export = df_voyages.copy()
+                            
+                            # Transformer les BL avec retours à la ligne \n pour Excel
+                            if "BL inclus" in df_export.columns:
+                                df_export["BL inclus"] = df_export["BL inclus"].astype(str).apply(
+                                    lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
+                                )
+                            
                             df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
                             df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
 
                             from io import BytesIO
+                            import openpyxl
+                            from openpyxl.styles import Alignment
+                            
                             excel_buffer = BytesIO()
                             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
                                 df_export.to_excel(writer, index=False, sheet_name='Transfert BLs')
+                                
+                                # Appliquer le format wrap_text pour Excel
+                                workbook = writer.book
+                                worksheet = writer.sheets['Transfert BLs']
+                                
+                                # Appliquer le style wrap_text à la colonne BL inclus
+                                if "BL inclus" in df_export.columns:
+                                    for col_idx, col_name in enumerate(df_export.columns):
+                                        if col_name == "BL inclus":
+                                            col_letter = openpyxl.utils.get_column_letter(col_idx + 1)
+                                            for row in range(2, len(df_export) + 2):
+                                                cell = worksheet[f"{col_letter}{row}"]
+                                                cell.alignment = Alignment(wrap_text=True, vertical='top')
+                            
                             excel_buffer.seek(0)
 
                             st.download_button(
