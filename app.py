@@ -465,20 +465,23 @@ try:
     elif "df_voyages" in st.session_state:
         df_optimized_estafettes = st.session_state.df_voyages.copy()
     else:
-        st.error("Données non disponibles. Veuillez exécuter le traitement complet.")
+        st.error("❌ Données non disponibles. Veuillez exécuter le traitement complet.")
         st.stop()
     
     # Vérifier que le DataFrame n'est pas vide
     if df_optimized_estafettes.empty:
-        st.warning("Aucune donnée à afficher.")
+        st.warning("⚠️ Aucune donnée à afficher.")
         st.stop()
     
     # CORRECTION : Nettoyer les colonnes en double
     df_clean = df_optimized_estafettes.loc[:, ~df_optimized_estafettes.columns.duplicated()]
     
+    # Vérifier les colonnes disponibles
+    #st.info(f"📊 Colonnes disponibles: {', '.join(df_clean.columns)}")
+    
     # Définir l'ordre des colonnes pour l'affichage
     colonnes_ordre = [
-        "Zone", "Estafette N°", "Poids total", "Volume total",
+        "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé",
         "Client(s) inclus", "Représentant(s) inclus", "BL inclus", 
         "Taux d'occupation (%)", "Location_camion", "Location_proposee", "Code Véhicule"
     ]
@@ -486,129 +489,47 @@ try:
     # Filtrer seulement les colonnes qui existent
     colonnes_finales = [col for col in colonnes_ordre if col in df_clean.columns]
     
-    # Créer le DataFrame d'affichage avec retours à la ligne POUR STREAMLIT
+    # Créer le DataFrame d'affichage
     df_display = df_clean[colonnes_finales].copy()
     
-    # Transformer les colonnes avec retours à la ligne HTML pour l'affichage Streamlit
-    if "Client(s) inclus" in df_display.columns:
-        df_display["Client(s) inclus"] = df_display["Client(s) inclus"].astype(str).apply(
-            lambda x: "<br>".join(client.strip() for client in x.split(",")) if x != "nan" else ""
-        )
-    
-    if "Représentant(s) inclus" in df_display.columns:
-        df_display["Représentant(s) inclus"] = df_display["Représentant(s) inclus"].astype(str).apply(
-            lambda x: "<br>".join(rep.strip() for rep in x.split(",")) if x != "nan" else ""
-        )
-    
-    if "BL inclus" in df_display.columns:
-        df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
-            lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
-        )
-    
-    # Formater les colonnes numériques pour l'affichage
-    if "Poids total" in df_display.columns:
-        df_display["Poids total"] = df_display["Poids total"].map(lambda x: f"{x:.3f} kg")
-    if "Volume total" in df_display.columns:
-        df_display["Volume total"] = df_display["Volume total"].map(lambda x: f"{x:.3f} m³")
+    # Formater les colonnes numériques
+    if "Poids total chargé" in df_display.columns:
+        df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
+    if "Volume total chargé" in df_display.columns:
+        df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    # AFFICHAGE STREAMLIT avec HTML pour les retours à la ligne
-    st.markdown(
-        df_display.to_html(escape=False, index=False),
-        unsafe_allow_html=True
-    )
+    # Afficher le tableau
+    show_df(df_display, use_container_width=True)
     
-    # Information pour l'utilisateur
-    #st.info("Les listes de clients, représentants et BL sont affichées avec des retours à la ligne.")
-    
-    # Préparer l'export Excel avec retours à la ligne \n
+    # Préparer l'export Excel
     df_export = df_clean.copy()
+    if "Poids total chargé" in df_export.columns:
+        df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
+    if "Volume total chargé" in df_export.columns:
+        df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
     
-    # Transformer les colonnes avec retours à la ligne \n pour Excel
-    if "Client(s) inclus" in df_export.columns:
-        df_export["Client(s) inclus"] = df_export["Client(s) inclus"].astype(str).apply(
-            lambda x: "\n".join(client.strip() for client in x.split(",")) if x != "nan" else ""
-        )
-    
-    if "Représentant(s) inclus" in df_export.columns:
-        df_export["Représentant(s) inclus"] = df_export["Représentant(s) inclus"].astype(str).apply(
-            lambda x: "\n".join(rep.strip() for rep in x.split(",")) if x != "nan" else ""
-        )
-    
-    if "BL inclus" in df_export.columns:
-        df_export["BL inclus"] = df_export["BL inclus"].astype(str).apply(
-            lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
-        )
-    
-    # Formater les colonnes numériques pour l'export
-    if "Poids total" in df_export.columns:
-        df_export["Poids total"] = df_export["Poids total"].round(3)
-    if "Volume total" in df_export.columns:
-        df_export["Volume total"] = df_export["Volume total"].round(3)
-    
-    # Bouton de téléchargement avec formatage Excel
+    # Bouton de téléchargement
     from io import BytesIO
-    import openpyxl
-    from openpyxl.styles import Alignment
-    
     excel_buffer = BytesIO()
-    
     with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
         df_export.to_excel(writer, index=False, sheet_name="Voyages Optimisés")
-        
-        # Récupérer le workbook et worksheet pour appliquer le formatage
-        workbook = writer.book
-        worksheet = writer.sheets["Voyages Optimisés"]
-        
-        # Appliquer le style wrap_text aux colonnes avec retours à la ligne
-        wrap_columns = []
-        if "Client(s) inclus" in df_export.columns:
-            wrap_columns.append("Client(s) inclus")
-        if "Représentant(s) inclus" in df_export.columns:
-            wrap_columns.append("Représentant(s) inclus")
-        if "BL inclus" in df_export.columns:
-            wrap_columns.append("BL inclus")
-        
-        # Appliquer le format wrap_text à toutes les cellules des colonnes concernées
-        for col_idx, col_name in enumerate(df_export.columns):
-            if col_name in wrap_columns:
-                col_letter = openpyxl.utils.get_column_letter(col_idx + 1)
-                for row in range(2, len(df_export) + 2):  # Commence à la ligne 2 (après l'en-tête)
-                    cell = worksheet[f"{col_letter}{row}"]
-                    cell.alignment = Alignment(wrap_text=True, vertical='top')
-        
-        # Ajuster la largeur des colonnes pour une meilleure visibilité
-        for column in worksheet.columns:
-            max_length = 0
-            column_letter = openpyxl.utils.get_column_letter(column[0].column)
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            adjusted_width = min(max_length + 2, 50)  # Largeur max de 50
-            worksheet.column_dimensions[column_letter].width = adjusted_width
-    
     excel_buffer.seek(0)
     
     st.download_button(
-        label="Télécharger Voyages Estafette Optimisés",
+        label="💾 Télécharger Voyages Estafette Optimisés",
         data=excel_buffer,
         file_name="Voyages_Estafette_Optimises.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     
-    # Instructions pour Excel
-    #st.info("💡 **Pour Excel** : Les retours à la ligne sont activés. Dans Excel, utilisez 'Alt+Entrée' pour voir les retours à la ligne si nécessaire.")
-    
     # Mise à jour pour les sections suivantes
     st.session_state.df_voyages = df_clean
 
 except KeyError as e:
-    st.error(f"Erreur de colonne manquante : {e}")
-    st.info("Tentative de récupération des données...")
+    st.error(f"❌ Erreur de colonne manquante : {e}")
+    st.info("🔄 Tentative de récupération des données...")
     
     # Tentative de récupération
     if st.session_state.rental_processor:
@@ -616,7 +537,7 @@ except KeyError as e:
         st.rerun()
         
 except Exception as e:
-    st.error(f"Erreur lors de l'affichage des voyages optimisés: {str(e)}")
+    st.error(f"❌ Erreur lors de l'affichage des voyages optimisés: {str(e)}")
     # Afficher les données brutes pour debug
     st.write("Données brutes pour debug:")
     if st.session_state.rental_processor:
