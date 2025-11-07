@@ -1485,7 +1485,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                 'Taux d\'occupation (%)': 18,
                 'Véhicule attribué': 20,
                 'Chauffeur attribué': 25,
-                'Matricule chauffeur': 18
+                'Matricule chauffeur': 20
             }
             
             # Sélectionner seulement les colonnes existantes
