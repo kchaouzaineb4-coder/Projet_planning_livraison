@@ -486,8 +486,24 @@ try:
     # Filtrer seulement les colonnes qui existent
     colonnes_finales = [col for col in colonnes_ordre if col in df_clean.columns]
     
-    # Créer le DataFrame d'affichage POUR STREAMLIT
+    # Créer le DataFrame d'affichage avec retours à la ligne POUR STREAMLIT
     df_display = df_clean[colonnes_finales].copy()
+    
+    # Transformer les colonnes avec retours à la ligne HTML pour l'affichage Streamlit
+    if "Client(s) inclus" in df_display.columns:
+        df_display["Client(s) inclus"] = df_display["Client(s) inclus"].astype(str).apply(
+            lambda x: "<br>".join(client.strip() for client in x.split(",")) if x != "nan" else ""
+        )
+    
+    if "Représentant(s) inclus" in df_display.columns:
+        df_display["Représentant(s) inclus"] = df_display["Représentant(s) inclus"].astype(str).apply(
+            lambda x: "<br>".join(rep.strip() for rep in x.split(",")) if x != "nan" else ""
+        )
+    
+    if "BL inclus" in df_display.columns:
+        df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
+            lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
+        )
     
     # Formater les colonnes numériques pour l'affichage
     if "Poids total chargé" in df_display.columns:
@@ -497,72 +513,30 @@ try:
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    # AFFICHAGE AMÉLIORÉ - Ligne par ligne avec expanders
-    st.markdown("### 📊 Détail des Voyages Optimisés")
+    # CSS pour centrer le tableau
+    st.markdown("""
+    <style>
+    .centered-table {
+        margin-left: auto;
+        margin-right: auto;
+        display: table;
+    }
+    .centered-table table {
+        margin: 0 auto;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     
-    for idx, row in df_display.iterrows():
-        with st.expander(f"🚚 {row['Véhicule N°']} - Zone {row['Zone']}", expanded=False):
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric("⚖️ Poids Total", row['Poids total chargé'])
-                st.metric("📏 Volume Total", row['Volume total chargé'])
-                
-                # Informations location
-                location_camion = row.get('Location_camion', False)
-                location_proposee = row.get('Location_proposee', False)
-                code_vehicule = row.get('Code Véhicule', 'N/A')
-                
-                st.write("**🚛 Informations Véhicule:**")
-                st.write(f"Location Camion: {'✅ Oui' if location_camion else '❌ Non'}")
-                st.write(f"Location Proposée: {'✅ Oui' if location_proposee else '❌ Non'}")
-                st.write(f"Code Véhicule: {code_vehicule}")
-            
-            with col2:
-                clients = row.get('Client(s) inclus', '')
-                if clients and clients != 'nan':
-                    st.write("**👥 Clients Inclus:**")
-                    # Séparer par virgules et afficher avec retours à la ligne
-                    clients_list = [c.strip() for c in clients.split(",") if c.strip()]
-                    for client in clients_list:
-                        st.write(f"• {client}")
-                else:
-                    st.write("**👥 Clients:** Aucun")
-                
-                representants = row.get('Représentant(s) inclus', '')
-                if representants and representants != 'nan':
-                    st.write("**👨‍💼 Représentants Inclus:**")
-                    # Séparer par virgules et afficher avec retours à la ligne
-                    reps_list = [r.strip() for r in representants.split(",") if r.strip()]
-                    for rep in reps_list:
-                        st.write(f"• {rep}")
-                else:
-                    st.write("**👨‍💼 Représentants:** Aucun")
-            
-            with col3:
-                bls = row.get('BL inclus', '')
-                if bls and bls != 'nan':
-                    # Séparer par points-virgules et afficher avec retours à la ligne
-                    bls_list = [bl.strip() for bl in bls.split(";") if bl.strip()]
-                    st.write(f"**📋 BLs Inclus ({len(bls_list)}):**")
-                    
-                    # Afficher avec défilement si trop long
-                    if len(bls_list) > 10:
-                        with st.container(height=200):
-                            for bl in bls_list:
-                                st.write(f"• {bl}")
-                    else:
-                        for bl in bls_list:
-                            st.write(f"• {bl}")
-                else:
-                    st.write("**📋 BLs:** Aucun")
-                
-                taux = row.get('Taux d\'occupation (%)', '')
-                if taux and taux != 'nan':
-                    st.metric("📊 Taux d'Occupation", taux)
+    # Affichage avec HTML pour les retours à la ligne et centrage
+    html_content = f"""
+    <div class="centered-table">
+    {df_display.to_html(escape=False, index=False)}
+    </div>
+    """
+    st.markdown(html_content, unsafe_allow_html=True)
     
     # Information pour l'utilisateur
-    st.info("💡 Les listes de clients, représentants et BL sont affichées avec des retours à la ligne pour une meilleure lisibilité.")
+    #st.info("💡 Les listes de clients, représentants et BL sont affichées avec des retours à la ligne.")
     
     # Préparer l'export Excel avec retours à la ligne \n
     df_export = df_clean.copy()
@@ -636,15 +610,14 @@ try:
     excel_buffer.seek(0)
     
     st.download_button(
-        label="💾 Télécharger Voyages Estafette Optimisés (Excel)",
+        label="💾 Télécharger Voyages Estafette Optimisés",
         data=excel_buffer,
         file_name="Voyages_Estafette_Optimises.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     
     # Instructions pour Excel
-    st.info("💡 **Pour Excel** : Les retours à la ligne sont activés. Les listes de clients, représentants et BL s'affichent sur plusieurs lignes dans les cellules Excel.")
+    #st.info("💡 **Pour Excel** : Les retours à la ligne sont activés. Dans Excel, utilisez 'Alt+Entrée' pour voir les retours à la ligne si nécessaire.")
     
     # Mise à jour pour les sections suivantes
     st.session_state.df_voyages = df_clean
