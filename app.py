@@ -489,22 +489,6 @@ try:
     # Créer le DataFrame d'affichage POUR STREAMLIT
     df_display = df_clean[colonnes_finales].copy()
     
-    # Transformer les colonnes avec retours à la ligne \n pour Streamlit
-    if "Client(s) inclus" in df_display.columns:
-        df_display["Client(s) inclus"] = df_display["Client(s) inclus"].astype(str).apply(
-            lambda x: "\n".join(client.strip() for client in x.split(",")) if x != "nan" else ""
-        )
-    
-    if "Représentant(s) inclus" in df_display.columns:
-        df_display["Représentant(s) inclus"] = df_display["Représentant(s) inclus"].astype(str).apply(
-            lambda x: "\n".join(rep.strip() for rep in x.split(",")) if x != "nan" else ""
-        )
-    
-    if "BL inclus" in df_display.columns:
-        df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
-            lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
-        )
-    
     # Formater les colonnes numériques pour l'affichage
     if "Poids total chargé" in df_display.columns:
         df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
@@ -513,12 +497,8 @@ try:
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    # Afficher avec st.dataframe (évite l'erreur removeChild)
-    st.dataframe(
-        df_display,
-        use_container_width=True,
-        height=400
-    )
+    # AFFICHAGE ALTERNATIF - Utiliser st.table() qui supporte mieux les retours à la ligne
+    st.table(df_display)
     
     # Information pour l'utilisateur
     st.info("💡 Les listes de clients, représentants et BL sont affichées avec des retours à la ligne.")
