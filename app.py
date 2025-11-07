@@ -1104,7 +1104,7 @@ if "df_voyages" in st.session_state:
             with col1:
                 st.markdown(f"""
                 <div class="metric-card">
-                    <strong>📦 Poids Total</strong><br>
+                    <strong>⚖️ Poids Total</strong><br>
                     {row['Poids total chargé']:.3f} kg
                 </div>
                 """, unsafe_allow_html=True)
