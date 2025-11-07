@@ -536,7 +536,7 @@ try:
     st.markdown(html_content, unsafe_allow_html=True)
     
     # Information pour l'utilisateur
-    st.info("💡 Les listes de clients, représentants et BL sont affichées avec des retours à la ligne.")
+    #st.info("💡 Les listes de clients, représentants et BL sont affichées avec des retours à la ligne.")
     
     # Préparer l'export Excel avec retours à la ligne \n
     df_export = df_clean.copy()
@@ -617,7 +617,7 @@ try:
     )
     
     # Instructions pour Excel
-    st.info("💡 **Pour Excel** : Les retours à la ligne sont activés. Dans Excel, utilisez 'Alt+Entrée' pour voir les retours à la ligne si nécessaire.")
+    #st.info("💡 **Pour Excel** : Les retours à la ligne sont activés. Dans Excel, utilisez 'Alt+Entrée' pour voir les retours à la ligne si nécessaire.")
     
     # Mise à jour pour les sections suivantes
     st.session_state.df_voyages = df_clean
