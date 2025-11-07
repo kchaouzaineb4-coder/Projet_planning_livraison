@@ -1319,10 +1319,8 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                 )
             
             with col_chauf:
-                # MODIFICATION : Afficher matricule + nom dans le selectbox
                 options_chauffeurs = [f"{matricule} - {nom}" for matricule, nom in CHAUFFEURS_DETAILS.items() if matricule != 'Matricule']
                 
-                # Trouver l'index par défaut
                 default_index = 0
                 chauffeur_actuel = st.session_state.attributions.get(idx, {}).get("Chauffeur_complet")
                 if chauffeur_actuel and chauffeur_actuel in options_chauffeurs:
@@ -1335,7 +1333,6 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                     key=f"chauffeur_{idx}"
                 )
                 
-                # Extraire le matricule et le nom du chauffeur sélectionné
                 if chauffeur_selectionne_complet:
                     matricule_chauffeur = chauffeur_selectionne_complet.split(" - ")[0]
                     nom_chauffeur = chauffeur_selectionne_complet.split(" - ")[1]
@@ -1377,7 +1374,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             height=400
         )
 
-        # --- Export Excel avec retours à ligne ---
+        # --- Export Excel avec retours à ligne et CENTRAGE ---
         from io import BytesIO
         def to_excel(df):
             df_export = df.copy()
@@ -1400,16 +1397,41 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df_export.to_excel(writer, index=False, sheet_name='Voyages_Attribués')
                 
-                # Appliquer le formatage des retours à ligne dans Excel
+                # Appliquer le formatage des retours à ligne et CENTRAGE dans Excel
                 workbook = writer.book
                 worksheet = writer.sheets['Voyages_Attribués']
                 
-                # Formater les cellules avec retours à ligne automatique
-                for col_idx, col_name in enumerate(df_export.columns, 1):
-                    if col_name in colonnes_a_formater:
-                        for row_idx in range(2, len(df_export) + 2):  # +2 pour header
-                            cell = worksheet.cell(row=row_idx, column=col_idx)
-                            cell.alignment = openpyxl.styles.Alignment(wrap_text=True, vertical='top')
+                # Style de centrage avec retours à ligne
+                center_alignment = openpyxl.styles.Alignment(
+                    horizontal='center', 
+                    vertical='center', 
+                    wrap_text=True
+                )
+                
+                # Appliquer le centrage à TOUTES les cellules
+                for row in worksheet.iter_rows(min_row=1, max_row=len(df_export) + 1, min_col=1, max_col=len(df_export.columns)):
+                    for cell in row:
+                        cell.alignment = center_alignment
+                
+                # Ajuster automatiquement la largeur des colonnes
+                for column in worksheet.columns:
+                    max_length = 0
+                    column_letter = column[0].column_letter
+                    for cell in column:
+                        try:
+                            if cell.value:
+                                # Calculer la longueur maximale en prenant en compte les retours à ligne
+                                lines = str(cell.value).split('\n')
+                                max_line_length = max(len(line) for line in lines)
+                                max_length = max(max_length, max_line_length)
+                        except:
+                            pass
+                    adjusted_width = min(50, (max_length + 2))  # Limiter à 50 caractères max
+                    worksheet.column_dimensions[column_letter].width = adjusted_width
+                
+                # Ajuster la hauteur des lignes pour les retours à ligne
+                for row in range(2, len(df_export) + 2):  # Commencer à la ligne 2 (après l'en-tête)
+                    worksheet.row_dimensions[row].height = 60  # Hauteur fixe pour accommoder les retours à ligne
             
             return output.getvalue()
 
@@ -1420,9 +1442,9 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
 
-        # --- Export PDF avec retours à ligne ---
+        # --- Export PDF avec retours à ligne et centrage ---
         from fpdf import FPDF
-        import openpyxl  # Ajout pour l'export Excel
+        import openpyxl
 
         def to_pdf(df, title="Voyages Attribués"):
             pdf = FPDF()
@@ -1431,7 +1453,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             pdf.cell(0, 10, title, ln=True, align="C")
             pdf.ln(5)
 
-            pdf.set_font("Arial", '', 8)  # Taille réduite pour plus d'espace
+            pdf.set_font("Arial", '', 8)
 
             # Créer une copie formatée pour le PDF avec retours à ligne
             df_pdf = df.copy()
@@ -1453,12 +1475,12 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             # Calculer les largeurs de colonnes
             col_widths = [min(40, pdf.get_string_width(str(col)) + 6) for col in df_pdf.columns]
 
-            # En-têtes
+            # En-têtes CENTRÉS
             for i, col in enumerate(df_pdf.columns):
                 pdf.cell(col_widths[i], 8, str(col), border=1, align='C')
             pdf.ln()
 
-            # Lignes avec gestion des retours à ligne
+            # Lignes avec gestion des retours à ligne et CENTRAGE
             for _, row in df_pdf.iterrows():
                 max_lines = 1
                 cell_lines = []
@@ -1470,12 +1492,12 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                     cell_lines.append(lines)
                     max_lines = max(max_lines, len(lines))
                 
-                # Écrire chaque ligne de cellules
+                # Écrire chaque ligne de cellules avec CENTRAGE
                 for line_idx in range(max_lines):
                     for i, col in enumerate(df_pdf.columns):
                         lines = cell_lines[i]
                         content = lines[line_idx] if line_idx < len(lines) else ""
-                        pdf.cell(col_widths[i], 6, content, border=1)
+                        pdf.cell(col_widths[i], 6, content, border=1, align='C')
                     pdf.ln()
 
             return pdf.output(dest='S').encode('latin1')
