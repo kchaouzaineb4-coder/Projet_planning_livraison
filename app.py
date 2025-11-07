@@ -2085,6 +2085,8 @@ if "df_voyages" in st.session_state:
         st.metric("📋 Statut", status)
     
     # Graphique de répartition par zone
+    # Dans la section "RÉSUMÉ ET TABLEAU DE BORD FINAL", remplacez le code problématique par :
+
     st.subheader("📊 Répartition par Zone")
     if 'Zone' in df_final.columns:
         repartition_zone = df_final.groupby("Zone").size().reset_index(name="Nombre de véhicules")
@@ -2092,15 +2094,14 @@ if "df_voyages" in st.session_state:
         if not repartition_zone.empty:
             import plotly.express as px
             fig_zone = px.bar(
-                px.bar(repartition_zone, 
+                repartition_zone, 
                 x="Zone", 
                 y="Nombre de véhicules",
                 title="Nombre de véhicules par zone",
                 color="Nombre de véhicules",
                 color_continuous_scale='viridis'  # Échelle de couleurs plus visible
-            ),
-            use_container_width=True
-        )
+            )
+            st.plotly_chart(fig_zone, use_container_width=True)
     # Graphique de répartition par type de véhicule
     st.subheader("🚗 Répartition par Type de Véhicule")
     if "Code Véhicule" in df_final.columns:
