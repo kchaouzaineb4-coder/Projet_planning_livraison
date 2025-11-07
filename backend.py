@@ -1005,7 +1005,7 @@ class AdvancedReportGenerator:
             analyses.append("\n🌍 ANALYSE PAR ZONE GÉOGRAPHIQUE")
             for zone in self.df_voyages["Zone"].unique():
                 df_zone = self.df_voyages[self.df_voyages["Zone"] == zone]
-                analyses.append(f"•  {zone} : {len(df_zone)} véhicules, {df_zone['Poids total chargé'].sum():.1f} kg, {df_zone['Volume total chargé'].sum():.3f} m³")
+                analyses.append(f"• {zone} : {len(df_zone)} véhicules, {df_zone['Poids total chargé'].sum():.1f} kg, {df_zone['Volume total chargé'].sum():.3f} m³")
             
             # 3. Analyse d'efficacité
             analyses.append("\n⚡ ANALYSE D'EFFICACITÉ")
