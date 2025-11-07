@@ -662,17 +662,22 @@ else:
                 else:
                     st.subheader(f"📦 BLs actuellement assignés à {source}")
 
-                    # --- Affichage formaté pour Streamlit ---
+                    # --- Affichage formaté pour Streamlit avec retours à la ligne ---
                     df_source_display = df_source[["Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]].copy()
+                    
+                    # Transformer les BL avec retours à la ligne HTML
+                    if "BL inclus" in df_source_display.columns:
+                        df_source_display["BL inclus"] = df_source_display["BL inclus"].astype(str).apply(
+                            lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
+                        )
                     
                     df_source_display["Poids total chargé"] = df_source_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                     df_source_display["Volume total chargé"] = df_source_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
-                    # AFFICHAGE avec st.dataframe (évite l'erreur removeChild)
-                    st.dataframe(
-                        df_source_display,
-                        use_container_width=True,
-                        height=200
+                    # Affichage avec HTML pour les retours à la ligne
+                    st.markdown(
+                        df_source_display.to_html(escape=False, index=False),
+                        unsafe_allow_html=True
                     )
 
                     bls_disponibles = df_source["BL inclus"].iloc[0].split(";")
@@ -711,18 +716,23 @@ else:
                             st.session_state.df_voyages = df_voyages
                             st.success(f"✅ Transfert réussi : {len(bls_selectionnes)} BL(s) déplacé(s) de {source} vers {cible}.")
 
-                            # --- Affichage Streamlit ---
+                            # --- Affichage Streamlit avec retours à la ligne ---
                             st.subheader("📊 Voyages après transfert (toutes les zones)")
                             df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
+                            
+                            # Transformer les colonnes avec retours à la ligne HTML
+                            if "BL inclus" in df_display.columns:
+                                df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
+                                    lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
+                                )
                             
                             df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                             df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                             
-                            # AFFICHAGE avec st.dataframe (évite l'erreur removeChild)
-                            st.dataframe(
-                                df_display[colonnes_requises],
-                                use_container_width=True,
-                                height=400
+                            # Affichage avec HTML pour les retours à la ligne
+                            st.markdown(
+                                df_display[colonnes_requises].to_html(escape=False, index=False),
+                                unsafe_allow_html=True
                             )
 
                             # --- Export Excel avec retours à la ligne \n ---
