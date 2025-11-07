@@ -486,8 +486,24 @@ try:
     # Filtrer seulement les colonnes qui existent
     colonnes_finales = [col for col in colonnes_ordre if col in df_clean.columns]
     
-    # Créer le DataFrame d'affichage
+    # Créer le DataFrame d'affichage avec retours à la ligne
     df_display = df_clean[colonnes_finales].copy()
+    
+    # Transformer les colonnes avec retours à la ligne
+    if "Client(s) inclus" in df_display.columns:
+        df_display["Client(s) inclus"] = df_display["Client(s) inclus"].astype(str).apply(
+            lambda x: "<br>".join(client.strip() for client in x.split(","))
+        )
+    
+    if "Représentant(s) inclus" in df_display.columns:
+        df_display["Représentant(s) inclus"] = df_display["Représentant(s) inclus"].astype(str).apply(
+            lambda x: "<br>".join(rep.strip() for rep in x.split(","))
+        )
+    
+    if "BL inclus" in df_display.columns:
+        df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
+            lambda x: "<br>".join(bl.strip() for bl in x.split(";"))
+        )
     
     # Formater les colonnes numériques
     if "Poids total chargé" in df_display.columns:
@@ -497,13 +513,16 @@ try:
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    # Afficher simplement avec show_df
-    show_df(df_display, use_container_width=True)
+    # Affichage avec HTML dans st.markdown (comme dans votre exemple)
+    st.markdown(
+        df_display.to_html(escape=False, index=False),
+        unsafe_allow_html=True
+    )
     
-    # Information pour l'utilisateur avec les bonnes séparations
-    st.info("Astuce : Les clients et représentants sont séparés par des virgules (,), les BL par des points-virgules (;).")
+    # Information pour l'utilisateur
+    st.info("Les listes de clients, représentants et BL sont affichées avec des retours à la ligne.")
     
-    # Préparer l'export Excel
+    # Préparer l'export Excel (garder le format original)
     df_export = df_clean.copy()
     if "Poids total chargé" in df_export.columns:
         df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
