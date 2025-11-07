@@ -674,11 +674,27 @@ else:
                     df_source_display["Poids total chargé"] = df_source_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                     df_source_display["Volume total chargé"] = df_source_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
-                    # Affichage avec HTML pour les retours à la ligne
-                    st.markdown(
-                        df_source_display.to_html(escape=False, index=False),
-                        unsafe_allow_html=True
-                    )
+                    # CSS pour centrer le tableau
+                    st.markdown("""
+                    <style>
+                    .centered-table {
+                        margin-left: auto;
+                        margin-right: auto;
+                        display: table;
+                    }
+                    .centered-table table {
+                        margin: 0 auto;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
+                    
+                    # Affichage avec HTML pour les retours à la ligne et centrage
+                    html_content = f"""
+                    <div class="centered-table">
+                    {df_source_display.to_html(escape=False, index=False)}
+                    </div>
+                    """
+                    st.markdown(html_content, unsafe_allow_html=True)
 
                     bls_disponibles = df_source["BL inclus"].iloc[0].split(";")
                     bls_selectionnes = st.multiselect("📋 Sélectionner les BLs à transférer :", bls_disponibles)
@@ -729,11 +745,13 @@ else:
                             df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                             df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                             
-                            # Affichage avec HTML pour les retours à la ligne
-                            st.markdown(
-                                df_display[colonnes_requises].to_html(escape=False, index=False),
-                                unsafe_allow_html=True
-                            )
+                            # Affichage avec HTML pour les retours à la ligne et centrage
+                            html_content_after = f"""
+                            <div class="centered-table">
+                            {df_display[colonnes_requises].to_html(escape=False, index=False)}
+                            </div>
+                            """
+                            st.markdown(html_content_after, unsafe_allow_html=True)
 
                             # --- Export Excel avec retours à la ligne \n ---
                             df_export = df_voyages.copy()
