@@ -1083,7 +1083,7 @@ class AdvancedReportGenerator:
             
             for veh in vehicules_client:
                 rapport.append(
-                    f"• {veh['Type']} {veh['Véhicule']} (Zone {veh['Zone']}) : "
+                    f"• {veh['Type']} {veh['Véhicule']} ({veh['Zone']}) : "
                     f"{veh['Poids']:.1f}kg, {veh['Volume']:.3f}m³, "
                     f"Taux {veh['Taux Occupation']:.1f}%"
                 )
