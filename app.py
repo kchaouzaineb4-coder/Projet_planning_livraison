@@ -486,23 +486,23 @@ try:
     # Filtrer seulement les colonnes qui existent
     colonnes_finales = [col for col in colonnes_ordre if col in df_clean.columns]
     
-    # Créer le DataFrame d'affichage POUR STREAMLIT
+    # Créer le DataFrame d'affichage avec retours à la ligne POUR STREAMLIT
     df_display = df_clean[colonnes_finales].copy()
     
-    # Transformer les colonnes avec retours à la ligne \n pour Streamlit
+    # Transformer les colonnes avec retours à la ligne HTML pour l'affichage Streamlit
     if "Client(s) inclus" in df_display.columns:
         df_display["Client(s) inclus"] = df_display["Client(s) inclus"].astype(str).apply(
-            lambda x: "\n".join(client.strip() for client in x.split(",")) if x != "nan" else ""
+            lambda x: "<br>".join(client.strip() for client in x.split(",")) if x != "nan" else ""
         )
     
     if "Représentant(s) inclus" in df_display.columns:
         df_display["Représentant(s) inclus"] = df_display["Représentant(s) inclus"].astype(str).apply(
-            lambda x: "\n".join(rep.strip() for rep in x.split(",")) if x != "nan" else ""
+            lambda x: "<br>".join(rep.strip() for rep in x.split(",")) if x != "nan" else ""
         )
     
     if "BL inclus" in df_display.columns:
         df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
-            lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
+            lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
         )
     
     # Formater les colonnes numériques pour l'affichage
@@ -513,11 +513,30 @@ try:
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    # AFFICHAGE AMÉLIORÉ - Utiliser st.table() qui supporte mieux les \n
-    st.table(df_display)
+    # CSS pour centrer le tableau
+    st.markdown("""
+    <style>
+    .centered-table {
+        margin-left: auto;
+        margin-right: auto;
+        display: table;
+    }
+    .centered-table table {
+        margin: 0 auto;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Affichage avec HTML pour les retours à la ligne et centrage
+    html_content = f"""
+    <div class="centered-table">
+    {df_display.to_html(escape=False, index=False)}
+    </div>
+    """
+    st.markdown(html_content, unsafe_allow_html=True)
     
     # Information pour l'utilisateur
-    st.info("💡 Les listes de clients, représentants et BL sont affichées avec des retours à la ligne.")
+    #st.info("💡 Les listes de clients, représentants et BL sont affichées avec des retours à la ligne.")
     
     # Préparer l'export Excel avec retours à la ligne \n
     df_export = df_clean.copy()
@@ -591,15 +610,14 @@ try:
     excel_buffer.seek(0)
     
     st.download_button(
-        label="💾 Télécharger Voyages Estafette Optimisés (Excel)",
+        label="💾 Télécharger Voyages Estafette Optimisés",
         data=excel_buffer,
         file_name="Voyages_Estafette_Optimises.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     
     # Instructions pour Excel
-    st.info("💡 **Pour Excel** : Les retours à la ligne sont activés. Les listes de clients, représentants et BL s'affichent sur plusieurs lignes dans les cellules Excel.")
+    #st.info("💡 **Pour Excel** : Les retours à la ligne sont activés. Dans Excel, utilisez 'Alt+Entrée' pour voir les retours à la ligne si nécessaire.")
     
     # Mise à jour pour les sections suivantes
     st.session_state.df_voyages = df_clean
