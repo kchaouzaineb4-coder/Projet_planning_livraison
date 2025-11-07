@@ -465,19 +465,16 @@ try:
     elif "df_voyages" in st.session_state:
         df_optimized_estafettes = st.session_state.df_voyages.copy()
     else:
-        st.error("❌ Données non disponibles. Veuillez exécuter le traitement complet.")
+        st.error("Données non disponibles. Veuillez exécuter le traitement complet.")
         st.stop()
     
     # Vérifier que le DataFrame n'est pas vide
     if df_optimized_estafettes.empty:
-        st.warning("⚠️ Aucune donnée à afficher.")
+        st.warning("Aucune donnée à afficher.")
         st.stop()
     
     # CORRECTION : Nettoyer les colonnes en double
     df_clean = df_optimized_estafettes.loc[:, ~df_optimized_estafettes.columns.duplicated()]
-    
-    # Vérifier les colonnes disponibles
-    #st.info(f"📊 Colonnes disponibles: {', '.join(df_clean.columns)}")
     
     # Définir l'ordre des colonnes pour l'affichage
     colonnes_ordre = [
@@ -492,9 +489,6 @@ try:
     # Créer le DataFrame d'affichage
     df_display = df_clean[colonnes_finales].copy()
     
-    # MODIFICATION : NE PAS modifier les colonnes pour le multiligne
-    # Streamlit gère mieux l'affichage sans transformation des données
-    
     # Formater les colonnes numériques
     if "Poids total chargé" in df_display.columns:
         df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
@@ -503,11 +497,11 @@ try:
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    # MODIFICATION : Afficher simplement avec show_df sans CSS personnalisé
+    # Afficher simplement avec show_df
     show_df(df_display, use_container_width=True)
     
-    # Information pour l'utilisateur
-    st.info("💡 **Astuce** : Les listes de clients, représentants et BL sont séparées par des points-virgules (;).")
+    # Information pour l'utilisateur avec les bonnes séparations
+    st.info("Astuce : Les clients et représentants sont séparés par des virgules (,), les BL par des points-virgules (;).")
     
     # Préparer l'export Excel
     df_export = df_clean.copy()
@@ -524,7 +518,7 @@ try:
     excel_buffer.seek(0)
     
     st.download_button(
-        label="💾 Télécharger Voyages Estafette Optimisés",
+        label="Télécharger Voyages Estafette Optimisés",
         data=excel_buffer,
         file_name="Voyages_Estafette_Optimises.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -534,8 +528,8 @@ try:
     st.session_state.df_voyages = df_clean
 
 except KeyError as e:
-    st.error(f"❌ Erreur de colonne manquante : {e}")
-    st.info("🔄 Tentative de récupération des données...")
+    st.error(f"Erreur de colonne manquante : {e}")
+    st.info("Tentative de récupération des données...")
     
     # Tentative de récupération
     if st.session_state.rental_processor:
@@ -543,7 +537,7 @@ except KeyError as e:
         st.rerun()
         
 except Exception as e:
-    st.error(f"❌ Erreur lors de l'affichage des voyages optimisés: {str(e)}")
+    st.error(f"Erreur lors de l'affichage des voyages optimisés: {str(e)}")
     # Afficher les données brutes pour debug
     st.write("Données brutes pour debug:")
     if st.session_state.rental_processor:
