@@ -142,7 +142,7 @@ class DeliveryProcessor:
             "Poids total": "sum",
             "Volume total": "sum",
             "No livraison": "count"
-        }).rename(columns={"No livraison": "Nombre de BLs"})
+        }).rename(columns={"No livraison": "Nombre de BLs"})  # ← MODIFICATION ICI
         return df_grouped, df_city
 
     def _calculate_estafette_need(self, df):
