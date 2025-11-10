@@ -344,10 +344,12 @@ with tab_charts:
     col3, col4 = st.columns(2)
     with col3:
         st.plotly_chart(
-            px.bar(st.session_state.df_city, x="Ville", y="Nombre livraisons",
-                title="Nombre de BL par ville"),  # ← NOUVEAU TITRE
-            use_container_width=True
-)
+        px.bar(st.session_state.df_city, x="Ville", y="Nombre livraisons",
+            title="Nombre de BL par ville",
+            labels={"Nombre livraisons": "Nombre de BLs"}),  # ← MODIFICATION ICI
+        use_container_width=True
+        )
+
     with col4:
         st.plotly_chart(
             px.bar(st.session_state.df_city, x="Ville", y="Besoin estafette réel",
