@@ -324,6 +324,7 @@ with tab_zone_summary:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
+
 # --- Onglet Graphiques ---
 with tab_charts:
     st.subheader("Statistiques par Ville")
@@ -336,8 +337,6 @@ with tab_charts:
         )
     with col2:
         st.plotly_chart(
-
-
             px.bar(st.session_state.df_city, x="Ville", y="Volume total",
                    title="Volume total livré par ville (m³)"),
             use_container_width=True
@@ -345,20 +344,19 @@ with tab_charts:
 
     col3, col4 = st.columns(2)
     with col3:
+        # DIAGRAMME CORRIGÉ : Nombre de BL par ville
+        df_chart = st.session_state.df_city.rename(columns={"Nombre livraisons": "Nombre de BLs"})
         st.plotly_chart(
-        px.bar(st.session_state.df_city, x="Ville", y="Nombre livraisons",
-            title="Nombre de BL par ville",
-            labels={"Nombre livraisons": "Nombre de BLs"}),  # ← MODIFICATION ICI
-        use_container_width=True
+            px.bar(df_chart, x="Ville", y="Nombre de BLs",
+                   title="Nombre de BL par ville"),
+            use_container_width=True
         )
-
     with col4:
         st.plotly_chart(
             px.bar(st.session_state.df_city, x="Ville", y="Besoin estafette réel",
                    title="Besoin en Estafettes par ville"),
             use_container_width=True
         )
-
 st.markdown("---")
 
 # =====================================================
