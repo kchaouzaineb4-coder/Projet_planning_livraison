@@ -260,7 +260,9 @@ with tab_grouped:
 # --- Onglet Besoin Estafette par Ville ---
 with tab_city:
     st.subheader("Besoin Estafette par Ville")
-    show_df(st.session_state.df_city, use_container_width=True)
+    colonnes_ordre = ["Ville", "Nombre de BLs", "Poids total", "Volume total", "Besoin estafette réel"]
+    df_city_ordered = st.session_state.df_city[colonnes_ordre]
+    show_df(df_city_ordered, use_container_width=True)
     
     # Bouton de téléchargement
     excel_buffer_city = BytesIO()
