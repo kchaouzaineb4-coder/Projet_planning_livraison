@@ -1081,7 +1081,7 @@ if st.session_state.propositions is not None and not st.session_state.propositio
             )
         with col_btn_ref:
             st.button(
-                "❌ Refuser la proposition", 
+                "❌ Refuer la proposition", 
                 on_click=refuse_location_callback, 
                 disabled=not is_client_selected,
                 use_container_width=True
@@ -1091,7 +1091,7 @@ if st.session_state.propositions is not None and not st.session_state.propositio
         st.markdown("### Détails de la commande client")
         if is_client_selected:
             try:
-                resume, details_df_styled = st.session_state.rental_processor.get_details_client(
+                resume, details_df = st.session_state.rental_processor.get_details_client(
                     st.session_state.selected_client
                 )
                 
@@ -1099,22 +1099,33 @@ if st.session_state.propositions is not None and not st.session_state.propositio
                 st.markdown(f"**{resume}**")
                 
                 # FORMATAGE DU TABLEAU DES DÉTAILS AVEC STYLE CSS
-                if not details_df_styled.empty:
-                    details_display = details_df_styled.copy()
+                if not details_df.empty:
+                    details_display = details_df.copy()
                     
-                    # CORRECTION : Formatage correct des colonnes numériques
+                    # CORRECTION : Formater les colonnes numériques seulement si elles ne contiennent pas déjà d'unités
+                    def safe_format_column(series, format_str, suffix=""):
+                        """Formate une colonne en toute sécurité"""
+                        formatted_series = series.copy()
+                        for i, value in enumerate(series):
+                            if pd.notna(value) and value != "":
+                                try:
+                                    # Essayer de convertir en float si c'est un nombre
+                                    num_value = float(value)
+                                    formatted_series.iloc[i] = f"{num_value{format_str}}{suffix}"
+                                except (ValueError, TypeError):
+                                    # Si déjà formaté, garder la valeur originale
+                                    formatted_series.iloc[i] = str(value)
+                        return formatted_series
+                    
+                    # Formater les colonnes numériques
                     if "Poids total" in details_display.columns:
-                        details_display["Poids total"] = details_display["Poids total"].map(
-                            lambda x: f"{float(x):.3f} kg" if pd.notna(x) else ""
-                        )
+                        details_display["Poids total"] = safe_format_column(details_display["Poids total"], ":.3f", " kg")
+                    
                     if "Volume total" in details_display.columns:
-                        details_display["Volume total"] = details_display["Volume total"].map(
-                            lambda x: f"{float(x):.3f} m³" if pd.notna(x) else ""
-                        )
+                        details_display["Volume total"] = safe_format_column(details_display["Volume total"], ":.3f", " m³")
+                    
                     if "Taux d'occupation (%)" in details_display.columns:
-                        details_display["Taux d'occupation (%)"] = details_display["Taux d'occupation (%)"].map(
-                            lambda x: f"{float(x):.2f}%" if pd.notna(x) else ""
-                        )
+                        details_display["Taux d'occupation (%)"] = safe_format_column(details_display["Taux d'occupation (%)"], ":.2f", "%")
                     
                     # Gestion spéciale pour "BL inclus" - format multiligne
                     if "BL inclus" in details_display.columns:
@@ -1136,7 +1147,7 @@ if st.session_state.propositions is not None and not st.session_state.propositio
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # MÉTRIQUES POUR LES DÉTAILS
+                    # MÉTRIQUES POUR LES DÉTAILS - CORRECTION : Calculs sur données brutes
                     st.markdown("---")
                     col_det1, col_det2, col_det3 = st.columns(3)
                     
@@ -1145,17 +1156,52 @@ if st.session_state.propositions is not None and not st.session_state.propositio
                         st.metric("🚚 Nombre de camions", total_camions)
                     
                     with col_det2:
-                        # Calculer le poids total réel (données originales)
-                        poids_total = details_df_styled["Poids total"].sum() if "Poids total" in details_df_styled.columns else 0
-                        st.metric("📦 Poids total", f"{poids_total:.1f} kg")
+                        # Calculer le poids total à partir des données brutes
+                        try:
+                            if "Poids total" in details_df.columns:
+                                poids_total = 0
+                                for value in details_df["Poids total"]:
+                                    if pd.notna(value):
+                                        try:
+                                            # Nettoyer la valeur si elle contient des unités
+                                            clean_value = str(value).replace(' kg', '').replace('m³', '').strip()
+                                            poids_total += float(clean_value)
+                                        except (ValueError, TypeError):
+                                            continue
+                                st.metric("📦 Poids total", f"{poids_total:.1f} kg")
+                            else:
+                                st.metric("📦 Poids total", "N/A")
+                        except Exception as e:
+                            st.metric("📦 Poids total", "Erreur")
                     
                     with col_det3:
-                        # Calculer le volume total réel (données originales)
-                        volume_total = details_df_styled["Volume total"].sum() if "Volume total" in details_df_styled.columns else 0
-                        st.metric("📏 Volume total", f"{volume_total:.3f} m³")
+                        # Calculer le volume total à partir des données brutes
+                        try:
+                            if "Volume total" in details_df.columns:
+                                volume_total = 0
+                                for value in details_df["Volume total"]:
+                                    if pd.notna(value):
+                                        try:
+                                            # Nettoyer la valeur si elle contient des unités
+                                            clean_value = str(value).replace(' kg', '').replace('m³', '').strip()
+                                            volume_total += float(clean_value)
+                                        except (ValueError, TypeError):
+                                            continue
+                                st.metric("📏 Volume total", f"{volume_total:.3f} m³")
+                            else:
+                                st.metric("📏 Volume total", "N/A")
+                        except Exception as e:
+                            st.metric("📏 Volume total", "Erreur")
                         
             except Exception as e:
                 st.error(f"❌ Erreur lors de la récupération des détails : {str(e)}")
+                # Debug information
+                st.write("Détails de l'erreur :")
+                if 'details_df' in locals():
+                    st.write("Colonnes disponibles :", details_df.columns.tolist())
+                    if not details_df.empty:
+                        st.write("Aperçu des données :")
+                        st.dataframe(details_df.head())
         else:
             st.info("Sélectionnez un client pour afficher les détails de la commande/estafettes.")
 else:
