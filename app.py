@@ -1264,6 +1264,14 @@ try:
     # CORRECTION : Nettoyer les colonnes en double
     df_clean = df_optimized_estafettes.loc[:, ~df_optimized_estafettes.columns.duplicated()]
     
+    # CORRECTION : TRIER PAR ZONE D'ABORD
+    if "Zone" in df_clean.columns:
+        # Extraire le numéro de zone pour un tri numérique
+        df_clean["Zone_Num"] = df_clean["Zone"].str.extract('(\d+)').astype(float)
+        df_clean = df_clean.sort_values("Zone_Num").drop("Zone_Num", axis=1)
+        # Alternative plus simple si l'extraction échoue :
+        # df_clean = df_clean.sort_values("Zone")
+    
     # Définir l'ordre des colonnes pour l'affichage
     colonnes_ordre = [
         "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé",
@@ -1301,33 +1309,114 @@ try:
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    # CSS pour centrer le tableau
+    # CSS POUR UN TABLEAU PROFESSIONNEL (identique aux autres sections)
     st.markdown("""
     <style>
-    .centered-table {
-        margin-left: auto;
-        margin-right: auto;
-        display: table;
+    /* Style général du tableau */
+    .custom-table-voyages {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        overflow: hidden;
     }
-    .centered-table table {
-        margin: 0 auto;
+    
+    /* En-têtes du tableau - BLEU ROYAL SANS DÉGRADÉ */
+    .custom-table-voyages th {
+        background-color: #0369A1;
+        color: white;
+        padding: 12px 8px;
+        text-align: center;
+        border: 2px solid #4682B4;
+        font-weight: bold;
+        font-size: 13px;
+        vertical-align: middle;
+    }
+    
+    /* Cellules du tableau - TOUTES EN BLANC */
+    .custom-table-voyages td {
+        padding: 10px 8px;
+        text-align: center;
+        border: 1px solid #B0C4DE;
+        background-color: white;
+        color: #000000;
+        vertical-align: middle;
+    }
+    
+    /* Bordures visibles pour toutes les cellules */
+    .custom-table-voyages th, 
+    .custom-table-voyages td {
+        border: 1px solid #B0C4DE !important;
+    }
+    
+    /* Bordures épaisses pour l'extérieur du tableau */
+    .custom-table-voyages {
+        border: 2px solid #4682B4 !important;
+    }
+    
+    /* Conteneur du tableau avec défilement horizontal */
+    .table-container-voyages {
+        overflow-x: auto;
+        margin: 1rem 0;
+        border-radius: 8px;
+        border: 2px solid #4682B4;
+    }
+    
+    /* Supprimer l'alternance des couleurs - TOUTES LES LIGNES BLANCHES */
+    .custom-table-voyages tr:nth-child(even) td {
+        background-color: white !important;
+    }
+    
+    /* Survol des lignes - léger effet */
+    .custom-table-voyages tr:hover td {
+        background-color: #F0F8FF !important;
+    }
+    
+    /* Style pour les cellules multilignes */
+    .custom-table-voyages td {
+        line-height: 1.4;
     }
     </style>
     """, unsafe_allow_html=True)
     
-    # Affichage avec HTML pour les retours à la ligne et centrage
-    html_content = f"""
-    <div class="centered-table">
-    {df_display.to_html(escape=False, index=False)}
-    </div>
-    """
-    st.markdown(html_content, unsafe_allow_html=True)
+    # Afficher le tableau avec le style CSS professionnel
+    html_table = df_display.to_html(escape=False, index=False, classes="custom-table-voyages", border=0)
     
-    # Information pour l'utilisateur
-    #st.info("💡 Les listes de clients, représentants et BL sont affichées avec des retours à la ligne.")
+    st.markdown(f"""
+    <div class="table-container-voyages">
+        {html_table}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # MÉTRIQUES RÉSUMÉES
+    st.markdown("---")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        total_voyages = len(df_display)
+        st.metric("🚐 Total Voyages", total_voyages)
+    
+    with col2:
+        total_zones = df_display["Zone"].nunique() if "Zone" in df_display.columns else 0
+        st.metric("🌍 Zones couvertes", total_zones)
+    
+    with col3:
+        camions_loues = df_display["Location_camion"].sum() if "Location_camion" in df_display.columns else 0
+        st.metric("🚚 Camions loués", int(camions_loues))
+    
+    with col4:
+        estafettes = total_voyages - camions_loues
+        st.metric("📦 Estafettes", estafettes)
     
     # Préparer l'export Excel avec retours à la ligne \n
     df_export = df_clean.copy()
+    
+    # CORRECTION : S'assurer que l'export est aussi trié par zone
+    if "Zone" in df_export.columns:
+        df_export["Zone_Num"] = df_export["Zone"].str.extract('(\d+)').astype(float)
+        df_export = df_export.sort_values("Zone_Num").drop("Zone_Num", axis=1)
     
     # Transformer les colonnes avec retours à la ligne \n pour Excel
     if "Client(s) inclus" in df_export.columns:
@@ -1403,9 +1492,6 @@ try:
         file_name="Voyages_Estafette_Optimises.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-    
-    # Instructions pour Excel
-    #st.info("💡 **Pour Excel** : Les retours à la ligne sont activés. Dans Excel, utilisez 'Alt+Entrée' pour voir les retours à la ligne si nécessaire.")
     
     # Mise à jour pour les sections suivantes
     st.session_state.df_voyages = df_clean
