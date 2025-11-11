@@ -315,50 +315,51 @@ with tab_grouped:
         overflow: hidden;
     }
     
-    /* En-têtes du tableau */
+    /* En-têtes du tableau - BLEU ARCTIQUE */
     .custom-table th {
-        background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
+        background: linear-gradient(135deg, #87CEEB 0%, #4682B4 100%);
         color: white;
         padding: 12px 8px;
         text-align: center;
-        border: 1px solid #E2E8F0;
+        border: 2px solid #4682B4;
         font-weight: bold;
         font-size: 13px;
     }
     
-    /* Cellules du tableau */
+    /* Cellules du tableau - TOUTES EN BLANC */
     .custom-table td {
         padding: 10px 8px;
         text-align: center;
-        border: 1px solid #E2E8F0;
+        border: 1px solid #B0C4DE;
         background-color: white;
-        color: #374151;
+        color: #000000;
         vertical-align: top;
     }
     
-    /* Alternance des couleurs des lignes */
-    .custom-table tr:nth-child(even) td {
-        background-color: #F8FAFC;
+    /* Bordures visibles pour toutes les cellules */
+    .custom-table th, 
+    .custom-table td {
+        border: 1px solid #B0C4DE !important;
     }
     
-    /* Survol des lignes */
-    .custom-table tr:hover td {
-        background-color: #EFF6FF;
+    /* Bordures épaisses pour l'extérieur du tableau */
+    .custom-table {
+        border: 2px solid #4682B4 !important;
     }
     
-    /* Style spécifique pour la colonne Article avec retours à la ligne */
+    /* Style spécifique pour la colonne Article - CENTRÉ */
     .custom-table td:nth-child(5) {
-        text-align: left;
+        text-align: center;
         max-width: 200px;
         word-wrap: break-word;
         white-space: normal;
     }
     
-    /* Style pour les cellules de données importantes */
+    /* Style pour les cellules de poids et volume - NOIR */
     .custom-table td:nth-child(6),
     .custom-table td:nth-child(7) {
         font-weight: 600;
-        color: #1E40AF;
+        color: #000000 !important;
     }
     
     /* Conteneur du tableau avec défilement horizontal */
@@ -366,23 +367,33 @@ with tab_grouped:
         overflow-x: auto;
         margin: 1rem 0;
         border-radius: 8px;
-        border: 1px solid #E2E8F0;
+        border: 2px solid #4682B4;
+    }
+    
+    /* Supprimer l'alternance des couleurs - TOUTES LES LIGNES BLANCHES */
+    .custom-table tr:nth-child(even) td {
+        background-color: white !important;
+    }
+    
+    /* Survol des lignes - léger effet */
+    .custom-table tr:hover td {
+        background-color: #F0F8FF !important;
     }
     </style>
     """, unsafe_allow_html=True)
     
     # Préparer les données pour l'affichage HTML
     if "Article" in df_liv.columns:
-        # Transformer les articles avec retours à la ligne HTML
+        # Transformer les articles avec retours à la ligne HTML - SANS "•"
         df_liv["Article"] = df_liv["Article"].astype(str).apply(
-            lambda x: "<br>".join(f"• {a.strip()}" for a in x.split(",") if a.strip())
+            lambda x: "<br>".join(a.strip() for a in x.split(",") if a.strip())
         )
     
-    # Formater les nombres
+    # Formater les nombres - 3 chiffres après la virgule
     if "Poids total" in df_liv.columns:
         df_liv["Poids total"] = df_liv["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
     if "Volume total" in df_liv.columns:
-        df_liv["Volume total"] = df_liv["Volume total"].map(lambda x: f"{x:.6f} m³" if pd.notna(x) else "")
+        df_liv["Volume total"] = df_liv["Volume total"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "")
     
     # Afficher le tableau avec le style CSS
     html_table = df_liv.to_html(
@@ -412,7 +423,7 @@ with tab_grouped:
     
     with col3:
         total_poids = st.session_state.df_grouped["Poids total"].sum()
-        st.metric("⚖️ Poids Total", f"{total_poids:.1f} kg")
+        st.metric("⚖️ Poids Total", f"{total_poids:.3f} kg")
     
     with col4:
         total_volume = st.session_state.df_grouped["Volume total"].sum()
