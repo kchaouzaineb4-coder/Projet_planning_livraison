@@ -317,7 +317,7 @@ with tab_grouped:
     
     /* En-têtes du tableau - BLEU ARCTIQUE SANS DÉGRADÉ */
     .custom-table th {
-        background-color: #87CEEB;
+        background-color: #ECFEFF;
         color: white;
         padding: 12px 8px;
         text-align: center;
