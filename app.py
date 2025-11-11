@@ -801,41 +801,38 @@ with tab_zone_summary:
 # --- Onglet Graphiques ---
 with tab_charts:
     st.subheader("Statistiques par Ville")
+    
+    # Configuration commune pour tous les graphiques
+    chart_config = {
+        'color_discrete_sequence': ['#0369A1'],  # BLEU ROYAL
+        'template': 'plotly_white',
+    }
+    
     col1, col2 = st.columns(2)
     with col1:
-        st.plotly_chart(
-            px.bar(st.session_state.df_city, x="Ville", y="Poids total",
-                   title="Poids total livré par ville",
-                   color_discrete_sequence=['#0369A1']),  # BLEU ROYAL
-            use_container_width=True
-        )
+        fig1 = px.bar(st.session_state.df_city, x="Ville", y="Poids total", **chart_config)
+        fig1.update_layout(title_text="Poids total livré par ville", title_x=0.5)  # CENTRAGE
+        st.plotly_chart(fig1, use_container_width=True)
+        
     with col2:
-        st.plotly_chart(
-            px.bar(st.session_state.df_city, x="Ville", y="Volume total",
-                   title="Volume total livré par ville (m³)",
-                   color_discrete_sequence=['#0369A1']),  # BLEU ROYAL
-            use_container_width=True
-        )
+        fig2 = px.bar(st.session_state.df_city, x="Ville", y="Volume total", **chart_config)
+        fig2.update_layout(title_text="Volume total livré par ville (m³)", title_x=0.5)  # CENTRAGE
+        st.plotly_chart(fig2, use_container_width=True)
 
     col3, col4 = st.columns(2)
     with col3:
         # DIAGRAMME CORRIGÉ : Nombre de BL par ville
         df_chart = st.session_state.df_city.rename(columns={"Nombre livraisons": "Nombre de BLs"})
-        st.plotly_chart(
-            px.bar(df_chart, x="Ville", y="Nombre de BLs",
-                   title="Nombre de BL par ville",
-                   color_discrete_sequence=['#0369A1']),  # BLEU ROYAL
-            use_container_width=True
-        )
+        fig3 = px.bar(df_chart, x="Ville", y="Nombre de BLs", **chart_config)
+        fig3.update_layout(title_text="Nombre de BL par ville", title_x=0.5)  # CENTRAGE
+        st.plotly_chart(fig3, use_container_width=True)
+        
     with col4:
-        st.plotly_chart(
-            px.bar(st.session_state.df_city, x="Ville", y="Besoin estafette réel",
-                   title="Besoin en Estafettes par ville",
-                   color_discrete_sequence=['#0369A1']),  # BLEU ROYAL
-            use_container_width=True
-        )
-st.markdown("---")
+        fig4 = px.bar(st.session_state.df_city, x="Ville", y="Besoin estafette réel", **chart_config)
+        fig4.update_layout(title_text="Besoin en Estafettes par ville", title_x=0.5)  # CENTRAGE
+        st.plotly_chart(fig4, use_container_width=True)
 
+st.markdown("---")
 # =====================================================
 # 3. PROPOSITION DE LOCATION DE CAMION (Section 3)
 # =====================================================
