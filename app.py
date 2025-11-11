@@ -773,7 +773,7 @@ else:
 
                     /* Style pour les tags des éléments sélectionnés */
                     div[data-baseweb="select"] span[data-baseweb="tag"] {
-                        background-color: #64748B !important;  /* GRIS MOYEN */
+                        background-color: #0369A1 !important;  /* GRIS MOYEN */
                         color: white !important;
                         border-radius: 12px !important;
                         font-weight: bold;
