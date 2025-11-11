@@ -336,15 +336,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- VOS ONGLETS EXISTANTS ---
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "2. Analyse de Livraison Détaillée", 
-    "Livraisons Client/Ville",
-    "Besoin Estafette par Ville", 
-    "Livraisons Client/Zone",
-    "Besoin Estafette par Zone",
-    "Graphiques"
-])
+
 # --- Onglet Livraisons Client/Ville ---
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
