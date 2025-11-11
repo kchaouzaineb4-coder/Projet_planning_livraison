@@ -262,8 +262,8 @@ if st.session_state.data_processed:
         st.error(st.session_state.message)
     elif st.session_state.message.startswith("⚠️"):
         st.warning(st.session_state.message)
-    else:
-        st.info(st.session_state.message or "Prêt à traiter les propositions de location.")
+    #else:
+        #st.info(st.session_state.message or "Prêt à traiter les propositions de location.")
     
     # Récupération du DF mis à jour à chaque fois
     df_optimized_estafettes = st.session_state.rental_processor.get_df_result() 
