@@ -805,13 +805,15 @@ with tab_charts:
     with col1:
         st.plotly_chart(
             px.bar(st.session_state.df_city, x="Ville", y="Poids total",
-                   title="Poids total livré par ville"),
+                   title="Poids total livré par ville",
+                   color_discrete_sequence=['#0369A1']),  # BLEU ROYAL
             use_container_width=True
         )
     with col2:
         st.plotly_chart(
             px.bar(st.session_state.df_city, x="Ville", y="Volume total",
-                   title="Volume total livré par ville (m³)"),
+                   title="Volume total livré par ville (m³)",
+                   color_discrete_sequence=['#0369A1']),  # BLEU ROYAL
             use_container_width=True
         )
 
@@ -821,13 +823,15 @@ with tab_charts:
         df_chart = st.session_state.df_city.rename(columns={"Nombre livraisons": "Nombre de BLs"})
         st.plotly_chart(
             px.bar(df_chart, x="Ville", y="Nombre de BLs",
-                   title="Nombre de BL par ville"),
+                   title="Nombre de BL par ville",
+                   color_discrete_sequence=['#0369A1']),  # BLEU ROYAL
             use_container_width=True
         )
     with col4:
         st.plotly_chart(
             px.bar(st.session_state.df_city, x="Ville", y="Besoin estafette réel",
-                   title="Besoin en Estafettes par ville"),
+                   title="Besoin en Estafettes par ville",
+                   color_discrete_sequence=['#0369A1']),  # BLEU ROYAL
             use_container_width=True
         )
 st.markdown("---")
