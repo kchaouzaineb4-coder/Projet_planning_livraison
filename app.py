@@ -834,54 +834,73 @@ else:
                             - **Volume transféré :** {volume_bls:.3f} m³
                             """)
 
-                            # --- Affichage après transfert - HTML ULTRA SIMPLIFIÉ ---
+                           # --- AFFICHAGE APRÈS TRANSFERT - SOLUTION NATIVE STREAMLIT ---
                             st.subheader("📊 Voyages après transfert (toutes les zones)")
+
                             df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
 
-                            # Préparer les données
-                            table_html = """
-                            <style>
-                            .simple-table {
-                                border-collapse: collapse;
-                                width: 100%;
-                                margin: 10px 0;
-                            }
-                            .simple-table th, .simple-table td {
-                                border: 1px solid #ddd;
-                                padding: 8px;
-                                text-align: left;
-                            }
-                            .simple-table th {
-                                background-color: #4CAF50;
-                                color: white;
-                            }
-                            .simple-table tr:nth-child(even) {
-                                background-color: #f2f2f2;
-                            }
-                            </style>
-                            <table class="simple-table">
-                                <tr>
-                                    <th>Zone</th>
-                                    <th>Véhicule N°</th>
-                                    <th>Poids (kg)</th>
-                                    <th>Volume (m³)</th>
-                                    <th>BL inclus</th>
-                                </tr>
-                            """
+                            # Sélectionner et formater les colonnes
+                            colonnes_a_afficher = ["Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]
+                            colonnes_a_afficher = [col for col in colonnes_a_afficher if col in df_display.columns]
 
-                            for idx, row in df_display.iterrows():
-                                table_html += f"""
-                                <tr>
-                                    <td>{row.get('Zone', '')}</td>
-                                    <td>{row.get('Véhicule N°', '')}</td>
-                                    <td>{row.get('Poids total chargé', 0):.3f}</td>
-                                    <td>{row.get('Volume total chargé', 0):.3f}</td>
-                                    <td>{str(row.get('BL inclus', '')).replace(';', '<br>')}</td>
-                                </tr>
-                                """
+                            # Formater les nombres
+                            if "Poids total chargé" in df_display.columns:
+                                df_display["Poids total chargé"] = df_display["Poids total chargé"].round(3)
+                            if "Volume total chargé" in df_display.columns:
+                                df_display["Volume total chargé"] = df_display["Volume total chargé"].round(3)
 
-                            table_html += "</table>"
-                            st.markdown(table_html, unsafe_allow_html=True)
+                            # OPTION 1: st.dataframe avec formatage amélioré
+                            st.markdown("**📋 Vue détaillée (avec défilement)**")
+                            st.dataframe(
+                                df_display[colonnes_a_afficher],
+                                use_container_width=True,
+                                height=400,
+                                column_config={
+                                    "Poids total chargé": st.column_config.NumberColumn(format="%.3f kg"),
+                                    "Volume total chargé": st.column_config.NumberColumn(format="%.3f m³"),
+                                    "BL inclus": st.column_config.TextColumn(width="large")
+                                }
+                            )
+
+                            # OPTION 2: Afficher par zones avec expanders
+                            st.markdown("**🗂️ Vue par zone**")
+                            zones_apres_transfert = sorted(df_display["Zone"].unique())
+
+                            for zone in zones_apres_transfert:
+                                with st.expander(f"📍 Zone {zone} ({len(df_display[df_display['Zone'] == zone])} véhicules)"):
+                                    df_zone = df_display[df_display["Zone"] == zone]
+                                    
+                                    for idx, row in df_zone.iterrows():
+                                        col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
+                                        with col1:
+                                            st.metric("Véhicule", row["Véhicule N°"])
+                                        with col2:
+                                            st.metric("Poids", f"{row['Poids total chargé']:.1f} kg")
+                                        with col3:
+                                            st.metric("Volume", f"{row['Volume total chargé']:.3f} m³")
+                                        with col4:
+                                            st.text_area(
+                                                "BL inclus",
+                                                value="\n".join(row["BL inclus"].split(";")) if pd.notna(row["BL inclus"]) else "Aucun BL",
+                                                height=100,
+                                                key=f"bl_{zone}_{idx}"
+                                            )
+                                        st.markdown("---")
+
+                            # OPTION 3: Résumé statistique
+                            st.markdown("**📈 Résumé du transfert**")
+                            col1, col2, col3, col4 = st.columns(4)
+
+                            with col1:
+                                st.metric("Total véhicules", len(df_display))
+                            with col2:
+                                st.metric("Zones concernées", len(zones_apres_transfert))
+                            with col3:
+                                poids_total = df_display["Poids total chargé"].sum()
+                                st.metric("Poids total", f"{poids_total:.0f} kg")
+                            with col4:
+                                volume_total = df_display["Volume total chargé"].sum()
+                                st.metric("Volume total", f"{volume_total:.1f} m³")
 
                             # --- Export Excel ---
                             df_export = df_voyages.copy()
