@@ -51,7 +51,7 @@ def show_df_multiline(df, column_to_multiline):
         word-wrap: break-word;
     }
     th {
-        background-color: #222;
+        background-color: #EFF6FF;
         color: white;
     }
     td {
