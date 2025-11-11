@@ -1859,18 +1859,59 @@ if "df_voyages" in st.session_state:
     # Formulaire d'ajout d'objet
     st.markdown("### 📝 Détails de l'objet à ajouter")
     
+    # CSS personnalisé pour les couleurs
+    st.markdown("""
+    <style>
+    .custom-border {
+        border: 2px solid #1f77b4;
+        border-radius: 5px;
+        padding: 10px;
+        margin: 5px 0px;
+    }
+    .custom-button {
+        background-color: #1f77b4 !important;
+        color: white !important;
+        border: none !important;
+    }
+    .custom-button:hover {
+        background-color: #1668a5 !important;
+        color: white !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     col4, col5, col6 = st.columns(3)
     
     with col4:
+        st.markdown('<div class="custom-border">', unsafe_allow_html=True)
         nom_objet = st.text_input("🏷️ Nom de l'objet", placeholder="Ex: Matériel urgent, Colis oublié...")
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with col5:
+        st.markdown('<div class="custom-border">', unsafe_allow_html=True)
         poids_objet = st.number_input("⚖️ Poids (kg)", min_value=0.0, max_value=1000.0, value=10.0, step=0.1)
+        st.markdown('</div>', unsafe_allow_html=True)
     
     with col6:
+        st.markdown('<div class="custom-border">', unsafe_allow_html=True)
         volume_objet = st.number_input("📦 Volume (m³)", min_value=0.0, max_value=10.0, value=0.1, step=0.01)
+        st.markdown('</div>', unsafe_allow_html=True)
     
-    # Bouton d'ajout
+    # Bouton d'ajout avec couleur de fond personnalisée
+    st.markdown("""
+    <style>
+    div.stButton > button:first-child {
+        background-color: #1f77b4;
+        color: white;
+        border: none;
+    }
+    div.stButton > button:first-child:hover {
+        background-color: #1668a5;
+        color: white;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     if st.button("➕ Ajouter l'objet au véhicule", type="primary"):
         if not nom_objet:
             st.error("❌ Veuillez donner un nom à l'objet.")
@@ -1920,7 +1961,7 @@ if "df_voyages" in st.session_state:
                         try:
                             st.session_state.propositions = st.session_state.rental_processor.detecter_propositions()
                         except:
-                            pass  # Ignorer si la mise à jour des propositions échoue
+                            pass  # Ignorer si la mise à jour des propositions échoute
                     
                     # 5. Mettre à jour les voyages validés si ils existent
                     if 'df_voyages_valides' in st.session_state:
@@ -1931,7 +1972,7 @@ if "df_voyages" in st.session_state:
                             )
                             st.session_state.df_voyages_valides = df_updated[mask_valides].copy()
                         except:
-                            pass  # Ignorer si la mise à jour des validations échoue
+                            pass  # Ignorer si la mise à jour des validations échoute
                     
                     # Afficher le véhicule mis à jour
                     vehicule_update = df_updated[
