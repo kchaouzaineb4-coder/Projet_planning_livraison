@@ -443,6 +443,9 @@ with tab_grouped:
     # Information sur le filtrage
     st.info("ℹ️ Les livraisons de TRIPOLI ont été exclues de ce tableau")
     
+    # AJOUT DE L'IMPORT MANQUANT POUR BytesIO
+    from io import BytesIO
+    
     # Bouton de téléchargement (garder les données originales pour l'export)
     excel_buffer_grouped = BytesIO()
     with pd.ExcelWriter(excel_buffer_grouped, engine='openpyxl') as writer:
