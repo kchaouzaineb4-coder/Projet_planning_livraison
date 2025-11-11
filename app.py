@@ -293,7 +293,58 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
     "Besoin Estafette par Zone",
     "Graphiques"
 ])
+# --- CSS PERSONNALISÉ POUR LES ONGLETS ---
+st.markdown("""
+<style>
+    /* Style pour les onglets - COULEUR BLEUE */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: pre-wrap;
+        background-color: #F0F2F6;
+        border-radius: 8px 8px 0px 0px;
+        gap: 8px;
+        padding: 10px 16px;
+        font-weight: 600;
+    }
+    
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: #E6F3FF;
+        color: #0369A1;
+    }
+    
+    /* ONGLET ACTIF - BLEU ROYAL */
+    .stTabs [aria-selected="true"] {
+        background-color: #0369A1 !important;
+        color: white !important;
+    }
+    
+    /* TEXTE DES ONGLETS */
+    .stTabs [data-baseweb="tab"] p {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 0;
+    }
+    
+    /* COULEUR DU TEXTE POUR ONGLET ACTIF */
+    .stTabs [aria-selected="true"] p {
+        color: white !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
+# --- VOS ONGLETS EXISTANTS ---
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "2. Analyse de Livraison Détaillée", 
+    "Livraisons Client/Ville",
+    "Besoin Estafette par Ville", 
+    "Livraisons Client/Zone",
+    "Besoin Estafette par Zone",
+    "Graphiques"
+])
 # --- Onglet Livraisons Client/Ville ---
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
