@@ -745,23 +745,55 @@ else:
                     }
                     </style>
                     """, unsafe_allow_html=True)
-                    # CSS POUR LE MULTISELECT
+                    # CSS SPÉCIFIQUE POUR LE MULTISELECT
                     st.markdown("""
                     <style>
-                    /* Style pour le multiselect des BLs */
-                    div[data-baseweb="select"] div {
-                        background-color: #EFF6FF !important;  /* BLEU TRÈS CLAIR */
-                        border-color: #1E40AF !important;
+                    /* ===== STYLES POUR LE MULTISELECT DES BLs ===== */
+
+                    /* APPROCHE 1 : Style général pour tous les multiselect */
+                    .stMultiSelect > div > div {
+                        background-color: #EFF6FF !important;
+                        border: 2px solid #1E40AF !important;
+                        border-radius: 8px !important;
                     }
 
-                    /* Style pour les options sélectionnées */
-                    div[data-baseweb="select"] div[role="option"] {
-                        background-color: #DBEAFE !important;  /* BLEU CLAIR */
+                    /* APPROCHE 2 : Style pour le conteneur du multiselect */
+                    div[data-baseweb="select"] > div {
+                        background-color: #EFF6FF !important;
+                        border: 2px solid #1E40AF !important;
+                        border-radius: 8px !important;
                     }
 
-                    /* Style au survol */
-                    div[data-baseweb="select"] div[role="option"]:hover {
-                        background-color: #BFDBFE !important;  /* BLEU MOYEN */
+                    /* APPROCHE 3 : Style spécifique pour l'input */
+                    div[data-baseweb="select"] > div:first-child {
+                        background-color: #EFF6FF !important;
+                        border: 2px solid #1E40AF !important;
+                        border-radius: 8px !important;
+                    }
+
+                    /* Style pour les tags des éléments sélectionnés */
+                    div[data-baseweb="select"] span[data-baseweb="tag"] {
+                        background-color: #1E40AF !important;
+                        color: white !important;
+                        border-radius: 12px !important;
+                        font-weight: bold;
+                    }
+
+                    /* Style pour la dropdown */
+                    div[role="listbox"] {
+                        background-color: white !important;
+                        border: 2px solid #1E40AF !important;
+                    }
+
+                    /* Options sélectionnées dans la liste */
+                    div[role="option"][aria-selected="true"] {
+                        background-color: #DBEAFE !important;
+                        color: #1E40AF !important;
+                    }
+
+                    /* Options au survol */
+                    div[role="option"]:hover {
+                        background-color: #BFDBFE !important;
                     }
                     </style>
                     """, unsafe_allow_html=True)
