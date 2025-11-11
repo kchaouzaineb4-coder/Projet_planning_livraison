@@ -515,18 +515,139 @@ with tab_zone_group:
 
     # Créer une copie du DataFrame
     df_liv_zone = st.session_state.df_grouped_zone.copy()
-
-    # Transformer les articles en liste avec retour à la ligne
+    
+    # CSS pour un tableau organisé et professionnel
+    st.markdown("""
+    <style>
+    /* Style général du tableau */
+    .custom-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    /* En-têtes du tableau - BLEU ROYAL SANS DÉGRADÉ */
+    .custom-table th {
+        background-color: #0369A1;
+        color: white;
+        padding: 12px 8px;
+        text-align: center;
+        border: 2px solid #4682B4;
+        font-weight: bold;
+        font-size: 13px;
+        vertical-align: middle;  /* CENTRAGE VERTICAL */
+    }
+    
+    /* Cellules du tableau - TOUTES EN BLANC */
+    .custom-table td {
+        padding: 10px 8px;
+        text-align: center;
+        border: 1px solid #B0C4DE;
+        background-color: white;
+        color: #000000;
+        vertical-align: middle;  /* CENTRAGE VERTICAL */
+    }
+    
+    /* Bordures visibles pour toutes les cellules */
+    .custom-table th, 
+    .custom-table td {
+        border: 1px solid #B0C4DE !important;
+    }
+    
+    /* Bordures épaisses pour l'extérieur du tableau */
+    .custom-table {
+        border: 2px solid #4682B4 !important;
+    }
+    
+    /* Style spécifique pour la colonne Article - CENTRÉ */
+    .custom-table td:nth-child(5) {
+        text-align: center;
+        max-width: 200px;
+        word-wrap: break-word;
+        white-space: normal;
+        vertical-align: middle;  /* CENTRAGE VERTICAL */
+    }
+    
+    /* Style pour les cellules de poids et volume - NOIR */
+    .custom-table td:nth-child(6),
+    .custom-table td:nth-child(7) {
+        font-weight: 600;
+        color: #000000 !important;
+        vertical-align: middle;  /* CENTRAGE VERTICAL */
+    }
+    
+    /* Conteneur du tableau avec défilement horizontal */
+    .table-container {
+        overflow-x: auto;
+        margin: 1rem 0;
+        border-radius: 8px;
+        border: 2px solid #4682B4;
+    }
+    
+    /* Supprimer l'alternance des couleurs - TOUTES LES LIGNES BLANCHES */
+    .custom-table tr:nth-child(even) td {
+        background-color: white !important;
+    }
+    
+    /* Survol des lignes - léger effet */
+    .custom-table tr:hover td {
+        background-color: #F0F8FF !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Préparer les données pour l'affichage HTML
     if "Article" in df_liv_zone.columns:
-        df_liv_zone["Article"] = df_liv_zone["Article"].astype(str).apply(lambda x: "<br>".join(a.strip() for a in x.split(",")))
-
-    # Affichage avec HTML dans st.markdown
-    st.markdown(
-        df_liv_zone.to_html(escape=False, index=False),
-        unsafe_allow_html=True
+        # Transformer les articles avec retours à la ligne HTML - SANS "•"
+        df_liv_zone["Article"] = df_liv_zone["Article"].astype(str).apply(
+            lambda x: "<br>".join(a.strip() for a in x.split(",") if a.strip())
+        )
+    
+    # Formater les nombres - 3 chiffres après la virgule
+    if "Poids total" in df_liv_zone.columns:
+        df_liv_zone["Poids total"] = df_liv_zone["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
+    if "Volume total" in df_liv_zone.columns:
+        df_liv_zone["Volume total"] = df_liv_zone["Volume total"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "")
+    
+    # Afficher le tableau avec le style CSS
+    html_table_zone_group = df_liv_zone.to_html(
+        escape=False, 
+        index=False, 
+        classes="custom-table",
+        border=0
     )
     
-    # Bouton de téléchargement (garder le format original pour l'export)
+    st.markdown(f"""
+    <div class="table-container">
+        {html_table_zone_group}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Métriques résumées
+    st.markdown("---")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        total_livraisons_zone = len(df_liv_zone)
+        st.metric("📦 Total Livraisons", total_livraisons_zone)
+    
+    with col2:
+        zones_count = df_liv_zone["Zone"].nunique()
+        st.metric("🌍 Zones", zones_count)
+    
+    with col3:
+        villes_count = df_liv_zone["Ville"].nunique()
+        st.metric("🏙️ Villes", villes_count)
+    
+    with col4:
+        clients_count = df_liv_zone["Client"].nunique()
+        st.metric("👥 Clients", clients_count)
+    
+    # Bouton de téléchargement
     excel_buffer_zone_group = BytesIO()
     with pd.ExcelWriter(excel_buffer_zone_group, engine='openpyxl') as writer:
         st.session_state.df_grouped_zone.to_excel(writer, index=False, sheet_name="Livraisons Client Ville Zone")
