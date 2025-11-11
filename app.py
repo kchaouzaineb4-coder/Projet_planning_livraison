@@ -767,7 +767,7 @@ with tab_zone_summary:
     
     # Métriques résumées - CORRECTION : Utiliser les données originales pour les calculs
     st.markdown("---")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         total_zones = len(df_zone_display)
@@ -783,10 +783,6 @@ with tab_zone_summary:
         total_estafettes_zone = st.session_state.df_zone["Besoin estafette réel"].sum() if "Besoin estafette réel" in st.session_state.df_zone.columns else 0
         st.metric("🚐 Besoin Estafettes", f"{total_estafettes_zone:.1f}")
     
-    with col4:
-        # Utiliser les données originales pour les calculs
-        zones_prioritaires = len(st.session_state.df_zone[st.session_state.df_zone["Besoin estafette réel"] > 1]) if "Besoin estafette réel" in st.session_state.df_zone.columns else 0
-        st.metric("🎯 Zones Prioritaires", zones_prioritaires)
     
     # Bouton de téléchargement
     excel_buffer_zone = BytesIO()
