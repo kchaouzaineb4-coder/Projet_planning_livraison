@@ -81,7 +81,70 @@ CHAUFFEURS_DETAILS = {
 st.set_page_config(page_title="Planning Livraisons", layout="wide")
 st.title("🚚 Planning de Livraisons & Optimisation des Tournées")
 st.markdown("---")
+# =====================================================
+# CSS PERSONNALISÉ POUR LA SECTION 1
+# =====================================================
+st.markdown("""
+<style>
+/* Style pour la section 1 - Importation des Données */
+[data-testid="stHeader"] {
+    background-color: #1E3A8A;
+}
 
+/* Style pour le header de la section 1 */
+section[data-testid="stVerticalBlock"] > div:has(h1:contains("1. 📥 Importation des Données")) {
+    background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    color: white;
+}
+
+/* Style pour le titre de la section 1 */
+h1:contains("1. 📥 Importation des Données") {
+    color: white !important;
+    margin-bottom: 0 !important;
+}
+
+/* Style pour les colonnes de fichiers */
+div[data-testid="stHorizontalBlock"] {
+    background-color: #F8FAFC;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 2px solid #E2E8F0;
+}
+
+/* Style pour les file uploaders */
+div[data-testid="stFileUploader"] {
+    background-color: white;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 2px dashed #CBD5E1;
+}
+
+/* Style pour le bouton principal */
+div[data-testid="stHorizontalBlock"] button[kind="primary"] {
+    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+    border: none;
+    color: white;
+    font-weight: bold;
+}
+
+/* Style pour les labels des file uploaders */
+div[data-testid="stFileUploader"] label {
+    font-weight: bold;
+    color: #1E40AF;
+}
+
+/* Style pour les fichiers uploadés */
+div[data-testid="stFileUploader"] div[data-testid="stMarkdownContainer"] {
+    background-color: #D1FAE5;
+    padding: 0.5rem;
+    border-radius: 5px;
+    border-left: 4px solid #10B981;
+}
+</style>
+""", unsafe_allow_html=True)
 # =====================================================
 # INITIALISATION DE L'ÉTAT DE SESSION
 # =====================================================
