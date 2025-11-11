@@ -315,15 +315,16 @@ with tab_grouped:
         overflow: hidden;
     }
     
-    /* En-têtes du tableau - BLEU ARCTIQUE */
+    /* En-têtes du tableau - BLEU ARCTIQUE SANS DÉGRADÉ */
     .custom-table th {
-        background: linear-gradient(135deg, #87CEEB 0%, #4682B4 100%);
+        background-color: #87CEEB;
         color: white;
         padding: 12px 8px;
         text-align: center;
         border: 2px solid #4682B4;
         font-weight: bold;
         font-size: 13px;
+        vertical-align: middle;  /* CENTRAGE VERTICAL */
     }
     
     /* Cellules du tableau - TOUTES EN BLANC */
@@ -333,7 +334,7 @@ with tab_grouped:
         border: 1px solid #B0C4DE;
         background-color: white;
         color: #000000;
-        vertical-align: top;
+        vertical-align: middle;  /* CENTRAGE VERTICAL */
     }
     
     /* Bordures visibles pour toutes les cellules */
@@ -353,6 +354,7 @@ with tab_grouped:
         max-width: 200px;
         word-wrap: break-word;
         white-space: normal;
+        vertical-align: middle;  /* CENTRAGE VERTICAL */
     }
     
     /* Style pour les cellules de poids et volume - NOIR */
@@ -360,6 +362,7 @@ with tab_grouped:
     .custom-table td:nth-child(7) {
         font-weight: 600;
         color: #000000 !important;
+        vertical-align: middle;  /* CENTRAGE VERTICAL */
     }
     
     /* Conteneur du tableau avec défilement horizontal */
