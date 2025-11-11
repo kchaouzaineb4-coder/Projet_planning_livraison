@@ -298,8 +298,9 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
     
-    # Créer une copie du DataFrame
+    # Créer une copie du DataFrame et FILTRER TRIPOLI
     df_liv = st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').copy()
+    df_liv = df_liv[df_liv["Ville"] != "TRIPOLI"]  # ← FILTRE TRIPOLI ICI
     
     # CSS pour un tableau organisé et professionnel
     st.markdown("""
@@ -385,34 +386,38 @@ with tab_grouped:
     </style>
     """, unsafe_allow_html=True)
     
-    # Préparer les données pour l'affichage HTML
-    if "Article" in df_liv.columns:
-        # Transformer les articles avec retours à la ligne HTML - SANS "•"
-        df_liv["Article"] = df_liv["Article"].astype(str).apply(
-            lambda x: "<br>".join(a.strip() for a in x.split(",") if a.strip())
+    # Vérifier si le DataFrame n'est pas vide après filtrage
+    if df_liv.empty:
+        st.info("ℹ️ Aucune livraison à afficher (TRIPOLI exclue)")
+    else:
+        # Préparer les données pour l'affichage HTML
+        if "Article" in df_liv.columns:
+            # Transformer les articles avec retours à la ligne HTML - SANS "•"
+            df_liv["Article"] = df_liv["Article"].astype(str).apply(
+                lambda x: "<br>".join(a.strip() for a in x.split(",") if a.strip())
+            )
+        
+        # Formater les nombres - 3 chiffres après la virgule
+        if "Poids total" in df_liv.columns:
+            df_liv["Poids total"] = df_liv["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
+        if "Volume total" in df_liv.columns:
+            df_liv["Volume total"] = df_liv["Volume total"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "")
+        
+        # Afficher le tableau avec le style CSS
+        html_table = df_liv.to_html(
+            escape=False, 
+            index=False, 
+            classes="custom-table",
+            border=0
         )
+        
+        st.markdown(f"""
+        <div class="table-container">
+            {html_table}
+        </div>
+        """, unsafe_allow_html=True)
     
-    # Formater les nombres - 3 chiffres après la virgule
-    if "Poids total" in df_liv.columns:
-        df_liv["Poids total"] = df_liv["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
-    if "Volume total" in df_liv.columns:
-        df_liv["Volume total"] = df_liv["Volume total"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "")
-    
-    # Afficher le tableau avec le style CSS
-    html_table = df_liv.to_html(
-        escape=False, 
-        index=False, 
-        classes="custom-table",
-        border=0
-    )
-    
-    st.markdown(f"""
-    <div class="table-container">
-        {html_table}
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Métriques résumées
+    # Métriques résumées - CORRECTION : Utiliser les données filtrées
     st.markdown("---")
     col1, col2, col3, col4 = st.columns(4)
     
@@ -425,15 +430,20 @@ with tab_grouped:
         st.metric("👥 Clients Uniques", total_clients)
     
     with col3:
-        total_poids = st.session_state.df_grouped["Poids total"].sum()
+        # CORRECTION : Calculer le poids total à partir des données filtrées (données originales)
+        df_liv_original = st.session_state.df_grouped[st.session_state.df_grouped["Ville"] != "TRIPOLI"]
+        total_poids = df_liv_original["Poids total"].sum()
         st.metric("⚖️ Poids Total", f"{total_poids:.3f} kg")
     
     with col4:
-        total_volume = st.session_state.df_grouped["Volume total"].sum()
+        # CORRECTION : Calculer le volume total à partir des données filtrées (données originales)
+        total_volume = df_liv_original["Volume total"].sum()
         st.metric("📏 Volume Total", f"{total_volume:.3f} m³")
     
-    # Bouton de téléchargement
-    from io import BytesIO
+    # Information sur le filtrage
+    st.info("ℹ️ Les livraisons de TRIPOLI ont été exclues de ce tableau")
+    
+    # Bouton de téléchargement (garder les données originales pour l'export)
     excel_buffer_grouped = BytesIO()
     with pd.ExcelWriter(excel_buffer_grouped, engine='openpyxl') as writer:
         st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').to_excel(writer, index=False, sheet_name="Livraisons Client Ville")
