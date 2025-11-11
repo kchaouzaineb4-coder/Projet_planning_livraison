@@ -317,7 +317,7 @@ with tab_grouped:
     
     /* En-têtes du tableau - BLEU ROYAL SANS DÉGRADÉ */
     .custom-table th {
-        background-color: #3730A3;
+        background-color: #1560BD;
         color: white;
         padding: 12px 8px;
         text-align: center;
