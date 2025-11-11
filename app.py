@@ -86,10 +86,6 @@ st.markdown("---")
 # =====================================================
 st.markdown("""
 <style>
-/* Style pour la section 1 - Importation des Données */
-[data-testid="stHeader"] {
-    background-color: #1E3A8A;
-}
 
 /* Style pour le header de la section 1 */
 section[data-testid="stVerticalBlock"] > div:has(h1:contains("1. 📥 Importation des Données")) {
