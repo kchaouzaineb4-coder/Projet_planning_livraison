@@ -720,7 +720,7 @@ else:
                         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
                     }
                     .centered-table th {
-                        background-color: #1f77b4;
+                        background-color: #1E40AF;
                         color: white;
                         padding: 12px 8px;
                         text-align: center;
