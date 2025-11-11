@@ -727,6 +727,7 @@ else:
                         border: 2px solid #555;
                         font-weight: bold;
                         font-size: 14px;
+                        vertical-align: middle;  /* ← CENTRAGE VERTICAL AJOUTÉ */
                     }
                     .centered-table td {
                         padding: 10px 8px;
@@ -734,7 +735,7 @@ else:
                         border: 2px solid #555;
                         background-color: #f9f9f9;
                         color: #333;
-                        vertical-align: top;
+                        vertical-align: middle;  /* ← CENTRAGE VERTICAL AJOUTÉ */
                     }
                     .centered-table tr:nth-child(even) td {
                         background-color: #f0f0f0;
