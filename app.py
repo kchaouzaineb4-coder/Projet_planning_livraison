@@ -297,21 +297,128 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
 # --- Onglet Livraisons Client/Ville ---
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
-
+    
     # Créer une copie du DataFrame
     df_liv = st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').copy()
-
-    # Transformer les articles en liste avec retour à la ligne
+    
+    # CSS pour un tableau organisé et professionnel
+    st.markdown("""
+    <style>
+    /* Style général du tableau */
+    .custom-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    /* En-têtes du tableau */
+    .custom-table th {
+        background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
+        color: white;
+        padding: 12px 8px;
+        text-align: center;
+        border: 1px solid #E2E8F0;
+        font-weight: bold;
+        font-size: 13px;
+    }
+    
+    /* Cellules du tableau */
+    .custom-table td {
+        padding: 10px 8px;
+        text-align: center;
+        border: 1px solid #E2E8F0;
+        background-color: white;
+        color: #374151;
+        vertical-align: top;
+    }
+    
+    /* Alternance des couleurs des lignes */
+    .custom-table tr:nth-child(even) td {
+        background-color: #F8FAFC;
+    }
+    
+    /* Survol des lignes */
+    .custom-table tr:hover td {
+        background-color: #EFF6FF;
+    }
+    
+    /* Style spécifique pour la colonne Article avec retours à la ligne */
+    .custom-table td:nth-child(5) {
+        text-align: left;
+        max-width: 200px;
+        word-wrap: break-word;
+        white-space: normal;
+    }
+    
+    /* Style pour les cellules de données importantes */
+    .custom-table td:nth-child(6),
+    .custom-table td:nth-child(7) {
+        font-weight: 600;
+        color: #1E40AF;
+    }
+    
+    /* Conteneur du tableau avec défilement horizontal */
+    .table-container {
+        overflow-x: auto;
+        margin: 1rem 0;
+        border-radius: 8px;
+        border: 1px solid #E2E8F0;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Préparer les données pour l'affichage HTML
     if "Article" in df_liv.columns:
-        df_liv["Article"] = df_liv["Article"].astype(str).apply(lambda x: "<br>".join(a.strip() for a in x.split(",")))
-
-    # Affichage avec HTML dans st.markdown
-    st.markdown(
-        df_liv.to_html(escape=False, index=False),
-        unsafe_allow_html=True
+        # Transformer les articles avec retours à la ligne HTML
+        df_liv["Article"] = df_liv["Article"].astype(str).apply(
+            lambda x: "<br>".join(f"• {a.strip()}" for a in x.split(",") if a.strip())
+        )
+    
+    # Formater les nombres
+    if "Poids total" in df_liv.columns:
+        df_liv["Poids total"] = df_liv["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
+    if "Volume total" in df_liv.columns:
+        df_liv["Volume total"] = df_liv["Volume total"].map(lambda x: f"{x:.6f} m³" if pd.notna(x) else "")
+    
+    # Afficher le tableau avec le style CSS
+    html_table = df_liv.to_html(
+        escape=False, 
+        index=False, 
+        classes="custom-table",
+        border=0
     )
-
-    # Bouton de téléchargement (garder le format original pour l'export)
+    
+    st.markdown(f"""
+    <div class="table-container">
+        {html_table}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Métriques résumées
+    st.markdown("---")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        total_livraisons = len(df_liv)
+        st.metric("📦 Total Livraisons", total_livraisons)
+    
+    with col2:
+        total_clients = df_liv["Client"].nunique()
+        st.metric("👥 Clients Uniques", total_clients)
+    
+    with col3:
+        total_poids = st.session_state.df_grouped["Poids total"].sum()
+        st.metric("⚖️ Poids Total", f"{total_poids:.1f} kg")
+    
+    with col4:
+        total_volume = st.session_state.df_grouped["Volume total"].sum()
+        st.metric("📏 Volume Total", f"{total_volume:.3f} m³")
+    
+    # Bouton de téléchargement
     from io import BytesIO
     excel_buffer_grouped = BytesIO()
     with pd.ExcelWriter(excel_buffer_grouped, engine='openpyxl') as writer:
@@ -324,11 +431,10 @@ with tab_grouped:
         file_name="Livraisons_Client_Ville.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
+    
     # Stockage pour la section 5
     if "df_livraisons" not in st.session_state:
         st.session_state.df_livraisons = df_liv.copy()
-
 # --- Onglet Besoin Estafette par Ville ---
 with tab_city:
     st.subheader("Besoin Estafette par Ville")
