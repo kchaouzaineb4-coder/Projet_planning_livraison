@@ -93,7 +93,7 @@ h1 {
 """, unsafe_allow_html=True)
 
 st.title("🚚 Planning de Livraisons & Optimisation des Tournées")
-st.markdown("---")
+#st.markdown("---")
 # =====================================================
 # CSS PERSONNALISÉ POUR LA SECTION 1
 # =====================================================
