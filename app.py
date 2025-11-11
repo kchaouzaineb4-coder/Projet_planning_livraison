@@ -80,19 +80,14 @@ CHAUFFEURS_DETAILS = {
 # Configuration page
 st.set_page_config(page_title="Planning Livraisons", layout="wide")
 
-# CSS pour centrer et styliser le titre
+# CSS pour centrer le titre
 st.markdown("""
 <style>
-/* Centrer et styliser le titre principal */
+/* Centrer le titre principal */
 h1 {
     text-align: center !important;
     color: #1E3A8A;
-    font-size: 2.5rem !important;
     margin-bottom: 1rem;
-    padding: 1rem;
-    background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
-    border-radius: 10px;
-    border-left: 5px solid #1E40AF;
 }
 </style>
 """, unsafe_allow_html=True)
