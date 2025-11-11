@@ -1102,23 +1102,19 @@ if st.session_state.propositions is not None and not st.session_state.propositio
                 if not details_df_styled.empty:
                     details_display = details_df_styled.copy()
                     
-                    # Formater les colonnes numériques
-                    numeric_columns = {
-                        "Poids total": ":.3f kg",
-                        "Volume total": ":.3f m³", 
-                        "Taux d'occupation (%)": ":.2f%"
-                    }
-                    
-                    for col, format_str in numeric_columns.items():
-                        if col in details_display.columns:
-                            if col == "Taux d'occupation (%)":
-                                details_display[col] = details_display[col].map(
-                                    lambda x: f"{float(x):.2f}%" if pd.notna(x) else ""
-                                )
-                            else:
-                                details_display[col] = details_display[col].map(
-                                    lambda x: f"{float(x){format_str}}" if pd.notna(x) else ""
-                                )
+                    # CORRECTION : Formatage correct des colonnes numériques
+                    if "Poids total" in details_display.columns:
+                        details_display["Poids total"] = details_display["Poids total"].map(
+                            lambda x: f"{float(x):.3f} kg" if pd.notna(x) else ""
+                        )
+                    if "Volume total" in details_display.columns:
+                        details_display["Volume total"] = details_display["Volume total"].map(
+                            lambda x: f"{float(x):.3f} m³" if pd.notna(x) else ""
+                        )
+                    if "Taux d'occupation (%)" in details_display.columns:
+                        details_display["Taux d'occupation (%)"] = details_display["Taux d'occupation (%)"].map(
+                            lambda x: f"{float(x):.2f}%" if pd.notna(x) else ""
+                        )
                     
                     # Gestion spéciale pour "BL inclus" - format multiligne
                     if "BL inclus" in details_display.columns:
