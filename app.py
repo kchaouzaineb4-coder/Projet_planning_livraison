@@ -441,7 +441,7 @@ with tab_grouped:
         st.metric("📏 Volume Total", f"{total_volume:.3f} m³")
     
     # Information sur le filtrage
-    st.info("ℹ️ Les livraisons de TRIPOLI ont été exclues de ce tableau")
+    #st.info("ℹ️ Les livraisons de TRIPOLI ont été exclues de ce tableau")
     
     # AJOUT DE L'IMPORT MANQUANT POUR BytesIO
     from io import BytesIO
