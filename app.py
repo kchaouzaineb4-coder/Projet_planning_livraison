@@ -834,21 +834,21 @@ else:
                             - **Volume transféré :** {volume_bls:.3f} m³
                             """)
 
-                            # --- Affichage après transfert ---
+                            # --- Affichage après transfert - CODE CORRIGÉ ---
                             st.subheader("📊 Voyages après transfert (toutes les zones)")
                             df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
-                            
+
                             # Transformer les colonnes avec retours à la ligne HTML
                             if "BL inclus" in df_display.columns:
                                 df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
                                     lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
                                 )
-                            
+
                             df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                             df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-                            
-                            # Affichage avec HTML amélioré
-                            html_content_after = f"""
+
+                            # CORRECTION : Créer le HTML correctement structuré
+                            html_content_after = """
                             <table class="compact-table">
                                 <thead>
                                     <tr>
@@ -861,22 +861,29 @@ else:
                                 </thead>
                                 <tbody>
                             """
-                            
+
                             for idx, row in df_display.iterrows():
+                                bl_inclus = row['BL inclus'] if 'BL inclus' in row else ""
+                                zone = row['Zone'] if 'Zone' in row else ""
+                                vehicule = row['Véhicule N°'] if 'Véhicule N°' in row else ""
+                                poids = row['Poids total chargé'] if 'Poids total chargé' in row else ""
+                                volume = row['Volume total chargé'] if 'Volume total chargé' in row else ""
+                                
                                 html_content_after += f"""
                                     <tr>
-                                        <td>{row['Zone']}</td>
-                                        <td>{row['Véhicule N°']}</td>
-                                        <td>{row['Poids total chargé']}</td>
-                                        <td>{row['Volume total chargé']}</td>
-                                        <td class="bl-cell">{row['BL inclus']}</td>
+                                        <td>{zone}</td>
+                                        <td>{vehicule}</td>
+                                        <td>{poids}</td>
+                                        <td>{volume}</td>
+                                        <td class="bl-cell">{bl_inclus}</td>
                                     </tr>
                                 """
-                            
+
                             html_content_after += """
                                 </tbody>
                             </table>
                             """
+
                             st.markdown(html_content_after, unsafe_allow_html=True)
 
                             # --- Export Excel ---
