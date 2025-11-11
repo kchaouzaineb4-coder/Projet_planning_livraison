@@ -913,6 +913,91 @@ st.markdown("---")
 st.header("3. 🚚 Proposition de location de camion")
 st.markdown(f"🔸 Si un client dépasse **{SEUIL_POIDS} kg** ou **{SEUIL_VOLUME} m³**, une location est proposée (si non déjà décidée).")
 
+# CSS POUR LES TABLEAUX DE LA SECTION 3
+st.markdown("""
+<style>
+    /* Style général du tableau */
+    .custom-table-rental {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    /* En-têtes du tableau - BLEU ROYAL SANS DÉGRADÉ */
+    .custom-table-rental th {
+        background-color: #0369A1;
+        color: white;
+        padding: 12px 8px;
+        text-align: center;
+        border: 2px solid #4682B4;
+        font-weight: bold;
+        font-size: 13px;
+        vertical-align: middle;
+    }
+    
+    /* Cellules du tableau - TOUTES EN BLANC */
+    .custom-table-rental td {
+        padding: 10px 8px;
+        text-align: center;
+        border: 1px solid #B0C4DE;
+        background-color: white;
+        color: #000000;
+        vertical-align: middle;
+    }
+    
+    /* Bordures visibles pour toutes les cellules */
+    .custom-table-rental th, 
+    .custom-table-rental td {
+        border: 1px solid #B0C4DE !important;
+    }
+    
+    /* Bordures épaisses pour l'extérieur du tableau */
+    .custom-table-rental {
+        border: 2px solid #4682B4 !important;
+    }
+    
+    /* Style pour les cellules numériques */
+    .custom-table-rental td:nth-child(2),
+    .custom-table-rental td:nth-child(3),
+    .custom-table-rental td:nth-child(4),
+    .custom-table-rental td:nth-child(5),
+    .custom-table-rental td:nth-child(6) {
+        font-weight: 600;
+        color: #000000 !important;
+        vertical-align: middle;
+    }
+    
+    /* Conteneur du tableau avec défilement horizontal */
+    .table-container-rental {
+        overflow-x: auto;
+        margin: 1rem 0;
+        border-radius: 8px;
+        border: 2px solid #4682B4;
+    }
+    
+    /* Supprimer l'alternance des couleurs - TOUTES LES LIGNES BLANCHES */
+    .custom-table-rental tr:nth-child(even) td {
+        background-color: white !important;
+    }
+    
+    /* Survol des lignes - léger effet */
+    .custom-table-rental tr:hover td {
+        background-color: #F0F8FF !important;
+    }
+    
+    /* Style spécifique pour les cellules multilignes (BL inclus) */
+    .multiline-cell {
+        line-height: 1.4;
+        text-align: left !important;
+        padding: 8px !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 if st.session_state.propositions is not None and not st.session_state.propositions.empty:
     col_prop, col_details = st.columns([2, 3])
     
@@ -921,13 +1006,47 @@ if st.session_state.propositions is not None and not st.session_state.propositio
         
         # CORRECTION : Vérifier si la colonne 'Client' existe
         if 'Client' in st.session_state.propositions.columns:
-            # Affichage des propositions ouvertes avec show_df
-            show_df(
-                st.session_state.propositions,
-                use_container_width=True,
-                column_order=["Client", "Poids total (kg)", "Volume total (m³)", "Raison"],
-                hide_index=True
+            # FORMATAGE DU TABLEAU DES PROPOSITIONS AVEC STYLE CSS
+            propositions_display = st.session_state.propositions.copy()
+            
+            # Formater les nombres
+            if "Poids total (kg)" in propositions_display.columns:
+                propositions_display["Poids total (kg)"] = propositions_display["Poids total (kg)"].map(
+                    lambda x: f"{float(x):.3f}" if pd.notna(x) else ""
+                )
+            if "Volume total (m³)" in propositions_display.columns:
+                propositions_display["Volume total (m³)"] = propositions_display["Volume total (m³)"].map(
+                    lambda x: f"{float(x):.3f}" if pd.notna(x) else ""
+                )
+            
+            # Afficher le tableau avec le style CSS
+            html_table_propositions = propositions_display.to_html(
+                escape=False, 
+                index=False, 
+                classes="custom-table-rental",
+                border=0
             )
+            
+            st.markdown(f"""
+            <div class="table-container-rental">
+                {html_table_propositions}
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # MÉTRIQUES RÉSUMÉES
+            st.markdown("---")
+            col_metric1, col_metric2 = st.columns(2)
+            
+            with col_metric1:
+                total_propositions = len(st.session_state.propositions)
+                st.metric("📋 Propositions ouvertes", total_propositions)
+            
+            with col_metric2:
+                # Calculer le nombre de clients dépassant le seuil de poids
+                clients_poids = len(st.session_state.propositions[
+                    st.session_state.propositions["Poids total (kg)"] >= SEUIL_POIDS
+                ]) if "Poids total (kg)" in st.session_state.propositions.columns else 0
+                st.metric("⚖️ Dépassement poids", clients_poids)
             
             # Sélection du client
             client_options = st.session_state.propositions['Client'].astype(str).tolist()
@@ -975,33 +1094,76 @@ if st.session_state.propositions is not None and not st.session_state.propositio
                 resume, details_df_styled = st.session_state.rental_processor.get_details_client(
                     st.session_state.selected_client
                 )
-                st.text(resume)
                 
-                # MODIFICATION : Appliquer l'affichage multiligne pour la colonne "BL inclus"
-                if "BL inclus" in details_df_styled.columns:
-                    # Créer une copie du DataFrame
-                    details_df_multiline = details_df_styled.copy()
+                # Afficher le résumé
+                st.markdown(f"**{resume}**")
+                
+                # FORMATAGE DU TABLEAU DES DÉTAILS AVEC STYLE CSS
+                if not details_df_styled.empty:
+                    details_display = details_df_styled.copy()
                     
-                    # Transformer les BL inclus en liste avec retour à la ligne
-                    details_df_multiline["BL inclus"] = details_df_multiline["BL inclus"].astype(str).apply(
-                        lambda x: "<br>".join(bl.strip() for bl in x.split(";"))
+                    # Formater les colonnes numériques
+                    numeric_columns = {
+                        "Poids total": ":.3f kg",
+                        "Volume total": ":.3f m³", 
+                        "Taux d'occupation (%)": ":.2f%"
+                    }
+                    
+                    for col, format_str in numeric_columns.items():
+                        if col in details_display.columns:
+                            if col == "Taux d'occupation (%)":
+                                details_display[col] = details_display[col].map(
+                                    lambda x: f"{float(x):.2f}%" if pd.notna(x) else ""
+                                )
+                            else:
+                                details_display[col] = details_display[col].map(
+                                    lambda x: f"{float(x){format_str}}" if pd.notna(x) else ""
+                                )
+                    
+                    # Gestion spéciale pour "BL inclus" - format multiligne
+                    if "BL inclus" in details_display.columns:
+                        details_display["BL inclus"] = details_display["BL inclus"].astype(str).apply(
+                            lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if ";" in x else x
+                        )
+                    
+                    # Afficher le tableau avec le style CSS
+                    html_table_details = details_display.to_html(
+                        escape=False, 
+                        index=False, 
+                        classes="custom-table-rental",
+                        border=0
                     )
                     
-                    # Affichage avec HTML dans st.markdown
-                    st.markdown(
-                        details_df_multiline.to_html(escape=False, index=False),
-                        unsafe_allow_html=True
-                    )
-                else:
-                    # Si pas de colonne "BL inclus", afficher normalement
-                    show_df(details_df_styled, use_container_width=True, hide_index=True)
+                    st.markdown(f"""
+                    <div class="table-container-rental">
+                        {html_table_details}
+                    </div>
+                    """, unsafe_allow_html=True)
                     
+                    # MÉTRIQUES POUR LES DÉTAILS
+                    st.markdown("---")
+                    col_det1, col_det2, col_det3 = st.columns(3)
+                    
+                    with col_det1:
+                        total_camions = len(details_display)
+                        st.metric("🚚 Nombre de camions", total_camions)
+                    
+                    with col_det2:
+                        # Calculer le poids total réel (données originales)
+                        poids_total = details_df_styled["Poids total"].sum() if "Poids total" in details_df_styled.columns else 0
+                        st.metric("📦 Poids total", f"{poids_total:.1f} kg")
+                    
+                    with col_det3:
+                        # Calculer le volume total réel (données originales)
+                        volume_total = details_df_styled["Volume total"].sum() if "Volume total" in details_df_styled.columns else 0
+                        st.metric("📏 Volume total", f"{volume_total:.3f} m³")
+                        
             except Exception as e:
                 st.error(f"❌ Erreur lors de la récupération des détails : {str(e)}")
         else:
             st.info("Sélectionnez un client pour afficher les détails de la commande/estafettes.")
 else:
-    st.success(" Aucune proposition de location de camion en attente de décision.")
+    st.success("✅ Aucune proposition de location de camion en attente de décision.")
 
 st.markdown("---")
 
