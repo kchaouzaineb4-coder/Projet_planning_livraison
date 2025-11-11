@@ -240,7 +240,7 @@ with col_button:
                 update_propositions_view()
                 
                 st.session_state.data_processed = True
-                st.session_state.message = "Traitement terminé avec succès ! Les résultats s'affichent ci-dessous."
+                #st.session_state.message = "Traitement terminé avec succès ! Les résultats s'affichent ci-dessous."
                 st.rerun()
 
             except Exception as e:
