@@ -834,57 +834,54 @@ else:
                             - **Volume transféré :** {volume_bls:.3f} m³
                             """)
 
-                            # --- Affichage après transfert - CODE CORRIGÉ ---
+                            # --- Affichage après transfert - HTML ULTRA SIMPLIFIÉ ---
                             st.subheader("📊 Voyages après transfert (toutes les zones)")
                             df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
 
-                            # Transformer les colonnes avec retours à la ligne HTML
-                            if "BL inclus" in df_display.columns:
-                                df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
-                                    lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
-                                )
-
-                            df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-                            df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-
-                            # CORRECTION : Créer le HTML correctement structuré
-                            html_content_after = """
-                            <table class="compact-table">
-                                <thead>
-                                    <tr>
-                                        <th>Zone</th>
-                                        <th>Véhicule N°</th>
-                                        <th>Poids total chargé</th>
-                                        <th>Volume total chargé</th>
-                                        <th>BL inclus</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
+                            # Préparer les données
+                            table_html = """
+                            <style>
+                            .simple-table {
+                                border-collapse: collapse;
+                                width: 100%;
+                                margin: 10px 0;
+                            }
+                            .simple-table th, .simple-table td {
+                                border: 1px solid #ddd;
+                                padding: 8px;
+                                text-align: left;
+                            }
+                            .simple-table th {
+                                background-color: #4CAF50;
+                                color: white;
+                            }
+                            .simple-table tr:nth-child(even) {
+                                background-color: #f2f2f2;
+                            }
+                            </style>
+                            <table class="simple-table">
+                                <tr>
+                                    <th>Zone</th>
+                                    <th>Véhicule N°</th>
+                                    <th>Poids (kg)</th>
+                                    <th>Volume (m³)</th>
+                                    <th>BL inclus</th>
+                                </tr>
                             """
 
                             for idx, row in df_display.iterrows():
-                                bl_inclus = row['BL inclus'] if 'BL inclus' in row else ""
-                                zone = row['Zone'] if 'Zone' in row else ""
-                                vehicule = row['Véhicule N°'] if 'Véhicule N°' in row else ""
-                                poids = row['Poids total chargé'] if 'Poids total chargé' in row else ""
-                                volume = row['Volume total chargé'] if 'Volume total chargé' in row else ""
-                                
-                                html_content_after += f"""
-                                    <tr>
-                                        <td>{zone}</td>
-                                        <td>{vehicule}</td>
-                                        <td>{poids}</td>
-                                        <td>{volume}</td>
-                                        <td class="bl-cell">{bl_inclus}</td>
-                                    </tr>
+                                table_html += f"""
+                                <tr>
+                                    <td>{row.get('Zone', '')}</td>
+                                    <td>{row.get('Véhicule N°', '')}</td>
+                                    <td>{row.get('Poids total chargé', 0):.3f}</td>
+                                    <td>{row.get('Volume total chargé', 0):.3f}</td>
+                                    <td>{str(row.get('BL inclus', '')).replace(';', '<br>')}</td>
+                                </tr>
                                 """
 
-                            html_content_after += """
-                                </tbody>
-                            </table>
-                            """
-
-                            st.markdown(html_content_after, unsafe_allow_html=True)
+                            table_html += "</table>"
+                            st.markdown(table_html, unsafe_allow_html=True)
 
                             # --- Export Excel ---
                             df_export = df_voyages.copy()
