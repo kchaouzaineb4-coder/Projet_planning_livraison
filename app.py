@@ -498,7 +498,7 @@ with tab_city:
     
     # Métriques résumées - CORRECTION : Utiliser les données filtrées
     st.markdown("---")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         total_villes = len(df_city_display)
@@ -514,14 +514,10 @@ with tab_city:
         # CORRECTION : Utiliser les données filtrées pour les calculs
         total_estafettes = df_city_original_filtered["Besoin estafette réel"].sum() if "Besoin estafette réel" in df_city_original_filtered.columns else 0
         st.metric("🚐 Besoin Estafettes", f"{total_estafettes:.1f}")
-    
-    with col4:
-        # Nouvelle métrique : Villes prioritaires
-        villes_prioritaires = len(df_city_original_filtered[df_city_original_filtered["Besoin estafette réel"] > 1]) if "Besoin estafette réel" in df_city_original_filtered.columns else 0
-        st.metric("🎯 Villes Prioritaires", villes_prioritaires)
+
     
     # Information sur le filtrage
-    st.info("ℹ️ La ville de TRIPOLI a été exclue de ce tableau")
+    #st.info("ℹ️ La ville de TRIPOLI a été exclue de ce tableau")
     
     # Bouton de téléchargement (garder les données originales pour l'export)
     excel_buffer_city = BytesIO()
