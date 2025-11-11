@@ -1081,7 +1081,7 @@ if st.session_state.propositions is not None and not st.session_state.propositio
             )
         with col_btn_ref:
             st.button(
-                "❌ Refuer la proposition", 
+                "❌ Refuser la proposition", 
                 on_click=refuse_location_callback, 
                 disabled=not is_client_selected,
                 use_container_width=True
@@ -1102,30 +1102,48 @@ if st.session_state.propositions is not None and not st.session_state.propositio
                 if not details_df.empty:
                     details_display = details_df.copy()
                     
-                    # CORRECTION : Formater les colonnes numériques seulement si elles ne contiennent pas déjà d'unités
-                    def safe_format_column(series, format_str, suffix=""):
-                        """Formate une colonne en toute sécurité"""
+                    # CORRECTION : Formatage simple et sécurisé des colonnes
+                    def format_numeric_column(series, decimals, unit=""):
+                        """Formate une colonne numérique avec le nombre de décimales et unité spécifiés"""
                         formatted_series = series.copy()
                         for i, value in enumerate(series):
                             if pd.notna(value) and value != "":
                                 try:
-                                    # Essayer de convertir en float si c'est un nombre
-                                    num_value = float(value)
-                                    formatted_series.iloc[i] = f"{num_value{format_str}}{suffix}"
+                                    # Essayer de convertir en float
+                                    if isinstance(value, str):
+                                        # Nettoyer la valeur si c'est une string
+                                        clean_value = value.replace(' kg', '').replace(' m³', '').replace('%', '').strip()
+                                        num_value = float(clean_value)
+                                    else:
+                                        num_value = float(value)
+                                    
+                                    # Formater selon le nombre de décimales
+                                    if decimals == 3:
+                                        formatted_value = f"{num_value:.3f}"
+                                    elif decimals == 2:
+                                        formatted_value = f"{num_value:.2f}"
+                                    elif decimals == 1:
+                                        formatted_value = f"{num_value:.1f}"
+                                    else:
+                                        formatted_value = f"{num_value:.0f}"
+                                    
+                                    formatted_series.iloc[i] = f"{formatted_value}{unit}"
                                 except (ValueError, TypeError):
-                                    # Si déjà formaté, garder la valeur originale
+                                    # Si conversion échoue, garder la valeur originale
                                     formatted_series.iloc[i] = str(value)
+                            else:
+                                formatted_series.iloc[i] = ""
                         return formatted_series
                     
                     # Formater les colonnes numériques
                     if "Poids total" in details_display.columns:
-                        details_display["Poids total"] = safe_format_column(details_display["Poids total"], ":.3f", " kg")
+                        details_display["Poids total"] = format_numeric_column(details_display["Poids total"], 3, " kg")
                     
                     if "Volume total" in details_display.columns:
-                        details_display["Volume total"] = safe_format_column(details_display["Volume total"], ":.3f", " m³")
+                        details_display["Volume total"] = format_numeric_column(details_display["Volume total"], 3, " m³")
                     
                     if "Taux d'occupation (%)" in details_display.columns:
-                        details_display["Taux d'occupation (%)"] = safe_format_column(details_display["Taux d'occupation (%)"], ":.2f", "%")
+                        details_display["Taux d'occupation (%)"] = format_numeric_column(details_display["Taux d'occupation (%)"], 2, "%")
                     
                     # Gestion spéciale pour "BL inclus" - format multiligne
                     if "BL inclus" in details_display.columns:
@@ -1164,7 +1182,10 @@ if st.session_state.propositions is not None and not st.session_state.propositio
                                     if pd.notna(value):
                                         try:
                                             # Nettoyer la valeur si elle contient des unités
-                                            clean_value = str(value).replace(' kg', '').replace('m³', '').strip()
+                                            if isinstance(value, str):
+                                                clean_value = value.replace(' kg', '').replace('m³', '').strip()
+                                            else:
+                                                clean_value = str(value)
                                             poids_total += float(clean_value)
                                         except (ValueError, TypeError):
                                             continue
@@ -1183,7 +1204,10 @@ if st.session_state.propositions is not None and not st.session_state.propositio
                                     if pd.notna(value):
                                         try:
                                             # Nettoyer la valeur si elle contient des unités
-                                            clean_value = str(value).replace(' kg', '').replace('m³', '').strip()
+                                            if isinstance(value, str):
+                                                clean_value = value.replace(' kg', '').replace('m³', '').strip()
+                                            else:
+                                                clean_value = str(value)
                                             volume_total += float(clean_value)
                                         except (ValueError, TypeError):
                                             continue
