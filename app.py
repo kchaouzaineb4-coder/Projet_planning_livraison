@@ -745,35 +745,35 @@ else:
                     }
                     </style>
                     """, unsafe_allow_html=True)
-                    # CSS SPÉCIFIQUE POUR LE MULTISELECT
+                    # CSS SPÉCIFIQUE POUR LE MULTISELECT - VERSION BLEU CLAIR
                     st.markdown("""
                     <style>
                     /* ===== STYLES POUR LE MULTISELECT DES BLs ===== */
 
                     /* APPROCHE 1 : Style général pour tous les multiselect */
                     .stMultiSelect > div > div {
-                        background-color: #EFF6FF !important;
-                        border: 2px solid #1E40AF !important;
+                        background-color: #F0F9FF !important;  /* BLEU TRÈS CLAIR */
+                        border: 2px solid #7DD3FC !important;  /* BLEU CLAIR */
                         border-radius: 8px !important;
                     }
 
                     /* APPROCHE 2 : Style pour le conteneur du multiselect */
                     div[data-baseweb="select"] > div {
-                        background-color: #EFF6FF !important;
-                        border: 2px solid #1E40AF !important;
+                        background-color: #F0F9FF !important;  /* BLEU TRÈS CLAIR */
+                        border: 2px solid #7DD3FC !important;  /* BLEU CLAIR */
                         border-radius: 8px !important;
                     }
 
                     /* APPROCHE 3 : Style spécifique pour l'input */
                     div[data-baseweb="select"] > div:first-child {
-                        background-color: #EFF6FF !important;
-                        border: 2px solid #1E40AF !important;
+                        background-color: #F0F9FF !important;  /* BLEU TRÈS CLAIR */
+                        border: 2px solid #7DD3FC !important;  /* BLEU CLAIR */
                         border-radius: 8px !important;
                     }
 
                     /* Style pour les tags des éléments sélectionnés */
                     div[data-baseweb="select"] span[data-baseweb="tag"] {
-                        background-color: #1E40AF !important;
+                        background-color: #38BDF8 !important;  /* BLEU MOYEN CLAIR */
                         color: white !important;
                         border-radius: 12px !important;
                         font-weight: bold;
@@ -782,30 +782,21 @@ else:
                     /* Style pour la dropdown */
                     div[role="listbox"] {
                         background-color: white !important;
-                        border: 2px solid #1E40AF !important;
+                        border: 2px solid #7DD3FC !important;  /* BLEU CLAIR */
                     }
 
                     /* Options sélectionnées dans la liste */
                     div[role="option"][aria-selected="true"] {
-                        background-color: #DBEAFE !important;
-                        color: #1E40AF !important;
+                        background-color: #E0F2FE !important;  /* BLEU EXTRÊMEMENT CLAIR */
+                        color: #0EA5E9 !important;  /* BLEU MOYEN */
                     }
 
                     /* Options au survol */
                     div[role="option"]:hover {
-                        background-color: #BFDBFE !important;
+                        background-color: #BAE6FD !important;  /* BLEU TRÈS CLAIR */
                     }
                     </style>
                     """, unsafe_allow_html=True)
-                    
-                    # Affichage avec HTML amélioré
-                    html_content = f"""
-                    <div class="centered-table">
-                    {df_source_display.to_html(escape=False, index=False)}
-                    </div>
-                    """
-                    st.markdown(html_content, unsafe_allow_html=True)
-
                     # --- NOUVEAU : Sélection avec clients ---
                     st.subheader("📋 Sélectionner les BLs à transférer")
                     
