@@ -480,7 +480,7 @@ with tab_city:
     
     # Métriques résumées - CORRECTION ICI
     st.markdown("---")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         total_villes = len(df_city_display)
@@ -496,10 +496,6 @@ with tab_city:
         total_estafettes = st.session_state.df_city["Besoin estafette réel"].sum() if "Besoin estafette réel" in st.session_state.df_city.columns else 0
         st.metric("🚐 Besoin Estafettes", f"{total_estafettes:.1f}")
     
-    with col4:
-        # CORRECTION : Utiliser les données originales
-        villes_prioritaires = len(st.session_state.df_city[st.session_state.df_city["Besoin estafette réel"] > 1]) if "Besoin estafette réel" in st.session_state.df_city.columns else 0
-        st.metric("🎯 Villes Prioritaires", villes_prioritaires)
     
     # Bouton de téléchargement
     excel_buffer_city = BytesIO()
