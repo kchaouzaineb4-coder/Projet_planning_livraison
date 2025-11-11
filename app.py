@@ -745,35 +745,35 @@ else:
                     }
                     </style>
                     """, unsafe_allow_html=True)
-                    # CSS SPÉCIFIQUE POUR LE MULTISELECT - VERSION BLEU CLAIR
+                    # CSS SPÉCIFIQUE POUR LE MULTISELECT - VERSION GRIS
                     st.markdown("""
                     <style>
                     /* ===== STYLES POUR LE MULTISELECT DES BLs ===== */
 
                     /* APPROCHE 1 : Style général pour tous les multiselect */
                     .stMultiSelect > div > div {
-                        background-color: #F0F9FF !important;  /* BLEU TRÈS CLAIR */
-                        border: 2px solid #7DD3FC !important;  /* BLEU CLAIR */
+                        background-color: #F8FAFC !important;  /* GRIS TRÈS CLAIR */
+                        border: 2px solid #CBD5E1 !important;  /* GRIS CLAIR */
                         border-radius: 8px !important;
                     }
 
                     /* APPROCHE 2 : Style pour le conteneur du multiselect */
                     div[data-baseweb="select"] > div {
-                        background-color: #F0F9FF !important;  /* BLEU TRÈS CLAIR */
-                        border: 2px solid #7DD3FC !important;  /* BLEU CLAIR */
+                        background-color: #F8FAFC !important;  /* GRIS TRÈS CLAIR */
+                        border: 2px solid #CBD5E1 !important;  /* GRIS CLAIR */
                         border-radius: 8px !important;
                     }
 
                     /* APPROCHE 3 : Style spécifique pour l'input */
                     div[data-baseweb="select"] > div:first-child {
-                        background-color: #F0F9FF !important;  /* BLEU TRÈS CLAIR */
-                        border: 2px solid #7DD3FC !important;  /* BLEU CLAIR */
+                        background-color: #F8FAFC !important;  /* GRIS TRÈS CLAIR */
+                        border: 2px solid #CBD5E1 !important;  /* GRIS CLAIR */
                         border-radius: 8px !important;
                     }
 
                     /* Style pour les tags des éléments sélectionnés */
                     div[data-baseweb="select"] span[data-baseweb="tag"] {
-                        background-color: #38BDF8 !important;  /* BLEU MOYEN CLAIR */
+                        background-color: #64748B !important;  /* GRIS MOYEN */
                         color: white !important;
                         border-radius: 12px !important;
                         font-weight: bold;
@@ -782,18 +782,18 @@ else:
                     /* Style pour la dropdown */
                     div[role="listbox"] {
                         background-color: white !important;
-                        border: 2px solid #7DD3FC !important;  /* BLEU CLAIR */
+                        border: 2px solid #CBD5E1 !important;  /* GRIS CLAIR */
                     }
 
                     /* Options sélectionnées dans la liste */
                     div[role="option"][aria-selected="true"] {
-                        background-color: #E0F2FE !important;  /* BLEU EXTRÊMEMENT CLAIR */
-                        color: #0EA5E9 !important;  /* BLEU MOYEN */
+                        background-color: #F1F5F9 !important;  /* GRIS TRÈS CLAIR */
+                        color: #475569 !important;  /* GRIS FONCÉ */
                     }
 
                     /* Options au survol */
                     div[role="option"]:hover {
-                        background-color: #BAE6FD !important;  /* BLEU TRÈS CLAIR */
+                        background-color: #E2E8F0 !important;  /* GRIS CLAIR */
                     }
                     </style>
                     """, unsafe_allow_html=True)
