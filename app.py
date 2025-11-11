@@ -315,9 +315,9 @@ with tab_grouped:
         overflow: hidden;
     }
     
-    /* En-têtes du tableau - BLEU ARCTIQUE SANS DÉGRADÉ */
+    /* En-têtes du tableau - BLEU ROYAL SANS DÉGRADÉ */
     .custom-table th {
-        background-color: #1D4ED8;
+        background-color: #0F172A;
         color: white;
         padding: 12px 8px;
         text-align: center;
