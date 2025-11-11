@@ -772,7 +772,7 @@ class TruckTransferManager:
                 return False, "❌ Capacité dépassée : objet non ajouté.", df
 
             # Générer code unique pour l'objet
-            obj_code = f"OBJ-{name}-{len(df)}"
+            obj_code = f"OBJ-{name}"
 
             # Mettre à jour BL inclus (s'assurer que ce soit une string)
             bls_current = str(row.get("BL inclus", "")).strip()
