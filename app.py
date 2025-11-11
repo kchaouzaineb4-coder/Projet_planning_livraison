@@ -452,9 +452,51 @@ with tab_grouped:
 # --- Onglet Besoin Estafette par Ville ---
 with tab_city:
     st.subheader("Besoin Estafette par Ville")
-    colonnes_ordre = ["Ville", "Nombre de BLs", "Poids total", "Volume total", "Besoin estafette réel"]
-    df_city_ordered = st.session_state.df_city[colonnes_ordre]
-    show_df(df_city_ordered, use_container_width=True)
+    
+    # Créer une copie du DataFrame
+    df_city_display = st.session_state.df_city.copy()
+    
+    # Formater les nombres - 3 chiffres après la virgule
+    if "Poids total" in df_city_display.columns:
+        df_city_display["Poids total"] = df_city_display["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
+    if "Volume total" in df_city_display.columns:
+        df_city_display["Volume total"] = df_city_display["Volume total"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "")
+    if "Besoin estafette réel" in df_city_display.columns:
+        df_city_display["Besoin estafette réel"] = df_city_display["Besoin estafette réel"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+    
+    # Afficher le tableau avec le style CSS
+    html_table_city = df_city_display.to_html(
+        escape=False, 
+        index=False, 
+        classes="custom-table",
+        border=0
+    )
+    
+    st.markdown(f"""
+    <div class="table-container">
+        {html_table_city}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Métriques résumées
+    st.markdown("---")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        total_villes = len(df_city_display)
+        st.metric("🏙️ Total Villes", total_villes)
+    
+    with col2:
+        total_bls = df_city_display["Nombre de BLs"].sum() if "Nombre de BLs" in df_city_display.columns else 0
+        st.metric("📦 Total BLs", int(total_bls))
+    
+    with col3:
+        total_estafettes = df_city_display["Besoin estafette réel"].sum() if "Besoin estafette réel" in df_city_display.columns else 0
+        st.metric("🚐 Besoin Estafettes", f"{total_estafettes:.1f}")
+    
+    with col4:
+        villes_prioritaires = len(df_city_display[df_city_display["Besoin estafette réel"] > 1]) if "Besoin estafette réel" in df_city_display.columns else 0
+        st.metric("🎯 Villes Prioritaires", villes_prioritaires)
     
     # Bouton de téléchargement
     excel_buffer_city = BytesIO()
@@ -475,18 +517,55 @@ with tab_zone_group:
 
     # Créer une copie du DataFrame
     df_liv_zone = st.session_state.df_grouped_zone.copy()
-
-    # Transformer les articles en liste avec retour à la ligne
+    
+    # Préparer les données pour l'affichage HTML
     if "Article" in df_liv_zone.columns:
-        df_liv_zone["Article"] = df_liv_zone["Article"].astype(str).apply(lambda x: "<br>".join(a.strip() for a in x.split(",")))
-
-    # Affichage avec HTML dans st.markdown
-    st.markdown(
-        df_liv_zone.to_html(escape=False, index=False),
-        unsafe_allow_html=True
+        # Transformer les articles avec retours à la ligne HTML - SANS "•"
+        df_liv_zone["Article"] = df_liv_zone["Article"].astype(str).apply(
+            lambda x: "<br>".join(a.strip() for a in x.split(",") if a.strip())
+        )
+    
+    # Formater les nombres - 3 chiffres après la virgule
+    if "Poids total" in df_liv_zone.columns:
+        df_liv_zone["Poids total"] = df_liv_zone["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
+    if "Volume total" in df_liv_zone.columns:
+        df_liv_zone["Volume total"] = df_liv_zone["Volume total"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "")
+    
+    # Afficher le tableau avec le style CSS
+    html_table_zone_group = df_liv_zone.to_html(
+        escape=False, 
+        index=False, 
+        classes="custom-table",
+        border=0
     )
     
-    # Bouton de téléchargement (garder le format original pour l'export)
+    st.markdown(f"""
+    <div class="table-container">
+        {html_table_zone_group}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Métriques résumées
+    st.markdown("---")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        total_livraisons_zone = len(df_liv_zone)
+        st.metric("📦 Total Livraisons", total_livraisons_zone)
+    
+    with col2:
+        zones_count = df_liv_zone["Zone"].nunique()
+        st.metric("🌍 Zones", zones_count)
+    
+    with col3:
+        villes_count = df_liv_zone["Ville"].nunique()
+        st.metric("🏙️ Villes", villes_count)
+    
+    with col4:
+        clients_count = df_liv_zone["Client"].nunique()
+        st.metric("👥 Clients", clients_count)
+    
+    # Bouton de téléchargement
     excel_buffer_zone_group = BytesIO()
     with pd.ExcelWriter(excel_buffer_zone_group, engine='openpyxl') as writer:
         st.session_state.df_grouped_zone.to_excel(writer, index=False, sheet_name="Livraisons Client Ville Zone")
@@ -498,10 +577,55 @@ with tab_zone_group:
         file_name="Livraisons_Client_Ville_Zone.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
 # --- Onglet Besoin Estafette par Zone ---
 with tab_zone_summary:
     st.subheader("Besoin Estafette par Zone")
-    show_df(st.session_state.df_zone, use_container_width=True)
+    
+    # Créer une copie du DataFrame
+    df_zone_display = st.session_state.df_zone.copy()
+    
+    # Formater les nombres - 3 chiffres après la virgule
+    if "Poids total" in df_zone_display.columns:
+        df_zone_display["Poids total"] = df_zone_display["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
+    if "Volume total" in df_zone_display.columns:
+        df_zone_display["Volume total"] = df_zone_display["Volume total"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "")
+    if "Besoin estafette réel" in df_zone_display.columns:
+        df_zone_display["Besoin estafette réel"] = df_zone_display["Besoin estafette réel"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+    
+    # Afficher le tableau avec le style CSS
+    html_table_zone = df_zone_display.to_html(
+        escape=False, 
+        index=False, 
+        classes="custom-table",
+        border=0
+    )
+    
+    st.markdown(f"""
+    <div class="table-container">
+        {html_table_zone}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Métriques résumées
+    st.markdown("---")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        total_zones = len(df_zone_display)
+        st.metric("🌍 Total Zones", total_zones)
+    
+    with col2:
+        total_bls_zone = df_zone_display["Nombre de BLs"].sum() if "Nombre de BLs" in df_zone_display.columns else 0
+        st.metric("📦 Total BLs", int(total_bls_zone))
+    
+    with col3:
+        total_estafettes_zone = df_zone_display["Besoin estafette réel"].sum() if "Besoin estafette réel" in df_zone_display.columns else 0
+        st.metric("🚐 Besoin Estafettes", f"{total_estafettes_zone:.1f}")
+    
+    with col4:
+        zones_prioritaires = len(df_zone_display[df_zone_display["Besoin estafette réel"] > 1]) if "Besoin estafette réel" in df_zone_display.columns else 0
+        st.metric("🎯 Zones Prioritaires", zones_prioritaires)
     
     # Bouton de téléchargement
     excel_buffer_zone = BytesIO()
@@ -515,7 +639,6 @@ with tab_zone_summary:
         file_name="Besoin_Estafette_Zone.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
 
 # --- Onglet Graphiques ---
 with tab_charts:
