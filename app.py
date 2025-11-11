@@ -1055,26 +1055,7 @@ if st.session_state.propositions is not None and not st.session_state.propositio
                 ]) if "Volume total (m³)" in st.session_state.propositions.columns else 0
                 st.metric("📦 Dépassement volume", clients_volume)
 
-            # CORRECTION : Ajouter une métrique pour les clients qui dépassent les deux seuils
-            st.markdown("---")
-            col_metric4, col_metric5 = st.columns(2)
-
-            with col_metric4:
-                # Clients qui dépassent AU MOINS UN des deux seuils (c'est la condition OR)
-                clients_au_moins_un = len(st.session_state.propositions[
-                    (st.session_state.propositions["Poids total (kg)"] >= SEUIL_POIDS) | 
-                    (st.session_state.propositions["Volume total (m³)"] >= SEUIL_VOLUME)
-                ]) if all(col in st.session_state.propositions.columns for col in ["Poids total (kg)", "Volume total (m³)"]) else 0
-                st.metric("🚨 Dépasse au moins 1 seuil", clients_au_moins_un)
-
-            with col_metric5:
-                # Clients qui dépassent LES DEUX seuils (condition AND)
-                clients_les_deux = len(st.session_state.propositions[
-                    (st.session_state.propositions["Poids total (kg)"] >= SEUIL_POIDS) & 
-                    (st.session_state.propositions["Volume total (m³)"] >= SEUIL_VOLUME)
-                ]) if all(col in st.session_state.propositions.columns for col in ["Poids total (kg)", "Volume total (m³)"]) else 0
-                st.metric("⚠️ Dépasse les 2 seuils", clients_les_deux)
-            
+        
             # Sélection du client
             client_options = st.session_state.propositions['Client'].astype(str).tolist()
             client_options_with_empty = [""] + client_options
