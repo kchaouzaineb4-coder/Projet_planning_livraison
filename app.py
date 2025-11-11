@@ -862,57 +862,7 @@ else:
                                 }
                             )
 
-                            # OPTION 2: Afficher par zones avec expanders
-                            st.markdown("**🗂️ Vue par zone**")
-                            zones_apres_transfert = sorted(df_display["Zone"].unique())
-
-                            for zone in zones_apres_transfert:
-                                with st.expander(f"📍 Zone {zone} ({len(df_display[df_display['Zone'] == zone])} véhicules)"):
-                                    df_zone = df_display[df_display["Zone"] == zone]
-                                    
-                                    for idx, row in df_zone.iterrows():
-                                        col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
-                                        with col1:
-                                            st.metric("Véhicule", row["Véhicule N°"])
-                                        with col2:
-                                            st.metric("Poids", f"{row['Poids total chargé']:.1f} kg")
-                                        with col3:
-                                            st.metric("Volume", f"{row['Volume total chargé']:.3f} m³")
-                                        with col4:
-                                            st.text_area(
-                                                "BL inclus",
-                                                value="\n".join(row["BL inclus"].split(";")) if pd.notna(row["BL inclus"]) else "Aucun BL",
-                                                height=100,
-                                                key=f"bl_{zone}_{idx}"
-                                            )
-                                        st.markdown("---")
-
-                            # OPTION 3: Résumé statistique
-                            st.markdown("**📈 Résumé du transfert**")
-                            col1, col2, col3, col4 = st.columns(4)
-
-                            with col1:
-                                st.metric("Total véhicules", len(df_display))
-                            with col2:
-                                st.metric("Zones concernées", len(zones_apres_transfert))
-                            with col3:
-                                poids_total = df_display["Poids total chargé"].sum()
-                                st.metric("Poids total", f"{poids_total:.0f} kg")
-                            with col4:
-                                volume_total = df_display["Volume total chargé"].sum()
-                                st.metric("Volume total", f"{volume_total:.1f} m³")
-
-                            # --- Export Excel ---
-                            df_export = df_voyages.copy()
                             
-                            if "BL inclus" in df_export.columns:
-                                df_export["BL inclus"] = df_export["BL inclus"].astype(str).apply(
-                                    lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
-                                )
-                            
-                            df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
-                            df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
-
                             from io import BytesIO
                             import openpyxl
                             from openpyxl.styles import Alignment
