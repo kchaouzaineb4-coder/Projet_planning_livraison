@@ -745,6 +745,26 @@ else:
                     }
                     </style>
                     """, unsafe_allow_html=True)
+                    # CSS POUR LE MULTISELECT
+                    st.markdown("""
+                    <style>
+                    /* Style pour le multiselect des BLs */
+                    div[data-baseweb="select"] div {
+                        background-color: #EFF6FF !important;  /* BLEU TRÈS CLAIR */
+                        border-color: #1E40AF !important;
+                    }
+
+                    /* Style pour les options sélectionnées */
+                    div[data-baseweb="select"] div[role="option"] {
+                        background-color: #DBEAFE !important;  /* BLEU CLAIR */
+                    }
+
+                    /* Style au survol */
+                    div[data-baseweb="select"] div[role="option"]:hover {
+                        background-color: #BFDBFE !important;  /* BLEU MOYEN */
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
                     
                     # Affichage avec HTML amélioré
                     html_content = f"""
