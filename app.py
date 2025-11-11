@@ -466,8 +466,9 @@ with tab_grouped:
 with tab_city:
     st.subheader("Besoin Estafette par Ville")
     
-    # Créer une copie du DataFrame
+    # Créer une copie du DataFrame et FILTRER TRIPOLI
     df_city_display = st.session_state.df_city.copy()
+    df_city_display = df_city_display[df_city_display["Ville"] != "TRIPOLI"]  # ← FILTRE TRIPOLI ICI
     
     # Formater les nombres - 3 chiffres après la virgule
     if "Poids total" in df_city_display.columns:
@@ -477,40 +478,52 @@ with tab_city:
     if "Besoin estafette réel" in df_city_display.columns:
         df_city_display["Besoin estafette réel"] = df_city_display["Besoin estafette réel"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
     
-    # Afficher le tableau avec le style CSS
-    html_table_city = df_city_display.to_html(
-        escape=False, 
-        index=False, 
-        classes="custom-table",
-        border=0
-    )
+    # Vérifier si le DataFrame n'est pas vide après filtrage
+    if df_city_display.empty:
+        st.info("ℹ️ Aucune ville à afficher (TRIPOLI exclue)")
+    else:
+        # Afficher le tableau avec le style CSS
+        html_table_city = df_city_display.to_html(
+            escape=False, 
+            index=False, 
+            classes="custom-table",
+            border=0
+        )
+        
+        st.markdown(f"""
+        <div class="table-container">
+            {html_table_city}
+        </div>
+        """, unsafe_allow_html=True)
     
-    st.markdown(f"""
-    <div class="table-container">
-        {html_table_city}
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Métriques résumées - CORRECTION ICI
+    # Métriques résumées - CORRECTION : Utiliser les données filtrées
     st.markdown("---")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         total_villes = len(df_city_display)
         st.metric("🏙️ Total Villes", total_villes)
     
     with col2:
-        # Utiliser les données originales pour les calculs
-        total_bls = st.session_state.df_city["Nombre de BLs"].sum() if "Nombre de BLs" in st.session_state.df_city.columns else 0
+        # CORRECTION : Utiliser les données filtrées pour les calculs
+        df_city_original_filtered = st.session_state.df_city[st.session_state.df_city["Ville"] != "TRIPOLI"]
+        total_bls = df_city_original_filtered["Nombre de BLs"].sum() if "Nombre de BLs" in df_city_original_filtered.columns else 0
         st.metric("📦 Total BLs", int(total_bls))
     
     with col3:
-        # CORRECTION : Utiliser les données originales, pas le DataFrame formaté
-        total_estafettes = st.session_state.df_city["Besoin estafette réel"].sum() if "Besoin estafette réel" in st.session_state.df_city.columns else 0
+        # CORRECTION : Utiliser les données filtrées pour les calculs
+        total_estafettes = df_city_original_filtered["Besoin estafette réel"].sum() if "Besoin estafette réel" in df_city_original_filtered.columns else 0
         st.metric("🚐 Besoin Estafettes", f"{total_estafettes:.1f}")
     
+    with col4:
+        # Nouvelle métrique : Villes prioritaires
+        villes_prioritaires = len(df_city_original_filtered[df_city_original_filtered["Besoin estafette réel"] > 1]) if "Besoin estafette réel" in df_city_original_filtered.columns else 0
+        st.metric("🎯 Villes Prioritaires", villes_prioritaires)
     
-    # Bouton de téléchargement
+    # Information sur le filtrage
+    st.info("ℹ️ La ville de TRIPOLI a été exclue de ce tableau")
+    
+    # Bouton de téléchargement (garder les données originales pour l'export)
     excel_buffer_city = BytesIO()
     with pd.ExcelWriter(excel_buffer_city, engine='openpyxl') as writer:
         st.session_state.df_city.to_excel(writer, index=False, sheet_name="Besoin Estafette Ville")
