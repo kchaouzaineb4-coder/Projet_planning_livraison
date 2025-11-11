@@ -107,7 +107,7 @@ div[data-testid="stHorizontalBlock"] {
     background-color: #F8FAFC;
     padding: 1rem;
     border-radius: 8px;
-    border: 2px solid #E2E8F0;
+    border: 4px solid #E2E8F0;
 }
 
 /* Style pour les file uploaders */
