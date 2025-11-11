@@ -703,21 +703,49 @@ else:
                     df_source_display["Poids total chargé"] = df_source_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                     df_source_display["Volume total chargé"] = df_source_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
-                    # CSS pour centrer le tableau
+                    # CSS AMÉLIORÉ pour un tableau plus visible et bien centré
                     st.markdown("""
                     <style>
                     .centered-table {
                         margin-left: auto;
                         margin-right: auto;
                         display: table;
+                        width: 100%;
                     }
                     .centered-table table {
                         margin: 0 auto;
+                        border-collapse: collapse;
+                        width: 100%;
+                        font-family: Arial, sans-serif;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    }
+                    .centered-table th {
+                        background-color: #1f77b4;
+                        color: white;
+                        padding: 12px 8px;
+                        text-align: center;
+                        border: 2px solid #555;
+                        font-weight: bold;
+                        font-size: 14px;
+                    }
+                    .centered-table td {
+                        padding: 10px 8px;
+                        text-align: center;
+                        border: 2px solid #555;
+                        background-color: #f9f9f9;
+                        color: #333;
+                        vertical-align: top;
+                    }
+                    .centered-table tr:nth-child(even) td {
+                        background-color: #f0f0f0;
+                    }
+                    .centered-table tr:hover td {
+                        background-color: #e6f3ff;
                     }
                     </style>
                     """, unsafe_allow_html=True)
                     
-                    # Affichage avec HTML pour les retours à la ligne et centrage
+                    # Affichage avec HTML amélioré
                     html_content = f"""
                     <div class="centered-table">
                     {df_source_display.to_html(escape=False, index=False)}
@@ -807,7 +835,7 @@ else:
                             df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                             df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                             
-                            # Affichage avec HTML pour les retours à la ligne et centrage
+                            # Affichage avec HTML amélioré pour les retours à la ligne et centrage
                             html_content_after = f"""
                             <div class="centered-table">
                             {df_display[colonnes_requises].to_html(escape=False, index=False)}
