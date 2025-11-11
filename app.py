@@ -657,6 +657,29 @@ else:
     df_voyages = st.session_state.df_voyages.copy()
     df_livraisons = st.session_state.df_livraisons.copy()
 
+    # DEBUG: Afficher les colonnes disponibles pour debug
+    st.sidebar.markdown("### 🔍 Debug Info")
+    st.sidebar.write("Colonnes df_livraisons:", list(df_livraisons.columns))
+
+    # Trouver le nom correct de la colonne Client
+    colonnes_client_possibles = ['Client', 'Client de l\'estafette', 'Nom Client', 'ClientName', 'customer']
+    colonne_client = None
+    
+    for col in colonnes_client_possibles:
+        if col in df_livraisons.columns:
+            colonne_client = col
+            break
+    
+    if colonne_client is None:
+        # Si aucune colonne client standard n'est trouvée, prendre la première colonne de texte
+        colonnes_texte = df_livraisons.select_dtypes(include=['object']).columns
+        if len(colonnes_texte) > 1:
+            colonne_client = colonnes_texte[1]  # Généralement l'index 0 est le numéro de BL, 1 le client
+        else:
+            colonne_client = "Client"  # Valeur par défaut
+    
+    st.sidebar.write(f"Colonne client utilisée: {colonne_client}")
+
     colonnes_requises = ["Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]
 
     if not all(col in df_voyages.columns for col in colonnes_requises):
@@ -689,8 +712,8 @@ else:
                     for bl in bls_simples:
                         # Trouver le client correspondant à ce BL
                         client_info = df_livraisons[df_livraisons["No livraison"] == bl]
-                        if not client_info.empty:
-                            client_nom = client_info["Client"].iloc[0]
+                        if not client_info.empty and colonne_client in client_info.columns:
+                            client_nom = client_info[colonne_client].iloc[0]
                             bl_affichage = f"{bl} - {client_nom}"
                         else:
                             bl_affichage = f"{bl} - Client non trouvé"
@@ -734,8 +757,8 @@ else:
                     
                     for bl in bls_simples:
                         client_info = df_livraisons[df_livraisons["No livraison"] == bl]
-                        if not client_info.empty:
-                            client_nom = client_info["Client"].iloc[0]
+                        if not client_info.empty and colonne_client in client_info.columns:
+                            client_nom = client_info[colonne_client].iloc[0]
                             option_affichage = f"{bl} - {client_nom}"
                         else:
                             option_affichage = f"{bl} - Client non trouvé"
@@ -785,11 +808,16 @@ else:
                             st.session_state.df_voyages = df_voyages
                             
                             # Afficher un résumé du transfert avec clients
-                            clients_transferes = df_bls_selection["Client"].unique()
+                            if colonne_client in df_bls_selection.columns:
+                                clients_transferes = df_bls_selection[colonne_client].unique()
+                                clients_text = ', '.join(clients_transferes)
+                            else:
+                                clients_text = "Information client non disponible"
+                                
                             st.success(f"""
                             ✅ Transfert réussi !
                             - **{len(bls_selectionnes)} BL(s)** déplacé(s) de **{source}** vers **{cible}**
-                            - **Clients concernés :** {', '.join(clients_transferes)}
+                            - **Clients concernés :** {clients_text}
                             - **Poids transféré :** {poids_bls:.1f} kg
                             - **Volume transféré :** {volume_bls:.3f} m³
                             """)
