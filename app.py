@@ -120,7 +120,7 @@ div[data-testid="stFileUploader"] {
 
 /* Style pour le bouton principal */
 div[data-testid="stHorizontalBlock"] button[kind="primary"] {
-    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+    background: linear-gradient(135deg, #1D4ED8 0%, #60A5FA 100%);
     border: none;
     color: white;
     font-weight: bold;
