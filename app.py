@@ -660,7 +660,133 @@ with tab_zone_group:
 # --- Onglet Besoin Estafette par Zone ---
 with tab_zone_summary:
     st.subheader("Besoin Estafette par Zone")
-    show_df(st.session_state.df_zone, use_container_width=True)
+    
+    # Créer une copie du DataFrame
+    df_zone_display = st.session_state.df_zone.copy()
+    
+    # CSS pour un tableau organisé et professionnel
+    st.markdown("""
+    <style>
+    /* Style général du tableau */
+    .custom-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    /* En-têtes du tableau - BLEU ROYAL SANS DÉGRADÉ */
+    .custom-table th {
+        background-color: #0369A1;
+        color: white;
+        padding: 12px 8px;
+        text-align: center;
+        border: 2px solid #4682B4;
+        font-weight: bold;
+        font-size: 13px;
+        vertical-align: middle;  /* CENTRAGE VERTICAL */
+    }
+    
+    /* Cellules du tableau - TOUTES EN BLANC */
+    .custom-table td {
+        padding: 10px 8px;
+        text-align: center;
+        border: 1px solid #B0C4DE;
+        background-color: white;
+        color: #000000;
+        vertical-align: middle;  /* CENTRAGE VERTICAL */
+    }
+    
+    /* Bordures visibles pour toutes les cellules */
+    .custom-table th, 
+    .custom-table td {
+        border: 1px solid #B0C4DE !important;
+    }
+    
+    /* Bordures épaisses pour l'extérieur du tableau */
+    .custom-table {
+        border: 2px solid #4682B4 !important;
+    }
+    
+    /* Style pour les cellules numériques */
+    .custom-table td:nth-child(2),
+    .custom-table td:nth-child(3),
+    .custom-table td:nth-child(4),
+    .custom-table td:nth-child(5) {
+        font-weight: 600;
+        color: #000000 !important;
+        vertical-align: middle;  /* CENTRAGE VERTICAL */
+    }
+    
+    /* Conteneur du tableau avec défilement horizontal */
+    .table-container {
+        overflow-x: auto;
+        margin: 1rem 0;
+        border-radius: 8px;
+        border: 2px solid #4682B4;
+    }
+    
+    /* Supprimer l'alternance des couleurs - TOUTES LES LIGNES BLANCHES */
+    .custom-table tr:nth-child(even) td {
+        background-color: white !important;
+    }
+    
+    /* Survol des lignes - léger effet */
+    .custom-table tr:hover td {
+        background-color: #F0F8FF !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Formater les nombres - 3 chiffres après la virgule
+    if "Poids total" in df_zone_display.columns:
+        df_zone_display["Poids total"] = df_zone_display["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
+    if "Volume total" in df_zone_display.columns:
+        df_zone_display["Volume total"] = df_zone_display["Volume total"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "")
+    if "Besoin estafette réel" in df_zone_display.columns:
+        df_zone_display["Besoin estafette réel"] = df_zone_display["Besoin estafette réel"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+    if "Nombre de BLs" in df_zone_display.columns:
+        df_zone_display["Nombre de BLs"] = df_zone_display["Nombre de BLs"].map(lambda x: f"{int(x)}" if pd.notna(x) else "")
+    
+    # Afficher le tableau avec le style CSS
+    html_table_zone = df_zone_display.to_html(
+        escape=False, 
+        index=False, 
+        classes="custom-table",
+        border=0
+    )
+    
+    st.markdown(f"""
+    <div class="table-container">
+        {html_table_zone}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Métriques résumées - CORRECTION : Utiliser les données originales pour les calculs
+    st.markdown("---")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        total_zones = len(df_zone_display)
+        st.metric("🌍 Total Zones", total_zones)
+    
+    with col2:
+        # Utiliser les données originales pour les calculs
+        total_bls_zone = st.session_state.df_zone["Nombre de BLs"].sum() if "Nombre de BLs" in st.session_state.df_zone.columns else 0
+        st.metric("📦 Total BLs", int(total_bls_zone))
+    
+    with col3:
+        # Utiliser les données originales pour les calculs
+        total_estafettes_zone = st.session_state.df_zone["Besoin estafette réel"].sum() if "Besoin estafette réel" in st.session_state.df_zone.columns else 0
+        st.metric("🚐 Besoin Estafettes", f"{total_estafettes_zone:.1f}")
+    
+    with col4:
+        # Utiliser les données originales pour les calculs
+        zones_prioritaires = len(st.session_state.df_zone[st.session_state.df_zone["Besoin estafette réel"] > 1]) if "Besoin estafette réel" in st.session_state.df_zone.columns else 0
+        st.metric("🎯 Zones Prioritaires", zones_prioritaires)
     
     # Bouton de téléchargement
     excel_buffer_zone = BytesIO()
