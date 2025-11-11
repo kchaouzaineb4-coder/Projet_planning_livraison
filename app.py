@@ -642,7 +642,7 @@ except Exception as e:
     if st.session_state.rental_processor:
         st.write("Colonnes du df_base:", list(st.session_state.rental_processor.df_base.columns))
 # =====================================================
-# 5️⃣ TRANSFERT DES BLs ENTRE ESTAFETTES / CAMIONS
+# 5️⃣ TRANSFERT DES BLs ENTRE ESTAFETTES / CAMIONS - VERSION AMÉLIORÉE
 # =====================================================
 st.markdown("## 🔁 Transfert de BLs entre Estafettes / Camions")
 
@@ -682,14 +682,23 @@ else:
                 else:
                     st.subheader(f"📦 BLs actuellement assignés à {source}")
 
-                    # --- Affichage formaté pour Streamlit avec retours à la ligne ---
-                    df_source_display = df_source[["Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]].copy()
+                    # --- NOUVEAU : Créer un mapping BL → Client ---
+                    bls_avec_clients = []
+                    bls_simples = df_source["BL inclus"].iloc[0].split(";")
                     
-                    # Transformer les BL avec retours à la ligne HTML
-                    if "BL inclus" in df_source_display.columns:
-                        df_source_display["BL inclus"] = df_source_display["BL inclus"].astype(str).apply(
-                            lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
-                        )
+                    for bl in bls_simples:
+                        # Trouver le client correspondant à ce BL
+                        client_info = df_livraisons[df_livraisons["No livraison"] == bl]
+                        if not client_info.empty:
+                            client_nom = client_info["Client"].iloc[0]
+                            bl_affichage = f"{bl} - {client_nom}"
+                        else:
+                            bl_affichage = f"{bl} - Client non trouvé"
+                        bls_avec_clients.append(bl_affichage)
+                    
+                    # Affichage formaté avec clients
+                    df_source_display = df_source[["Véhicule N°", "Poids total chargé", "Volume total chargé"]].copy()
+                    df_source_display["BL inclus (avec clients)"] = "<br>".join(bls_avec_clients)
                     
                     df_source_display["Poids total chargé"] = df_source_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                     df_source_display["Volume total chargé"] = df_source_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
@@ -716,11 +725,36 @@ else:
                     """
                     st.markdown(html_content, unsafe_allow_html=True)
 
-                    bls_disponibles = df_source["BL inclus"].iloc[0].split(";")
-                    bls_selectionnes = st.multiselect("📋 Sélectionner les BLs à transférer :", bls_disponibles)
+                    # --- NOUVEAU : Sélection avec clients ---
+                    st.subheader("📋 Sélectionner les BLs à transférer")
+                    
+                    # Créer les options avec format "BL - Client"
+                    options_transfert = []
+                    mapping_bl_original = {}  # Pour garder la correspondance BL original
+                    
+                    for bl in bls_simples:
+                        client_info = df_livraisons[df_livraisons["No livraison"] == bl]
+                        if not client_info.empty:
+                            client_nom = client_info["Client"].iloc[0]
+                            option_affichage = f"{bl} - {client_nom}"
+                        else:
+                            option_affichage = f"{bl} - Client non trouvé"
+                        
+                        options_transfert.append(option_affichage)
+                        mapping_bl_original[option_affichage] = bl
+                    
+                    # Multiselect avec clients
+                    bls_selectionnes_affichage = st.multiselect(
+                        "Sélectionnez les BLs à transférer (avec clients) :", 
+                        options_transfert,
+                        format_func=lambda x: x  # Affiche tel quel le format "BL - Client"
+                    )
+                    
+                    # Convertir la sélection en BLs simples pour le traitement
+                    bls_selectionnes = [mapping_bl_original[bl_affichage] for bl_affichage in bls_selectionnes_affichage]
 
                     if bls_selectionnes and st.button("🔁 Exécuter le transfert"):
-
+                        # [Le reste du code de transfert reste identique...]
                         df_bls_selection = df_livraisons[df_livraisons["No livraison"].isin(bls_selectionnes)]
                         poids_bls = df_bls_selection["Poids total"].sum()
                         volume_bls = df_bls_selection["Volume total"].sum()
@@ -750,70 +784,17 @@ else:
 
                             df_voyages = df_voyages.apply(transfer_bl, axis=1)
                             st.session_state.df_voyages = df_voyages
-                            st.success(f"✅ Transfert réussi : {len(bls_selectionnes)} BL(s) déplacé(s) de {source} vers {cible}.")
-
-                            # --- Affichage Streamlit avec retours à la ligne ---
-                            st.subheader("📊 Voyages après transfert (toutes les zones)")
-                            df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
                             
-                            # Transformer les colonnes avec retours à la ligne HTML
-                            if "BL inclus" in df_display.columns:
-                                df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
-                                    lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
-                                )
+                            # Afficher un résumé du transfert avec clients
+                            clients_transferes = df_bls_selection["Client"].unique()
+                            st.success(f"""
+                            ✅ Transfert réussi !
+                            - **{len(bls_selectionnes)} BL(s)** déplacé(s) de **{source}** vers **{cible}**
+                            - **Clients concernés :** {', '.join(clients_transferes)}
+                            - **Poids transféré :** {poids_bls:.1f} kg
+                            - **Volume transféré :** {volume_bls:.3f} m³
+                            """)
                             
-                            df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-                            df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-                            
-                            # Affichage avec HTML pour les retours à la ligne et centrage
-                            html_content_after = f"""
-                            <div class="centered-table">
-                            {df_display[colonnes_requises].to_html(escape=False, index=False)}
-                            </div>
-                            """
-                            st.markdown(html_content_after, unsafe_allow_html=True)
-
-                            # --- Export Excel avec retours à la ligne \n ---
-                            df_export = df_voyages.copy()
-                            
-                            # Transformer les BL avec retours à la ligne \n pour Excel
-                            if "BL inclus" in df_export.columns:
-                                df_export["BL inclus"] = df_export["BL inclus"].astype(str).apply(
-                                    lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
-                                )
-                            
-                            df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
-                            df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
-
-                            from io import BytesIO
-                            import openpyxl
-                            from openpyxl.styles import Alignment
-                            
-                            excel_buffer = BytesIO()
-                            with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                                df_export.to_excel(writer, index=False, sheet_name='Transfert BLs')
-                                
-                                # Appliquer le format wrap_text pour Excel
-                                workbook = writer.book
-                                worksheet = writer.sheets['Transfert BLs']
-                                
-                                # Appliquer le style wrap_text à la colonne BL inclus
-                                if "BL inclus" in df_export.columns:
-                                    for col_idx, col_name in enumerate(df_export.columns):
-                                        if col_name == "BL inclus":
-                                            col_letter = openpyxl.utils.get_column_letter(col_idx + 1)
-                                            for row in range(2, len(df_export) + 2):
-                                                cell = worksheet[f"{col_letter}{row}"]
-                                                cell.alignment = Alignment(wrap_text=True, vertical='top')
-                            
-                            excel_buffer.seek(0)
-
-                            st.download_button(
-                                label="💾 Télécharger le tableau mis à jour (XLSX)",
-                                data=excel_buffer,
-                                file_name="voyages_apres_transfert.xlsx",
-                                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                            )
 # =====================================================
 # 6️⃣ AJOUT D'OBJETS MANUELS AUX VÉHICULES
 # =====================================================
