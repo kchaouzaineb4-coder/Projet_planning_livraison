@@ -683,8 +683,11 @@ with tab_zone_group:
 with tab_zone_summary:
     st.subheader("Besoin Estafette par Zone")
     
-    # Créer une copie du DataFrame
+    # Créer une copie du DataFrame et renommer la colonne
     df_zone_display = st.session_state.df_zone.copy()
+    
+    # RENOMMER LA COLONNE "Nombre livraisons" en "Nombre de BLs"
+    df_zone_display = df_zone_display.rename(columns={"Nombre livraisons": "Nombre de BLs"})
     
     # CSS pour un tableau organisé et professionnel
     st.markdown("""
@@ -770,6 +773,7 @@ with tab_zone_summary:
         df_zone_display["Volume total"] = df_zone_display["Volume total"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "")
     if "Besoin estafette réel" in df_zone_display.columns:
         df_zone_display["Besoin estafette réel"] = df_zone_display["Besoin estafette réel"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+    # MAINTENANT ON UTILISE "Nombre de BLs" AU LIEU DE "Nombre livraisons"
     if "Nombre de BLs" in df_zone_display.columns:
         df_zone_display["Nombre de BLs"] = df_zone_display["Nombre de BLs"].map(lambda x: f"{int(x)}" if pd.notna(x) else "")
     
@@ -796,8 +800,11 @@ with tab_zone_summary:
         st.metric("🌍 Total Zones", total_zones)
     
     with col2:
-        # Utiliser les données originales pour les calculs
-        total_bls_zone = st.session_state.df_zone["Nombre de BLs"].sum() if "Nombre de BLs" in st.session_state.df_zone.columns else 0
+        # Utiliser les données originales pour les calculs (avec l'ancien nom de colonne)
+        if "Nombre livraisons" in st.session_state.df_zone.columns:
+            total_bls_zone = st.session_state.df_zone["Nombre livraisons"].sum()
+        else:
+            total_bls_zone = 0
         st.metric("📦 Total BLs", int(total_bls_zone))
     
     with col3:
@@ -805,10 +812,10 @@ with tab_zone_summary:
         total_estafettes_zone = st.session_state.df_zone["Besoin estafette réel"].sum() if "Besoin estafette réel" in st.session_state.df_zone.columns else 0
         st.metric("🚐 Besoin Estafettes", f"{total_estafettes_zone:.1f}")
     
-    
     # Bouton de téléchargement
     excel_buffer_zone = BytesIO()
     with pd.ExcelWriter(excel_buffer_zone, engine='openpyxl') as writer:
+        # Pour l'export Excel, on utilise les données originales
         st.session_state.df_zone.to_excel(writer, index=False, sheet_name="Besoin Estafette Zone")
     excel_buffer_zone.seek(0)
     
@@ -818,7 +825,6 @@ with tab_zone_summary:
         file_name="Besoin_Estafette_Zone.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
 
 # --- Onglet Graphiques ---
 with tab_charts:
