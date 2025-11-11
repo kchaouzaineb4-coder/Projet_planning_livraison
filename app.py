@@ -134,10 +134,10 @@ div[data-testid="stFileUploader"] label {
 
 /* Style pour les fichiers uploadés */
 div[data-testid="stFileUploader"] div[data-testid="stMarkdownContainer"] {
-    background-color: #D1FAE5;
+    background-color: #DBEAFE;
     padding: 0.5rem;
     border-radius: 5px;
-    border-left: 4px solid #10B981;
+    border-left: 4px solid #3B82F6;
 }
 </style>
 """, unsafe_allow_html=True)
