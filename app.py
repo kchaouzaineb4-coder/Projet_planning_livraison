@@ -629,7 +629,7 @@ with tab_zone_group:
     
     # Métriques résumées
     st.markdown("---")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         total_livraisons_zone = len(df_liv_zone)
@@ -643,9 +643,7 @@ with tab_zone_group:
         villes_count = df_liv_zone["Ville"].nunique()
         st.metric("🏙️ Villes", villes_count)
     
-    with col4:
-        clients_count = df_liv_zone["Client"].nunique()
-        st.metric("👥 Clients", clients_count)
+   
     
     # Bouton de téléchargement
     excel_buffer_zone_group = BytesIO()
