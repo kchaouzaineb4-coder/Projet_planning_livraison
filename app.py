@@ -703,65 +703,53 @@ else:
                     df_source_display["Poids total chargé"] = df_source_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                     df_source_display["Volume total chargé"] = df_source_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
-                    # CSS AMÉLIORÉ - COMPACT ET BIEN CENTRÉ
+                    # CSS AMÉLIORÉ pour un tableau plus visible et bien centré
                     st.markdown("""
                     <style>
-                    .compact-table {
+                    .centered-table {
+                        margin-left: auto;
+                        margin-right: auto;
+                        display: table;
+                        width: 100%;
+                    }
+                    .centered-table table {
                         margin: 0 auto;
                         border-collapse: collapse;
-                        width: auto;
-                        min-width: 600px;
+                        width: 100%;
                         font-family: Arial, sans-serif;
-                        font-size: 13px;
-                        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
                     }
-                    .compact-table th {
-                        background-color: #4CAF50;  /* VERT PLUS CLAIR ET PLUS JOLI */
+                    .centered-table th {
+                        background-color: #1f77b4;
                         color: white;
-                        padding: 8px 6px;
+                        padding: 12px 8px;
                         text-align: center;
-                        border: 1px solid #388E3C;
+                        border: 2px solid #555;
                         font-weight: bold;
-                        font-size: 12px;
+                        font-size: 14px;
                     }
-                    .compact-table td {
-                        padding: 6px 4px;
+                    .centered-table td {
+                        padding: 10px 8px;
                         text-align: center;
-                        border: 1px solid #ddd;
-                        background-color: white;
+                        border: 2px solid #555;
+                        background-color: #f9f9f9;
                         color: #333;
-                        vertical-align: middle;
+                        vertical-align: top;
                     }
-                    .compact-table tr:hover td {
-                        background-color: #f5f5f5;
+                    .centered-table tr:nth-child(even) td {
+                        background-color: #f0f0f0;
                     }
-                    .bl-cell {
-                        text-align: left;
-                        padding-left: 8px;
+                    .centered-table tr:hover td {
+                        background-color: #e6f3ff;
                     }
                     </style>
                     """, unsafe_allow_html=True)
                     
-                    # Créer un HTML personnalisé pour un meilleur contrôle
+                    # Affichage avec HTML amélioré
                     html_content = f"""
-                    <table class="compact-table">
-                        <thead>
-                            <tr>
-                                <th>Véhicule N°</th>
-                                <th>Poids total chargé</th>
-                                <th>Volume total chargé</th>
-                                <th>BL inclus (avec clients)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>{df_source_display['Véhicule N°'].iloc[0]}</td>
-                                <td>{df_source_display['Poids total chargé'].iloc[0]}</td>
-                                <td>{df_source_display['Volume total chargé'].iloc[0]}</td>
-                                <td class="bl-cell">{'<br>'.join(bls_avec_clients)}</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="centered-table">
+                    {df_source_display.to_html(escape=False, index=False)}
+                    </div>
                     """
                     st.markdown(html_content, unsafe_allow_html=True)
 
@@ -834,35 +822,39 @@ else:
                             - **Volume transféré :** {volume_bls:.3f} m³
                             """)
 
-                           # --- AFFICHAGE APRÈS TRANSFERT - SOLUTION NATIVE STREAMLIT ---
+                            # --- Affichage Streamlit avec retours à la ligne ---
                             st.subheader("📊 Voyages après transfert (toutes les zones)")
-
                             df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
-
-                            # Sélectionner et formater les colonnes
-                            colonnes_a_afficher = ["Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]
-                            colonnes_a_afficher = [col for col in colonnes_a_afficher if col in df_display.columns]
-
-                            # Formater les nombres
-                            if "Poids total chargé" in df_display.columns:
-                                df_display["Poids total chargé"] = df_display["Poids total chargé"].round(3)
-                            if "Volume total chargé" in df_display.columns:
-                                df_display["Volume total chargé"] = df_display["Volume total chargé"].round(3)
-
-                            # OPTION 1: st.dataframe avec formatage amélioré
-                            st.markdown("**📋 Vue détaillée (avec défilement)**")
-                            st.dataframe(
-                                df_display[colonnes_a_afficher],
-                                use_container_width=True,
-                                height=400,
-                                column_config={
-                                    "Poids total chargé": st.column_config.NumberColumn(format="%.3f kg"),
-                                    "Volume total chargé": st.column_config.NumberColumn(format="%.3f m³"),
-                                    "BL inclus": st.column_config.TextColumn(width="large")
-                                }
-                            )
-
                             
+                            # Transformer les colonnes avec retours à la ligne HTML
+                            if "BL inclus" in df_display.columns:
+                                df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
+                                    lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
+                                )
+                            
+                            df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
+                            df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+                            
+                            # Affichage avec HTML amélioré pour les retours à la ligne et centrage
+                            html_content_after = f"""
+                            <div class="centered-table">
+                            {df_display[colonnes_requises].to_html(escape=False, index=False)}
+                            </div>
+                            """
+                            st.markdown(html_content_after, unsafe_allow_html=True)
+
+                            # --- Export Excel avec retours à la ligne \n ---
+                            df_export = df_voyages.copy()
+                            
+                            # Transformer les BL avec retours à la ligne \n pour Excel
+                            if "BL inclus" in df_export.columns:
+                                df_export["BL inclus"] = df_export["BL inclus"].astype(str).apply(
+                                    lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
+                                )
+                            
+                            df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
+                            df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
+
                             from io import BytesIO
                             import openpyxl
                             from openpyxl.styles import Alignment
@@ -871,9 +863,11 @@ else:
                             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
                                 df_export.to_excel(writer, index=False, sheet_name='Transfert BLs')
                                 
+                                # Appliquer le format wrap_text pour Excel
                                 workbook = writer.book
                                 worksheet = writer.sheets['Transfert BLs']
                                 
+                                # Appliquer le style wrap_text à la colonne BL inclus
                                 if "BL inclus" in df_export.columns:
                                     for col_idx, col_name in enumerate(df_export.columns):
                                         if col_name == "BL inclus":
