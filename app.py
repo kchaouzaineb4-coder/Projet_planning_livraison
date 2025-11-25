@@ -2535,17 +2535,22 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             
             return output.getvalue()
 
-        # --- Export PDF avec données CENTRÉES et 2 chiffres après la virgule pour le taux ---
+        # --- Export PDF avec tableau ÉLARGI et ESPACES MINIMISÉS ---
         from fpdf import FPDF
 
         def to_pdf_better_centered(df, title="Voyages Attribués"):
             pdf = FPDF(orientation='L')  # Paysage pour plus d'espace
             pdf.add_page()
             
-            # Titre CENTRÉ
-            pdf.set_font("Arial", 'B', 16)
-            pdf.cell(0, 15, title, ln=True, align="C")
-            pdf.ln(5)
+            # RÉDUCTION des marges pour utiliser TOUTE la largeur
+            pdf.set_left_margin(5)   # Marge gauche réduite
+            pdf.set_right_margin(5)  # Marge droite réduite
+            pdf.set_top_margin(10)   # Marge haut réduite
+            
+            # Titre PLUS PETIT et PLUS HAUT
+            pdf.set_font("Arial", 'B', 14)  # Taille réduite
+            pdf.cell(0, 8, title, ln=True, align="C")  # Hauteur réduite
+            pdf.ln(3)  # Espacement réduit après le titre
             
             # Créer une copie formatée pour le PDF
             df_pdf = df.copy()
@@ -2554,7 +2559,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             numeric_columns = {
                 'Poids total chargé': ('kg', 3),
                 'Volume total chargé': ('m³', 3), 
-                'Taux d\'occupation (%)': ('%', 2)  # CHANGEMENT : 2 chiffres après la virgule
+                'Taux d\'occupation (%)': ('%', 2)  # 2 chiffres après la virgule
             }
             
             for col, (unit, decimals) in numeric_columns.items():
@@ -2563,19 +2568,19 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                         lambda x: f"{float(x):.{decimals}f} {unit}" if x and str(x).strip() and str(x).strip() != 'nan' else ""
                     )
             
-            # Configuration des colonnes avec largeurs ajustées
+            # Configuration des colonnes AVEC LARGEURS MAXIMALISÉES
             col_config = {
-                'Zone': {'width': 12, 'header': 'Zone'},
-                'Véhicule N°': {'width': 15, 'header': 'Véhicule'},
-                'Poids total chargé': {'width': 20, 'header': 'Poids (kg)'},
-                'Volume total chargé': {'width': 20, 'header': 'Volume (m³)'},
-                'Client(s) inclus': {'width': 25, 'header': 'Clients'},
-                'Représentant(s) inclus': {'width': 25, 'header': 'Représentants'},
-                'BL inclus': {'width': 30, 'header': 'BL associés'},
-                'Taux d\'occupation (%)': {'width': 15, 'header': 'Taux %'},
-                'Véhicule attribué': {'width': 22, 'header': 'Véhicule Attribué'},
-                'Chauffeur attribué': {'width': 22, 'header': 'Chauffeur'},
-                'Matricule chauffeur': {'width': 18, 'header': 'Matricule'}
+                'Zone': {'width': 15, 'header': 'Zone'},
+                'Véhicule N°': {'width': 18, 'header': 'Véhicule'},
+                'Poids total chargé': {'width': 22, 'header': 'Poids (kg)'},
+                'Volume total chargé': {'width': 22, 'header': 'Volume (m³)'},
+                'Client(s) inclus': {'width': 30, 'header': 'Clients'},
+                'Représentant(s) inclus': {'width': 30, 'header': 'Représentants'},
+                'BL inclus': {'width': 35, 'header': 'BL associés'},
+                'Taux d\'occupation (%)': {'width': 18, 'header': 'Taux %'},
+                'Véhicule attribué': {'width': 25, 'header': 'Véhicule Attribué'},
+                'Chauffeur attribué': {'width': 25, 'header': 'Chauffeur'},
+                'Matricule chauffeur': {'width': 20, 'header': 'Matricule'}
             }
             
             # Sélectionner seulement les colonnes existantes
@@ -2583,24 +2588,35 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             widths = [col_config[col]['width'] for col in colonnes_existantes]
             headers = [col_config[col]['header'] for col in colonnes_existantes]
             
-            # Calculer la position de départ pour CENTRER le tableau horizontalement
+            # Calculer la position de départ - DÉBUT PLUS À GAUCHE
             total_width = sum(widths)
             page_width = 297  # Largeur d'une page A4 en paysage (mm)
-            start_x = (page_width - total_width) / 2
+            start_x = 5  # Commencer presque au bord gauche
             
-            # Positionner le tableau au CENTRE
+            # Positionner le tableau AU DÉBUT
             pdf.set_x(start_x)
             
-            # En-têtes CENTRÉS
-            pdf.set_font("Arial", 'B', 9)
+            # En-têtes CENTRÉS avec police PLUS PETITE
+            pdf.set_font("Arial", 'B', 8)  # Taille réduite
             for i, header in enumerate(headers):
-                pdf.cell(widths[i], 8, header, border=1, align='C')
+                pdf.cell(widths[i], 6, header, border=1, align='C')  # Hauteur réduite
             pdf.ln()
             
             # Données avec centrage VERTICAL et HORIZONTAL
-            pdf.set_font("Arial", '', 8)
+            pdf.set_font("Arial", '', 7)  # Taille réduite pour les données
             
             for voyage_idx, (_, row) in enumerate(df_pdf.iterrows()):
+                # Vérifier si on dépasse la hauteur de page
+                if pdf.get_y() > 180:  # Si on approche du bas de page
+                    pdf.add_page()  # Nouvelle page
+                    pdf.set_x(start_x)
+                    # Ré-afficher les en-têtes sur la nouvelle page
+                    pdf.set_font("Arial", 'B', 8)
+                    for i, header in enumerate(headers):
+                        pdf.cell(widths[i], 6, header, border=1, align='C')
+                    pdf.ln()
+                    pdf.set_font("Arial", '', 7)
+                
                 # Déterminer le nombre de lignes nécessaires pour ce voyage
                 list_columns = ['Client(s) inclus', 'Représentant(s) inclus', 'BL inclus']
                 non_list_columns = [col for col in colonnes_existantes if col not in list_columns]
@@ -2618,7 +2634,17 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                 
                 # Pour chaque ligne du voyage
                 for line_idx in range(max_lines):
-                    # Positionner au CENTRE pour chaque ligne
+                    # Vérifier si on dépasse la hauteur de page pour cette ligne
+                    if pdf.get_y() > 190:  # Si on approche vraiment du bas
+                        pdf.add_page()
+                        pdf.set_x(start_x)
+                        pdf.set_font("Arial", 'B', 8)
+                        for i, header in enumerate(headers):
+                            pdf.cell(widths[i], 6, header, border=1, align='C')
+                        pdf.ln()
+                        pdf.set_font("Arial", '', 7)
+                    
+                    # Positionner au DÉBUT pour chaque ligne
                     pdf.set_x(start_x)
                     
                     for i, col in enumerate(colonnes_existantes):
@@ -2633,14 +2659,14 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                             else:
                                 content = ""
                         
-                        # Bordures
+                        # Bordures avec hauteur RÉDUITE
                         border = 'LR'
                         if line_idx == 0: border += 'T'
                         if line_idx == max_lines - 1: border += 'B'
                         if i == 0: border += 'L'
                         if i == len(colonnes_existantes) - 1: border += 'R'
                         
-                        pdf.cell(widths[i], 6, content, border=border, align='C')
+                        pdf.cell(widths[i], 5, content, border=border, align='C')  # Hauteur réduite à 5
                     
                     pdf.ln()
             
