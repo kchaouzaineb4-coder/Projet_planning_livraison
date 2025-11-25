@@ -293,6 +293,7 @@ tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
     "Besoin Estafette par Zone",
     "Graphiques"
 ])
+
 # --- CSS PERSONNALISÉ POUR LES ONGLETS ---
 st.markdown("""
 <style>
@@ -366,9 +367,9 @@ with tab_grouped:
         padding: 12px 8px;
         text-align: center;
         border: 2px solid #4682B4;
-        font-weight: bold;
+        font-weight: normal;  /* CHANGÉ : bold → normal */
         font-size: 13px;
-        vertical-align: middle;  /* CENTRAGE VERTICAL */
+        vertical-align: middle;
     }
     
     /* Cellules du tableau - TOUTES EN BLANC */
@@ -378,7 +379,8 @@ with tab_grouped:
         border: 1px solid #B0C4DE;
         background-color: white;
         color: #000000;
-        vertical-align: middle;  /* CENTRAGE VERTICAL */
+        vertical-align: middle;
+        font-weight: normal;  /* AJOUT : poids normal */
     }
     
     /* Bordures visibles pour toutes les cellules */
@@ -398,15 +400,15 @@ with tab_grouped:
         max-width: 200px;
         word-wrap: break-word;
         white-space: normal;
-        vertical-align: middle;  /* CENTRAGE VERTICAL */
+        vertical-align: middle;
     }
     
-    /* Style pour les cellules de poids et volume - NOIR */
+    /* Style pour les cellules de poids et volume - NOIR SANS GRAS */
     .custom-table td:nth-child(6),
     .custom-table td:nth-child(7) {
-        font-weight: 600;
+        font-weight: normal;  /* CHANGÉ : 600 → normal */
         color: #000000 !important;
-        vertical-align: middle;  /* CENTRAGE VERTICAL */
+        vertical-align: middle;
     }
     
     /* Conteneur du tableau avec défilement horizontal */
@@ -483,9 +485,6 @@ with tab_grouped:
         total_volume = df_liv_original["Volume total"].sum()
         st.metric("📏 Volume Total", f"{total_volume:.3f} m³")
     
-    # Information sur le filtrage
-    #st.info("ℹ️ Les livraisons de TRIPOLI ont été exclues de ce tableau")
-    
     # AJOUT DE L'IMPORT MANQUANT POUR BytesIO
     from io import BytesIO
     
@@ -505,6 +504,7 @@ with tab_grouped:
     # Stockage pour la section 5
     if "df_livraisons" not in st.session_state:
         st.session_state.df_livraisons = df_liv.copy()
+
 # --- Onglet Besoin Estafette par Ville ---
 with tab_city:
     st.subheader("Besoin Estafette par Ville")
@@ -558,10 +558,6 @@ with tab_city:
         total_estafettes = df_city_original_filtered["Besoin estafette réel"].sum() if "Besoin estafette réel" in df_city_original_filtered.columns else 0
         st.metric("🚐 Besoin Estafettes", f"{total_estafettes:.1f}")
 
-    
-    # Information sur le filtrage
-    #st.info("ℹ️ La ville de TRIPOLI a été exclue de ce tableau")
-    
     # Bouton de téléchargement (garder les données originales pour l'export)
     excel_buffer_city = BytesIO()
     with pd.ExcelWriter(excel_buffer_city, engine='openpyxl') as writer:
@@ -574,6 +570,7 @@ with tab_city:
         file_name="Besoin_Estafette_Ville.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
 # --- Onglet Livraisons Client & Ville + Zone ---
 with tab_zone_group:
     st.subheader("Livraisons par Client & Ville + Zone")
@@ -604,7 +601,7 @@ with tab_zone_group:
         border: 2px solid #4682B4;
         font-weight: normal;
         font-size: 13px;
-        vertical-align: middle;  /* CENTRAGE VERTICAL */
+        vertical-align: middle;
     }
     
     /* Cellules du tableau - TOUTES EN BLANC */
@@ -614,8 +611,8 @@ with tab_zone_group:
         border: 1px solid #B0C4DE;
         background-color: white;
         color: #000000;
-        vertical-align: middle;  /* CENTRAGE VERTICAL */
-        font-weight: normal; 
+        vertical-align: middle;
+        font-weight: normal;
     }
     
     /* Bordures visibles pour toutes les cellules */
@@ -635,16 +632,15 @@ with tab_zone_group:
         max-width: 200px;
         word-wrap: break-word;
         white-space: normal;
-        vertical-align: middle;  /* CENTRAGE VERTICAL */
-        font-weight: normal;  /* AJOUT : poids normal */
+        vertical-align: middle;
     }
     
-    /* Style pour les cellules de poids et volume - NOIR */
+    /* Style pour les cellules de poids et volume - NOIR SANS GRAS */
     .custom-table td:nth-child(6),
     .custom-table td:nth-child(7) {
         font-weight: normal;
         color: #000000 !important;
-        vertical-align: middle;  /* CENTRAGE VERTICAL */
+        vertical-align: middle;
     }
     
     /* Conteneur du tableau avec défilement horizontal */
@@ -710,8 +706,6 @@ with tab_zone_group:
         villes_count = df_liv_zone["Ville"].nunique()
         st.metric("🏙️ Villes", villes_count)
     
-   
-    
     # Bouton de téléchargement
     excel_buffer_zone_group = BytesIO()
     with pd.ExcelWriter(excel_buffer_zone_group, engine='openpyxl') as writer:
@@ -724,6 +718,7 @@ with tab_zone_group:
         file_name="Livraisons_Client_Ville_Zone.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
 # --- Onglet Besoin Estafette par Zone ---
 with tab_zone_summary:
     st.subheader("Besoin Estafette par Zone")
@@ -755,9 +750,9 @@ with tab_zone_summary:
         padding: 12px 8px;
         text-align: center;
         border: 2px solid #4682B4;
-        font-weight: bold;
+        font-weight: normal;  /* CHANGÉ : bold → normal */
         font-size: 13px;
-        vertical-align: middle;  /* CENTRAGE VERTICAL */
+        vertical-align: middle;
     }
     
     /* Cellules du tableau - TOUTES EN BLANC */
@@ -767,7 +762,8 @@ with tab_zone_summary:
         border: 1px solid #B0C4DE;
         background-color: white;
         color: #000000;
-        vertical-align: middle;  /* CENTRAGE VERTICAL */
+        vertical-align: middle;
+        font-weight: normal;  /* AJOUT : poids normal */
     }
     
     /* Bordures visibles pour toutes les cellules */
@@ -781,14 +777,14 @@ with tab_zone_summary:
         border: 2px solid #4682B4 !important;
     }
     
-    /* Style pour les cellules numériques */
+    /* Style pour les cellules numériques - SANS GRAS */
     .custom-table td:nth-child(2),
     .custom-table td:nth-child(3),
     .custom-table td:nth-child(4),
     .custom-table td:nth-child(5) {
-        font-weight: 600;
+        font-weight: normal;  /* CHANGÉ : 600 → normal */
         color: #000000 !important;
-        vertical-align: middle;  /* CENTRAGE VERTICAL */
+        vertical-align: middle;
     }
     
     /* Conteneur du tableau avec défilement horizontal */
