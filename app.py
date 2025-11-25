@@ -932,7 +932,7 @@ st.markdown("""
         padding: 12px 8px;
         text-align: center;
         border: 2px solid #4682B4;
-        font-weight: bold;
+        font-weight: normal;  /* CHANGÉ : bold → normal */
         font-size: 13px;
         vertical-align: middle;
     }
@@ -945,6 +945,7 @@ st.markdown("""
         background-color: white;
         color: #000000;
         vertical-align: middle;
+        font-weight: normal;  /* AJOUT : poids normal */
     }
     
     /* Bordures visibles pour toutes les cellules */
@@ -958,13 +959,13 @@ st.markdown("""
         border: 2px solid #4682B4 !important;
     }
     
-    /* Style pour les cellules numériques */
+    /* Style pour les cellules numériques - SANS GRAS */
     .custom-table-rental td:nth-child(2),
     .custom-table-rental td:nth-child(3),
     .custom-table-rental td:nth-child(4),
     .custom-table-rental td:nth-child(5),
     .custom-table-rental td:nth-child(6) {
-        font-weight: 600;
+        font-weight: normal;  /* CHANGÉ : 600 → normal */
         color: #000000 !important;
         vertical-align: middle;
     }
@@ -992,10 +993,10 @@ st.markdown("""
         line-height: 1.4;
         text-align: left !important;
         padding: 8px !important;
+        font-weight: normal;  /* AJOUT : poids normal */
     }
 </style>
 """, unsafe_allow_html=True)
-
 if st.session_state.propositions is not None and not st.session_state.propositions.empty:
     col_prop, col_details = st.columns([2, 3])
     
