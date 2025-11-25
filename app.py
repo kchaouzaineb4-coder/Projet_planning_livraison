@@ -2331,7 +2331,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                 if "Volume total chargé" in row:
                     st.write(f"**Volume total chargé:** {row['Volume total chargé']:.3f} m³")
                 if "Taux d'occupation (%)" in row:
-                    st.write(f"**Taux d'occupation:** {row['Taux d\'occupation (%)']:.2f}%")  # CHANGÉ : .1f → .2f
+                    st.write(f"**Taux d'occupation:** {row['Taux d\'occupation (%)']:.1f}%")
             
             with col2:
                 # Afficher les clients avec retours à ligne
@@ -2410,116 +2410,67 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
         
         st.markdown("### 📦 Voyages avec Véhicule et Chauffeur")
 
-        # --- AFFICHAGE TABLEAU CENTRALISÉ ET AMÉLIORÉ ---
-        st.markdown("""
-        <style>
-        .centered-table {
-            margin: 0 auto;
-            width: 95%;
-            border-collapse: collapse;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        .centered-table th {
-            background-color: #0369A1;
-            color: white;
-            padding: 10px 6px;
-            text-align: center;
-            border: 1px solid #4682B4;
-            font-weight: normal;
-            font-size: 11px;
-            vertical-align: middle;
-        }
-        .centered-table td {
-            padding: 8px 6px;
-            text-align: center;
-            border: 1px solid #B0C4DE;
-            background-color: white;
-            color: #000000;
-            vertical-align: middle;
-            font-weight: normal;
-        }
-        .table-container-centered {
-            overflow-x: auto;
-            margin: 1rem auto;
-            border-radius: 8px;
-            border: 2px solid #4682B4;
-            width: 95%;
-        }
-        .multiline-cell {
-            line-height: 1.3;
-            text-align: center !important;
-            padding: 4px !important;
-            font-size: 11px;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
-        # Préparer les données pour l'affichage HTML
-        df_display = df_attribution.copy()
-        
-        # Formater les colonnes avec retours à ligne HTML
-        colonnes_listes = ['Client(s) inclus', 'Représentant(s) inclus', 'BL inclus']
-        for col in colonnes_listes:
-            if col in df_display.columns:
-                df_display[col] = df_display[col].apply(
-                    lambda x: "<br>".join([elem.strip() for elem in str(x).replace(';', ',').split(',') if elem.strip()]) 
-                    if pd.notna(x) else ""
-                )
-        
-        # Formater les nombres
-        if "Poids total chargé" in df_display.columns:
-            df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
-        if "Volume total chargé" in df_display.columns:
-            df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "")
-        if "Taux d'occupation (%)" in df_display.columns:
-            df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.2f} %" if pd.notna(x) else "")  # CHANGÉ : .1f → .2f
-
-        # Sélectionner et renommer les colonnes pour l'affichage
-        colonnes_affichage = [
-            'Zone', 'Véhicule N°', 'Poids total chargé', 'Volume total chargé', 
-            'Client(s) inclus', 'Représentant(s) inclus', 'BL inclus', 
-            'Taux d\'occupation (%)', 'Véhicule attribué', 'Chauffeur attribué', 'Matricule chauffeur'
-        ]
-        
-        # Garder seulement les colonnes existantes
-        colonnes_existantes = [col for col in colonnes_affichage if col in df_display.columns]
-        df_display = df_display[colonnes_existantes]
-        
-        # Renommer les colonnes pour l'affichage
-        noms_colonnes = {
-            'Zone': 'Zone',
-            'Véhicule N°': 'Véhicule', 
-            'Poids total chargé': 'Poids (kg)',
-            'Volume total chargé': 'Volume (m³)',
-            'Client(s) inclus': 'Clients',
-            'Représentant(s) inclus': 'Représentants', 
-            'BL inclus': 'BL associés',
-            'Taux d\'occupation (%)': 'Taux %',
-            'Véhicule attribué': 'Véhicule Attribué',
-            'Chauffeur attribué': 'Chauffeur',
-            'Matricule chauffeur': 'Matricule'
-        }
-        
-        df_display = df_display.rename(columns=noms_colonnes)
-        
-        # Générer le tableau HTML
-        html_table = df_display.to_html(
-            escape=False, 
-            index=False, 
-            classes="centered-table",
-            border=0
-        )
-        
-        # Afficher le tableau centré
-        st.markdown(f"""
-        <div class="table-container-centered">
-            {html_table}
-        </div>
-        """, unsafe_allow_html=True)
+        # --- Affichage Streamlit amélioré avec retours à ligne ---
+        for idx, row in df_attribution.iterrows():
+            with st.expander(f"📋 Voyage {row['Véhicule N°']} - Zone {row['Zone']} - Véhicule: {row.get('Véhicule attribué', 'N/A')} - Chauffeur: {row.get('Chauffeur attribué', 'N/A')}"):
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.write("**Informations de base:**")
+                    st.write(f"**Zone:** {row['Zone']}")
+                    st.write(f"**Véhicule N°:** {row['Véhicule N°']}")
+                    if "Poids total chargé" in row:
+                        st.write(f"**Poids total chargé:** {row['Poids total chargé']:.3f} kg")
+                    if "Volume total chargé" in row:
+                        st.write(f"**Volume total chargé:** {row['Volume total chargé']:.3f} m³")
+                    if "Taux d'occupation (%)" in row:
+                        st.write(f"**Taux d'occupation:** {row['Taux d\'occupation (%)']:.3f}%")
+                    if "Véhicule attribué" in row:
+                        st.write(f"**Véhicule attribué:** {row['Véhicule attribué']}")
+                    if "Chauffeur attribué" in row:
+                        st.write(f"**Chauffeur attribué:** {row['Chauffeur attribué']}")
+                    if "Matricule chauffeur" in row:
+                        st.write(f"**Matricule chauffeur:** {row['Matricule chauffeur']}")
+                
+                with col2:
+                    # Afficher les clients avec retours à ligne
+                    if 'Client(s) inclus' in row and pd.notna(row['Client(s) inclus']):
+                        st.write("**📋 Clients inclus:**")
+                        clients = str(row['Client(s) inclus']).replace(';', ',').split(',')
+                        for client in clients:
+                            client_clean = client.strip()
+                            if client_clean:
+                                st.write(f"• {client_clean}")
+                    
+                    # Afficher les représentants avec retours à ligne
+                    if 'Représentant(s) inclus' in row and pd.notna(row['Représentant(s) inclus']):
+                        st.write("**👤 Représentants inclus:**")
+                        representants = str(row['Représentant(s) inclus']).replace(';', ',').split(',')
+                        for rep in representants:
+                            rep_clean = rep.strip()
+                            if rep_clean:
+                                st.write(f"• {rep_clean}")
+                
+                with col3:
+                    # Afficher les BL avec retours à ligne
+                    if 'BL inclus' in row and pd.notna(row['BL inclus']):
+                        st.write("**📄 BL associés:**")
+                        bls = str(row['BL inclus']).replace(';', ',').split(',')
+                        # Afficher en colonnes si beaucoup de BL
+                        if len(bls) > 5:
+                            cols = st.columns(2)
+                            half = len(bls) // 2
+                            for i, bl in enumerate(bls):
+                                bl_clean = bl.strip()
+                                if bl_clean:
+                                    col_idx = 0 if i < half else 1
+                                    with cols[col_idx]:
+                                        st.write(f"• {bl_clean}")
+                        else:
+                            for bl in bls:
+                                bl_clean = bl.strip()
+                                if bl_clean:
+                                    st.write(f"• {bl_clean}")
 
         # --- Export Excel avec retours à ligne et CENTRAGE ---
         from io import BytesIO
@@ -2541,8 +2492,6 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                 df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
             if "Volume total chargé" in df_export.columns:
                 df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
-            if "Taux d'occupation (%)" in df_export.columns:  # AJOUT : Formater le taux avec 2 décimales
-                df_export["Taux d'occupation (%)"] = df_export["Taux d'occupation (%)"].round(2)
             
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -2586,14 +2535,14 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             
             return output.getvalue()
 
-        # --- Export PDF avec données centrées verticalement ---
+        # --- Export PDF avec données CENTRÉES et 2 chiffres après la virgule pour le taux ---
         from fpdf import FPDF
 
         def to_pdf_better_centered(df, title="Voyages Attribués"):
-            pdf = FPDF(orientation='L')
+            pdf = FPDF(orientation='L')  # Paysage pour plus d'espace
             pdf.add_page()
             
-            # Titre
+            # Titre CENTRÉ
             pdf.set_font("Arial", 'B', 16)
             pdf.cell(0, 15, title, ln=True, align="C")
             pdf.ln(5)
@@ -2601,32 +2550,32 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             # Créer une copie formatée pour le PDF
             df_pdf = df.copy()
             
-            # Formater les nombres avec 3 chiffres après la virgule
+            # Formater les nombres avec 3 chiffres après la virgule SAUF le taux avec 2 chiffres
             numeric_columns = {
-                'Poids total chargé': 'kg',
-                'Volume total chargé': 'm³', 
-                'Taux d\'occupation (%)': '%'
+                'Poids total chargé': ('kg', 3),
+                'Volume total chargé': ('m³', 3), 
+                'Taux d\'occupation (%)': ('%', 2)  # CHANGEMENT : 2 chiffres après la virgule
             }
             
-            for col, unit in numeric_columns.items():
+            for col, (unit, decimals) in numeric_columns.items():
                 if col in df_pdf.columns:
                     df_pdf[col] = df_pdf[col].apply(
-                        lambda x: f"{float(x):.3f} {unit}" if x and str(x).strip() and str(x).strip() != 'nan' else ""
+                        lambda x: f"{float(x):.{decimals}f} {unit}" if x and str(x).strip() and str(x).strip() != 'nan' else ""
                     )
             
-            # Configuration des colonnes
+            # Configuration des colonnes avec largeurs ajustées
             col_config = {
-                'Zone': {'width': 10, 'header': 'Zone'},
-                'Véhicule N°': {'width': 14, 'header': 'Véhicule'},
-                'Poids total chargé': {'width': 18, 'header': 'Poids (kg)'},
-                'Volume total chargé': {'width': 19, 'header': 'Volume (m³)'},
-                'Client(s) inclus': {'width': 15, 'header': 'Clients'},
-                'Représentant(s) inclus': {'width': 23, 'header': 'Représentants'},
-                'BL inclus': {'width': 26, 'header': 'BL associés'},
-                'Taux d\'occupation (%)': {'width': 13, 'header': 'Taux %'},
-                'Véhicule attribué': {'width': 20, 'header': 'Véhicule Attribué'},
-                'Chauffeur attribué': {'width': 20, 'header': 'Chauffeur'},
-                'Matricule chauffeur': {'width': 16, 'header': 'Matricule'}
+                'Zone': {'width': 12, 'header': 'Zone'},
+                'Véhicule N°': {'width': 15, 'header': 'Véhicule'},
+                'Poids total chargé': {'width': 20, 'header': 'Poids (kg)'},
+                'Volume total chargé': {'width': 20, 'header': 'Volume (m³)'},
+                'Client(s) inclus': {'width': 25, 'header': 'Clients'},
+                'Représentant(s) inclus': {'width': 25, 'header': 'Représentants'},
+                'BL inclus': {'width': 30, 'header': 'BL associés'},
+                'Taux d\'occupation (%)': {'width': 15, 'header': 'Taux %'},
+                'Véhicule attribué': {'width': 22, 'header': 'Véhicule Attribué'},
+                'Chauffeur attribué': {'width': 22, 'header': 'Chauffeur'},
+                'Matricule chauffeur': {'width': 18, 'header': 'Matricule'}
             }
             
             # Sélectionner seulement les colonnes existantes
@@ -2634,13 +2583,21 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             widths = [col_config[col]['width'] for col in colonnes_existantes]
             headers = [col_config[col]['header'] for col in colonnes_existantes]
             
-            # En-têtes
+            # Calculer la position de départ pour CENTRER le tableau horizontalement
+            total_width = sum(widths)
+            page_width = 297  # Largeur d'une page A4 en paysage (mm)
+            start_x = (page_width - total_width) / 2
+            
+            # Positionner le tableau au CENTRE
+            pdf.set_x(start_x)
+            
+            # En-têtes CENTRÉS
             pdf.set_font("Arial", 'B', 9)
             for i, header in enumerate(headers):
                 pdf.cell(widths[i], 8, header, border=1, align='C')
             pdf.ln()
             
-            # Données avec centrage vertical optimal
+            # Données avec centrage VERTICAL et HORIZONTAL
             pdf.set_font("Arial", '', 8)
             
             for voyage_idx, (_, row) in enumerate(df_pdf.iterrows()):
@@ -2659,28 +2616,25 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                         list_contents[col] = elements
                         max_lines = max(max_lines, len(elements))
                 
-                # Pour les voyages avec peu de lignes, on centre sur la première ligne
-                if max_lines <= 3:
-                    display_line = 0  # Première ligne pour les petits blocs
-                else:
-                    display_line = max_lines // 2  # Milieu pour les grands blocs
-                
-                # Écrire le voyage
+                # Pour chaque ligne du voyage
                 for line_idx in range(max_lines):
+                    # Positionner au CENTRE pour chaque ligne
+                    pdf.set_x(start_x)
+                    
                     for i, col in enumerate(colonnes_existantes):
                         if col in list_columns:
-                            # Colonnes de liste
+                            # Colonnes de liste - afficher élément par élément
                             elements = list_contents.get(col, [])
                             content = elements[line_idx] if line_idx < len(elements) else ""
                         else:
-                            # Colonnes non-liste - afficher sur la ligne de centrage
-                            if line_idx == display_line:
+                            # Colonnes non-liste - afficher sur la première ligne seulement
+                            if line_idx == 0:
                                 content = str(row[col]) if pd.notna(row[col]) and str(row[col]) != 'nan' else ""
                             else:
                                 content = ""
                         
                         # Bordures
-                        border = ''
+                        border = 'LR'
                         if line_idx == 0: border += 'T'
                         if line_idx == max_lines - 1: border += 'B'
                         if i == 0: border += 'L'
