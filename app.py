@@ -2565,7 +2565,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             
             # Configuration des colonnes
             col_config = {
-                'Zone': {'width': 14, 'header': 'Zone'},
+                'Zone': {'width': 10, 'header': 'Zone'},
                 'Véhicule N°': {'width': 14, 'header': 'Véhicule'},
                 'Poids total chargé': {'width': 18, 'header': 'Poids (kg)'},
                 'Volume total chargé': {'width': 19, 'header': 'Volume (m³)'},
