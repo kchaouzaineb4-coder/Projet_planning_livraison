@@ -2574,7 +2574,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                 'BL inclus': {'width': 26, 'header': 'BL associés'},
                 'Taux d\'occupation (%)': {'width': 15, 'header': 'Taux %'},
                 'Véhicule attribué': {'width': 20, 'header': 'Véhicule Attribué'},
-                'Chauffeur attribué': {'width': 24, 'header': 'Chauffeur'},
+                'Chauffeur attribué': {'width': 20, 'header': 'Chauffeur'},
                 'Matricule chauffeur': {'width': 16, 'header': 'Matricule'}
             }
             
