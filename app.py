@@ -2331,7 +2331,7 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                 if "Volume total chargé" in row:
                     st.write(f"**Volume total chargé:** {row['Volume total chargé']:.3f} m³")
                 if "Taux d'occupation (%)" in row:
-                    st.write(f"**Taux d'occupation:** {row['Taux d\'occupation (%)']:.1f}%")
+                    st.write(f"**Taux d'occupation:** {row['Taux d\'occupation (%)']:.2f}%")  # CHANGÉ : .1f → .2f
             
             with col2:
                 # Afficher les clients avec retours à ligne
@@ -2410,67 +2410,116 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
         
         st.markdown("### 📦 Voyages avec Véhicule et Chauffeur")
 
-        # --- Affichage Streamlit amélioré avec retours à ligne ---
-        for idx, row in df_attribution.iterrows():
-            with st.expander(f"📋 Voyage {row['Véhicule N°']} - Zone {row['Zone']} - Véhicule: {row.get('Véhicule attribué', 'N/A')} - Chauffeur: {row.get('Chauffeur attribué', 'N/A')}"):
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.write("**Informations de base:**")
-                    st.write(f"**Zone:** {row['Zone']}")
-                    st.write(f"**Véhicule N°:** {row['Véhicule N°']}")
-                    if "Poids total chargé" in row:
-                        st.write(f"**Poids total chargé:** {row['Poids total chargé']:.3f} kg")
-                    if "Volume total chargé" in row:
-                        st.write(f"**Volume total chargé:** {row['Volume total chargé']:.3f} m³")
-                    if "Taux d'occupation (%)" in row:
-                        st.write(f"**Taux d'occupation:** {row['Taux d\'occupation (%)']:.3f}%")
-                    if "Véhicule attribué" in row:
-                        st.write(f"**Véhicule attribué:** {row['Véhicule attribué']}")
-                    if "Chauffeur attribué" in row:
-                        st.write(f"**Chauffeur attribué:** {row['Chauffeur attribué']}")
-                    if "Matricule chauffeur" in row:
-                        st.write(f"**Matricule chauffeur:** {row['Matricule chauffeur']}")
-                
-                with col2:
-                    # Afficher les clients avec retours à ligne
-                    if 'Client(s) inclus' in row and pd.notna(row['Client(s) inclus']):
-                        st.write("**📋 Clients inclus:**")
-                        clients = str(row['Client(s) inclus']).replace(';', ',').split(',')
-                        for client in clients:
-                            client_clean = client.strip()
-                            if client_clean:
-                                st.write(f"• {client_clean}")
-                    
-                    # Afficher les représentants avec retours à ligne
-                    if 'Représentant(s) inclus' in row and pd.notna(row['Représentant(s) inclus']):
-                        st.write("**👤 Représentants inclus:**")
-                        representants = str(row['Représentant(s) inclus']).replace(';', ',').split(',')
-                        for rep in representants:
-                            rep_clean = rep.strip()
-                            if rep_clean:
-                                st.write(f"• {rep_clean}")
-                
-                with col3:
-                    # Afficher les BL avec retours à ligne
-                    if 'BL inclus' in row and pd.notna(row['BL inclus']):
-                        st.write("**📄 BL associés:**")
-                        bls = str(row['BL inclus']).replace(';', ',').split(',')
-                        # Afficher en colonnes si beaucoup de BL
-                        if len(bls) > 5:
-                            cols = st.columns(2)
-                            half = len(bls) // 2
-                            for i, bl in enumerate(bls):
-                                bl_clean = bl.strip()
-                                if bl_clean:
-                                    col_idx = 0 if i < half else 1
-                                    with cols[col_idx]:
-                                        st.write(f"• {bl_clean}")
-                        else:
-                            for bl in bls:
-                                bl_clean = bl.strip()
-                                if bl_clean:
-                                    st.write(f"• {bl_clean}")
+        # --- AFFICHAGE TABLEAU CENTRALISÉ ET AMÉLIORÉ ---
+        st.markdown("""
+        <style>
+        .centered-table {
+            margin: 0 auto;
+            width: 95%;
+            border-collapse: collapse;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .centered-table th {
+            background-color: #0369A1;
+            color: white;
+            padding: 10px 6px;
+            text-align: center;
+            border: 1px solid #4682B4;
+            font-weight: normal;
+            font-size: 11px;
+            vertical-align: middle;
+        }
+        .centered-table td {
+            padding: 8px 6px;
+            text-align: center;
+            border: 1px solid #B0C4DE;
+            background-color: white;
+            color: #000000;
+            vertical-align: middle;
+            font-weight: normal;
+        }
+        .table-container-centered {
+            overflow-x: auto;
+            margin: 1rem auto;
+            border-radius: 8px;
+            border: 2px solid #4682B4;
+            width: 95%;
+        }
+        .multiline-cell {
+            line-height: 1.3;
+            text-align: center !important;
+            padding: 4px !important;
+            font-size: 11px;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # Préparer les données pour l'affichage HTML
+        df_display = df_attribution.copy()
+        
+        # Formater les colonnes avec retours à ligne HTML
+        colonnes_listes = ['Client(s) inclus', 'Représentant(s) inclus', 'BL inclus']
+        for col in colonnes_listes:
+            if col in df_display.columns:
+                df_display[col] = df_display[col].apply(
+                    lambda x: "<br>".join([elem.strip() for elem in str(x).replace(';', ',').split(',') if elem.strip()]) 
+                    if pd.notna(x) else ""
+                )
+        
+        # Formater les nombres
+        if "Poids total chargé" in df_display.columns:
+            df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
+        if "Volume total chargé" in df_display.columns:
+            df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "")
+        if "Taux d'occupation (%)" in df_display.columns:
+            df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.2f} %" if pd.notna(x) else "")  # CHANGÉ : .1f → .2f
+
+        # Sélectionner et renommer les colonnes pour l'affichage
+        colonnes_affichage = [
+            'Zone', 'Véhicule N°', 'Poids total chargé', 'Volume total chargé', 
+            'Client(s) inclus', 'Représentant(s) inclus', 'BL inclus', 
+            'Taux d\'occupation (%)', 'Véhicule attribué', 'Chauffeur attribué', 'Matricule chauffeur'
+        ]
+        
+        # Garder seulement les colonnes existantes
+        colonnes_existantes = [col for col in colonnes_affichage if col in df_display.columns]
+        df_display = df_display[colonnes_existantes]
+        
+        # Renommer les colonnes pour l'affichage
+        noms_colonnes = {
+            'Zone': 'Zone',
+            'Véhicule N°': 'Véhicule', 
+            'Poids total chargé': 'Poids (kg)',
+            'Volume total chargé': 'Volume (m³)',
+            'Client(s) inclus': 'Clients',
+            'Représentant(s) inclus': 'Représentants', 
+            'BL inclus': 'BL associés',
+            'Taux d\'occupation (%)': 'Taux %',
+            'Véhicule attribué': 'Véhicule Attribué',
+            'Chauffeur attribué': 'Chauffeur',
+            'Matricule chauffeur': 'Matricule'
+        }
+        
+        df_display = df_display.rename(columns=noms_colonnes)
+        
+        # Générer le tableau HTML
+        html_table = df_display.to_html(
+            escape=False, 
+            index=False, 
+            classes="centered-table",
+            border=0
+        )
+        
+        # Afficher le tableau centré
+        st.markdown(f"""
+        <div class="table-container-centered">
+            {html_table}
+        </div>
+        """, unsafe_allow_html=True)
 
         # --- Export Excel avec retours à ligne et CENTRAGE ---
         from io import BytesIO
@@ -2492,6 +2541,8 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                 df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
             if "Volume total chargé" in df_export.columns:
                 df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
+            if "Taux d'occupation (%)" in df_export.columns:  # AJOUT : Formater le taux avec 2 décimales
+                df_export["Taux d'occupation (%)"] = df_export["Taux d'occupation (%)"].round(2)
             
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
