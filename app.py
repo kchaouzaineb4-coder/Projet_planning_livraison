@@ -2543,9 +2543,9 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             pdf.add_page()
             
             # RÉDUCTION des marges pour utiliser TOUTE la largeur
-            pdf.set_left_margin(5)   # Marge gauche réduite
-            pdf.set_right_margin(5)  # Marge droite réduite
-            pdf.set_top_margin(10)   # Marge haut réduite
+            pdf.set_left_margin(10)   # Marge gauche réduite
+            pdf.set_right_margin(10)  # Marge droite réduite
+            pdf.set_top_margin(15)   # Marge haut réduite
             
             # Titre PLUS PETIT et PLUS HAUT
             pdf.set_font("Arial", 'B', 14)  # Taille réduite
