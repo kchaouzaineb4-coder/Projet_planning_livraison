@@ -404,7 +404,7 @@ with tab_grouped:
     /* Style pour les cellules de poids et volume - NOIR */
     .custom-table td:nth-child(6),
     .custom-table td:nth-child(7) {
-        font-weight: 600;
+        
         color: #000000 !important;
         vertical-align: middle;  /* CENTRAGE VERTICAL */
     }
