@@ -2091,7 +2091,7 @@ st.markdown("""
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 .voyage-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #0369A1;  /* CHANGÉ : bleu royal au lieu du dégradé mauve */
     color: white;
     padding: 15px;
     border-radius: 8px;
@@ -2099,7 +2099,7 @@ st.markdown("""
 }
 .metric-card {
     background: #f8f9fa;
-    border-left: 4px solid #667eea;
+    border-left: 4px solid #0369A1;  /* CHANGÉ : bleu royal */
     padding: 12px;
     margin: 8px 0;
     border-radius: 5px;
