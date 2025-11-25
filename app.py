@@ -404,7 +404,7 @@ with tab_grouped:
     /* Style pour les cellules de poids et volume - NOIR */
     .custom-table td:nth-child(6),
     .custom-table td:nth-child(7) {
-        
+        font-weight: 600;
         color: #000000 !important;
         vertical-align: middle;  /* CENTRAGE VERTICAL */
     }
@@ -602,7 +602,7 @@ with tab_zone_group:
         padding: 12px 8px;
         text-align: center;
         border: 2px solid #4682B4;
-        font-weight: bold;
+        font-weight: normal;
         font-size: 13px;
         vertical-align: middle;  /* CENTRAGE VERTICAL */
     }
@@ -615,6 +615,7 @@ with tab_zone_group:
         background-color: white;
         color: #000000;
         vertical-align: middle;  /* CENTRAGE VERTICAL */
+        font-weight: normal; 
     }
     
     /* Bordures visibles pour toutes les cellules */
@@ -635,12 +636,13 @@ with tab_zone_group:
         word-wrap: break-word;
         white-space: normal;
         vertical-align: middle;  /* CENTRAGE VERTICAL */
+        font-weight: normal;  /* AJOUT : poids normal */
     }
     
     /* Style pour les cellules de poids et volume - NOIR */
     .custom-table td:nth-child(6),
     .custom-table td:nth-child(7) {
-        font-weight: 600;
+        font-weight: normal;
         color: #000000 !important;
         vertical-align: middle;  /* CENTRAGE VERTICAL */
     }
