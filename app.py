@@ -2572,9 +2572,9 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
             col_config = {
                 'Zone': {'width': 15, 'header': 'Zone'},
                 'Véhicule N°': {'width': 18, 'header': 'Véhicule'},
-                'Poids total chargé': {'width': 22, 'header': 'Poids (kg)'},
+                'Poids total chargé': {'width': 21, 'header': 'Poids (kg)'},
                 'Volume total chargé': {'width': 22, 'header': 'Volume (m³)'},
-                'Client(s) inclus': {'width': 30, 'header': 'Clients'},
+                'Client(s) inclus': {'width': 28, 'header': 'Clients'},
                 'Représentant(s) inclus': {'width': 30, 'header': 'Représentants'},
                 'BL inclus': {'width': 35, 'header': 'BL associés'},
                 'Taux d\'occupation (%)': {'width': 18, 'header': 'Taux %'},
