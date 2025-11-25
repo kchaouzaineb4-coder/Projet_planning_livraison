@@ -2573,9 +2573,9 @@ if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_
                 'Représentant(s) inclus': {'width': 24, 'header': 'Représentants'},
                 'BL inclus': {'width': 30, 'header': 'BL associés'},
                 'Taux d\'occupation (%)': {'width': 18, 'header': 'Taux %'},
-                'Véhicule attribué': {'width': 2, 'header': 'Véhicule Attribué'},
-                'Chauffeur attribué': {'width': 28, 'header': 'Chauffeur'},
-                'Matricule chauffeur': {'width': 18, 'header': 'Matricule'}
+                'Véhicule attribué': {'width': 20, 'header': 'Véhicule Attribué'},
+                'Chauffeur attribué': {'width': 24, 'header': 'Chauffeur'},
+                'Matricule chauffeur': {'width': 16, 'header': 'Matricule'}
             }
             
             # Sélectionner seulement les colonnes existantes
