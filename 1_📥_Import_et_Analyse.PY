@@ -617,7 +617,7 @@ if st.session_state.data_processed:
             df_chart = df_filtered.rename(columns={"Nombre livraisons": "Nombre de BLs"})
             fig3 = px.bar(df_chart, x="Ville", y="Nombre de BLs", **chart_config)
             fig3.update_layout(title_text="Nombre de BL par ville", title_x=0.5)
-            st.plotly_chart(f3, use_container_width=True)
+            st.plotly_chart(fig3, use_container_width=True)
             
         with col4:
             fig4 = px.bar(df_filtered, x="Ville", y="Besoin estafette réel", **chart_config)
