@@ -2959,7 +2959,7 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                 if 'Client(s) inclus' in row and pd.notna(row['Client(s) inclus']):
                     st.write("**📋 Clients inclus:**")
                     clients = str(row['Client(s) inclus']).split('\n')
-                    for client in clients:0
+                    for client in clients:
                         client_clean = client.strip()
                         if client_clean:
                             st.write(f"• {client_clean}")
