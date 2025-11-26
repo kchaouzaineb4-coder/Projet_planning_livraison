@@ -9,6 +9,54 @@ from io import BytesIO
 st.set_page_config(page_title="Import & Analyse", layout="wide")
 
 # =====================================================
+# NAVIGATION AVEC BOUTONS PERSONNALISÉS
+# =====================================================
+st.sidebar.markdown("## 🧭 Navigation")
+
+# Style CSS pour les boutons de navigation
+st.sidebar.markdown("""
+<style>
+    .nav-button {
+        width: 100%;
+        margin: 2px 0;
+        text-align: left;
+    }
+    .nav-button-current {
+        background-color: #0369A1 !important;
+        color: white !important;
+        border: 2px solid #0369A1 !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Bouton Import & Analyse (page actuelle - mis en évidence)
+if st.sidebar.button("📥 Import & Analyse", 
+                    use_container_width=True, 
+                    type="primary",
+                    key="nav_import"):
+    st.sidebar.info("📍 Vous êtes sur cette page")
+
+# Bouton Optimisation & Transfert
+if st.sidebar.button("🚚 Optimisation & Transfert", 
+                    use_container_width=True,
+                    key="nav_optimisation"):
+    st.switch_page("2_Optimisation_et_Transfert.py")
+
+# Bouton Validation & Attribution  
+if st.sidebar.button("✅ Validation & Attribution", 
+                    use_container_width=True,
+                    key="nav_validation"):
+    st.switch_page("3_Validation_et_Attribution.py")
+
+# Bouton Planning Final
+if st.sidebar.button("🎯 Planning Final", 
+                    use_container_width=True,
+                    key="nav_planning"):
+    st.switch_page("4_Planning_Final.py")
+
+st.sidebar.markdown("---")
+
+# =====================================================
 # FONCTIONS UTILITAIRES
 # =====================================================
 def show_df(df, **kwargs):
