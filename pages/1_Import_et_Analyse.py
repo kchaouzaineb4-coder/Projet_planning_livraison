@@ -1,7 +1,11 @@
 import streamlit as st
 import pandas as pd
+from backend import DeliveryProcessor
 import plotly.express as px
 from io import BytesIO
+
+st.set_page_config(page_title="Import et Analyse", layout="wide")
+st.title("📥 Import et Analyse des Données")
 
 # =====================================================
 # CONFIGURATION DE LA PAGE

@@ -6,10 +6,11 @@ from io import BytesIO
 import openpyxl
 from openpyxl.styles import Alignment
 
-# =====================================================
-# CONFIGURATION DE LA PAGE
-# =====================================================
-st.set_page_config(page_title="Optimisation & Transfert", layout="wide")
+
+st.set_page_config(page_title="Optimisation et Transfert", layout="wide")
+st.title("🔄 Optimisation et Transfert")
+
+
 
 # =====================================================
 # FONCTIONS UTILITAIRES

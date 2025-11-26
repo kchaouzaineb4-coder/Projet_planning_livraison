@@ -9,7 +9,8 @@ from fpdf import FPDF
 # =====================================================
 # CONFIGURATION DE LA PAGE
 # =====================================================
-st.set_page_config(page_title="Validation & Attribution", layout="wide")
+st.set_page_config(page_title="Validation et Attribution", layout="wide")
+st.title("✅ Validation et Attribution")
 
 # =====================================================
 # FONCTIONS UTILITAIRES
