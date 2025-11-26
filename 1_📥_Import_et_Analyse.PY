@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
-from backend import DeliveryProcessor, SEUIL_POIDS, SEUIL_VOLUME 
 import plotly.express as px
+from io import BytesIO
 
 # =====================================================
 # CONFIGURATION DE LA PAGE
@@ -59,6 +59,21 @@ def show_df_multiline(df, column_to_multiline):
     """
     html = df_display.to_html(escape=False, index=False)
     st.markdown(css + html, unsafe_allow_html=True)
+
+# =====================================================
+# IMPORT DYNAMIQUE DU BACKEND
+# =====================================================
+try:
+    from backend import DeliveryProcessor, SEUIL_POIDS, SEUIL_VOLUME
+except ImportError as e:
+    st.error(f"❌ Erreur d'import du backend: {e}")
+    st.info("""
+    **Solution :**
+    1. Vérifiez que le fichier `backend.py` est dans le même dossier
+    2. Vérifiez que `backend.py` contient bien la classe `DeliveryProcessor`
+    3. Redémarrez l'application
+    """)
+    st.stop()
 
 # =====================================================
 # CSS PERSONNALISÉ
@@ -283,10 +298,13 @@ with col_button:
                 st.session_state.df_livraisons = df_grouped_zone  # Pour la section transfert
                 
                 st.session_state.data_processed = True
+                st.success("✅ Traitement des données terminé avec succès!")
                 st.rerun()
 
             except Exception as e:
                 st.error(f"❌ Erreur lors du traitement : {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
                 st.session_state.data_processed = False
         else:
             st.warning("Veuillez uploader tous les fichiers nécessaires.")
@@ -367,9 +385,6 @@ if st.session_state.data_processed:
             # CORRECTION : Calculer le volume total à partir des données filtrées (données originales)
             total_volume = df_liv_original["Volume total"].sum()
             st.metric("📏 Volume Total", f"{total_volume:.3f} m³")
-        
-        # AJOUT DE L'IMPORT MANQUANT POUR BytesIO
-        from io import BytesIO
         
         # Bouton de téléchargement (garder les données originales pour l'export)
         excel_buffer_grouped = BytesIO()
