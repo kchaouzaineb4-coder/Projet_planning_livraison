@@ -1,304 +1,106 @@
 import streamlit as st
 import pandas as pd
 from backend import TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME
-import plotly.express as px
 from io import BytesIO
 import openpyxl
 from openpyxl.styles import Alignment
 
+st.header("🚚 Optimisation et Transfert entre Véhicules")
 
-st.set_page_config(page_title="Optimisation et Transfert", layout="wide")
-st.title("🔄 Optimisation et Transfert")
+# Vérification des prérequis
+if not st.session_state.data_processed:
+    st.warning("⚠️ Veuillez d'abord importer et traiter les données dans la page 'Import & Analyse'.")
+    st.stop()
 
-
-
-# =====================================================
-# FONCTIONS UTILITAIRES
-# =====================================================
-def show_df(df, **kwargs):
-    """Affiche un DataFrame avec arrondi à 3 décimales"""
-    if isinstance(df, pd.DataFrame):
-        df_to_display = df.copy()
-        df_to_display = df_to_display.round(3)
-        st.dataframe(df_to_display, **kwargs)
-    else:
-        st.dataframe(df, **kwargs)
-
-# =====================================================
-# CSS PERSONNALISÉ
-# =====================================================
+# CSS pour cette page
 st.markdown("""
 <style>
-/* Style pour les tableaux de location */
-.custom-table-rental {
-    width: 100%;
-    border-collapse: collapse;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-.custom-table-rental th {
-    background-color: #0369A1;
-    color: white;
-    padding: 12px 8px;
-    text-align: center;
-    border: 2px solid #4682B4;
-    font-weight: normal;
-    font-size: 13px;
-    vertical-align: middle;
-}
-
-.custom-table-rental td {
-    padding: 10px 8px;
-    text-align: center;
-    border: 1px solid #B0C4DE;
-    background-color: white;
-    color: #000000;
-    vertical-align: middle;
-    font-weight: normal;
-}
-
-.custom-table-rental th, 
-.custom-table-rental td {
-    border: 1px solid #B0C4DE !important;
-}
-
-.custom-table-rental {
-    border: 2px solid #4682B4 !important;
-}
-
-.custom-table-rental td:nth-child(2),
-.custom-table-rental td:nth-child(3),
-.custom-table-rental td:nth-child(4),
-.custom-table-rental td:nth-child(5),
-.custom-table-rental td:nth-child(6) {
-    font-weight: normal;
-    color: #000000 !important;
-    vertical-align: middle;
-}
-
-.table-container-rental {
-    overflow-x: auto;
-    margin: 1rem 0;
-    border-radius: 8px;
-    border: 2px solid #4682B4;
-}
-
-.custom-table-rental tr:nth-child(even) td {
-    background-color: white !important;
-}
-
-.custom-table-rental tr:hover td {
-    background-color: #F0F8FF !important;
-}
-
-.multiline-cell {
-    line-height: 1.4;
-    text-align: left !important;
-    padding: 8px !important;
-    font-weight: normal;
-}
-
-/* Style pour les tableaux de voyages */
-.custom-table-voyages {
-    width: 100%;
-    border-collapse: collapse;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-.custom-table-voyages th {
-    background-color: #0369A1;
-    color: white;
-    padding: 12px 8px;
-    text-align: center;
-    border: 2px solid #4682B4;
-    font-weight: normal;
-    font-size: 13px;
-    vertical-align: middle;
-}
-
-.custom-table-voyages td {
-    padding: 10px 8px;
-    text-align: center;
-    border: 1px solid #B0C4DE;
-    background-color: white;
-    color: #000000;
-    vertical-align: middle;
-    font-weight: normal;
-}
-
-.custom-table-voyages th, 
-.custom-table-voyages td {
-    border: 1px solid #B0C4DE !important;
-}
-
-.custom-table-voyages {
-    border: 2px solid #4682B4 !important;
-}
-
-.table-container-voyages {
-    overflow-x: auto;
-    margin: 1rem 0;
-    border-radius: 8px;
-    border: 2px solid #4682B4;
-}
-
-.custom-table-voyages tr:nth-child(even) td {
-    background-color: white !important;
-}
-
-.custom-table-voyages tr:hover td {
-    background-color: #F0F8FF !important;
-}
-
-.custom-table-voyages td {
-    line-height: 1.4;
-}
-
-/* Style pour le transfert */
-.centered-table {
-    margin-left: auto;
-    margin-right: auto;
-    display: table;
-    width: 100%;
-}
-
-.centered-table table {
-    margin: 0 auto;
-    border-collapse: collapse;
-    width: 100%;
-    font-family: Arial, sans-serif;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.centered-table th {
-    background-color: #0369A1;
-    color: white;
-    padding: 12px 8px;
-    text-align: center;
-    border: 2px solid #555;
-    font-weight: normal;
-    font-size: 14px;
-    vertical-align: middle;
-}
-
-.centered-table td {
-    padding: 10px 8px;
-    text-align: center;
-    border: 2px solid #555;
-    background-color: #f9f9f9;
-    color: #333;
-    vertical-align: middle;
-}
-
-.centered-table tr:nth-child(even) td {
-    background-color: #f0f0f0;
-}
-
-.centered-table tr:hover td {
-    background-color: #e6f3ff;
-}
-
-/* Style pour le multiselect */
-.stMultiSelect > div > div {
-    background-color: #F8FAFC !important;
-    border: 2px solid #CBD5E1 !important;
-    border-radius: 8px !important;
-}
-
-div[data-baseweb="select"] > div {
-    background-color: #F8FAFC !important;
-    border: 2px solid #CBD5E1 !important;
-    border-radius: 8px !important;
-}
-
-div[data-baseweb="select"] > div:first-child {
-    background-color: #F8FAFC !important;
-    border: 2px solid #CBD5E1 !important;
-    border-radius: 8px !important;
-}
-
-div[data-baseweb="select"] span[data-baseweb="tag"] {
-    background-color: #0369A1 !important;
-    color: white !important;
-    border-radius: 12px !important;
-    font-weight: bold;
-}
-
-div[role="listbox"] {
-    background-color: white !important;
-    border: 2px solid #CBD5E1 !important;
-}
-
-div[role="option"][aria-selected="true"] {
-    background-color: #F1F5F9 !important;
-    color: #475569 !important;
-}
-
-div[role="option"]:hover {
-    background-color: #E2E8F0 !important;
-}
-
-/* Style pour l'ajout d'objets */
-.custom-border {
-    border: 2px solid #1f77b4;
-    border-radius: 5px;
-    padding: 10px;
-    margin: 5px 0px;
-}
-
-.custom-button {
-    background-color: #1f77b4 !important;
-    color: white !important;
-    border: none !important;
-}
-
-.custom-button:hover {
-    background-color: #1668a5 !important;
-    color: white !important;
-}
-
-div.stButton > button:first-child {
-    background-color: #1f77b4;
-    color: white;
-    border: none;
-}
-
-div.stButton > button:first-child:hover {
-    background-color: #1668a5;
-    color: white;
-}
+    .custom-table-rental {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .custom-table-rental th {
+        background-color: #0369A1;
+        color: white;
+        padding: 12px 8px;
+        text-align: center;
+        border: 2px solid #4682B4;
+        font-weight: normal;
+        font-size: 13px;
+        vertical-align: middle;
+    }
+    .custom-table-rental td {
+        padding: 10px 8px;
+        text-align: center;
+        border: 1px solid #B0C4DE;
+        background-color: white;
+        color: #000000;
+        vertical-align: middle;
+        font-weight: normal;
+    }
+    .table-container-rental {
+        overflow-x: auto;
+        margin: 1rem 0;
+        border-radius: 8px;
+        border: 2px solid #4682B4;
+    }
+    .centered-table {
+        margin-left: auto;
+        margin-right: auto;
+        display: table;
+        width: 100%;
+    }
+    .centered-table table {
+        margin: 0 auto;
+        border-collapse: collapse;
+        width: 100%;
+        font-family: Arial, sans-serif;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .centered-table th {
+        background-color: #0369A1;
+        color: white;
+        padding: 12px 8px;
+        text-align: center;
+        border: 2px solid #555;
+        font-weight: bold;
+        font-size: 14px;
+        vertical-align: middle;
+    }
+    .centered-table td {
+        padding: 10px 8px;
+        text-align: center;
+        border: 2px solid #555;
+        background-color: #f9f9f9;
+        color: #333;
+        vertical-align: middle;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# =====================================================
-# VÉRIFICATION DES DONNÉES
-# =====================================================
-st.title("🚚 Optimisation des Tournées & Transfert")
+# Section 3: Proposition de location
+st.subheader("3. 🚚 Proposition de location de camion")
+st.markdown(f"🔸 Si un client dépasse **{SEUIL_POIDS} kg** ou **{SEUIL_VOLUME} m³**, une location est proposée.")
 
-if not st.session_state.get('data_processed', False):
-    st.warning("⚠️ Veuillez d'abord importer et traiter les données dans la page 'Import & Analyse'")
-    st.stop()
+# Initialisation du processeur de location si pas déjà fait
+if st.session_state.rental_processor is None:
+    st.session_state.rental_processor = TruckRentalProcessor(
+        st.session_state.df_optimized_estafettes, 
+        st.session_state.df_livraisons_original
+    )
 
-# =====================================================
-# FONCTIONS DE CALLBACK POUR LA LOCATION
-# =====================================================
+# Fonctions de callback
 def update_propositions_view():
-    """Met à jour le DataFrame de propositions après une action."""
     if st.session_state.rental_processor:
         st.session_state.propositions = st.session_state.rental_processor.detecter_propositions()
-        
         if (st.session_state.propositions is not None and 
             not st.session_state.propositions.empty and 
             'Client' in st.session_state.propositions.columns):
-            
             if (st.session_state.selected_client is not None and 
                 st.session_state.selected_client not in st.session_state.propositions['Client'].astype(str).tolist()):
                 st.session_state.selected_client = None
@@ -306,7 +108,6 @@ def update_propositions_view():
         st.session_state.propositions = pd.DataFrame()
 
 def handle_location_action(accepter):
-    """Gère l'acceptation ou le refus de la proposition de location."""
     if st.session_state.rental_processor and st.session_state.selected_client:
         try:
             client_to_process = str(st.session_state.selected_client)
@@ -328,28 +129,11 @@ def accept_location_callback():
 def refuse_location_callback():
     handle_location_action(False)
 
-# =====================================================
-# INITIALISATION DU PROCESSOR DE LOCATION
-# =====================================================
-if 'rental_processor' not in st.session_state:
-    st.session_state.rental_processor = TruckRentalProcessor(
-        st.session_state.df_optimized_estafettes, 
-        st.session_state.df_livraisons_original
-    )
+# Initialiser les propositions si nécessaire
+if st.session_state.propositions is None:
     update_propositions_view()
 
-if 'selected_client' not in st.session_state:
-    st.session_state.selected_client = None
-
-if 'message' not in st.session_state:
-    st.session_state.message = ""
-
-# =====================================================
-# 3. PROPOSITION DE LOCATION DE CAMION (Section 3)
-# =====================================================
-st.header("3. 🚚 Proposition de location de camion")
-st.markdown(f"🔸 Si un client dépasse **{SEUIL_POIDS} kg** ou **{SEUIL_VOLUME} m³**, une location est proposée (si non déjà décidée).")
-
+# Affichage des propositions
 if st.session_state.propositions is not None and not st.session_state.propositions.empty:
     col_prop, col_details = st.columns([2, 3])
     
@@ -359,6 +143,7 @@ if st.session_state.propositions is not None and not st.session_state.propositio
         if 'Client' in st.session_state.propositions.columns:
             propositions_display = st.session_state.propositions.copy()
             
+            # Formater les nombres
             if "Poids total (kg)" in propositions_display.columns:
                 propositions_display["Poids total (kg)"] = propositions_display["Poids total (kg)"].map(
                     lambda x: f"{float(x):.3f}" if pd.notna(x) else ""
@@ -368,6 +153,7 @@ if st.session_state.propositions is not None and not st.session_state.propositio
                     lambda x: f"{float(x):.3f}" if pd.notna(x) else ""
                 )
             
+            # Afficher le tableau
             html_table_propositions = propositions_display.to_html(
                 escape=False, 
                 index=False, 
@@ -381,7 +167,7 @@ if st.session_state.propositions is not None and not st.session_state.propositio
             </div>
             """, unsafe_allow_html=True)
             
-            # MÉTRIQUES RÉSUMÉES
+            # Métriques résumées
             st.markdown("---")
             col_metric1, col_metric2, col_metric3 = st.columns(3)
 
@@ -400,7 +186,7 @@ if st.session_state.propositions is not None and not st.session_state.propositio
                     st.session_state.propositions["Volume total (m³)"] >= SEUIL_VOLUME
                 ]) if "Volume total (m³)" in st.session_state.propositions.columns else 0
                 st.metric("📦 Dépassement volume", clients_volume)
-
+        
             # Sélection du client
             client_options = st.session_state.propositions['Client'].astype(str).tolist()
             client_options_with_empty = [""] + client_options
@@ -441,14 +227,18 @@ if st.session_state.propositions is not None and not st.session_state.propositio
 
     with col_details:
         st.markdown("### Détails de la commande client")
+        is_client_selected = st.session_state.selected_client != "" and st.session_state.selected_client is not None
+        
         if is_client_selected:
             try:
                 resume, details_df = st.session_state.rental_processor.get_details_client(
                     st.session_state.selected_client
                 )
                 
+                # Afficher le résumé
                 st.markdown(f"**{resume}**")
                 
+                # Formatage du tableau des détails
                 if not details_df.empty:
                     details_display = details_df.copy()
                     
@@ -479,6 +269,7 @@ if st.session_state.propositions is not None and not st.session_state.propositio
                                 formatted_series.iloc[i] = ""
                         return formatted_series
                     
+                    # Formater les colonnes numériques
                     if "Poids total" in details_display.columns:
                         details_display["Poids total"] = format_numeric_column(details_display["Poids total"], 3, " kg")
                     
@@ -488,11 +279,13 @@ if st.session_state.propositions is not None and not st.session_state.propositio
                     if "Taux d'occupation (%)" in details_display.columns:
                         details_display["Taux d'occupation (%)"] = format_numeric_column(details_display["Taux d'occupation (%)"], 2, "%")
                     
+                    # Gestion spéciale pour "BL inclus"
                     if "BL inclus" in details_display.columns:
                         details_display["BL inclus"] = details_display["BL inclus"].astype(str).apply(
                             lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if ";" in x else x
                         )
                     
+                    # Afficher le tableau
                     html_table_details = details_display.to_html(
                         escape=False, 
                         index=False, 
@@ -506,7 +299,7 @@ if st.session_state.propositions is not None and not st.session_state.propositio
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # MÉTRIQUES POUR LES DÉTAILS
+                    # Métriques pour les détails
                     st.markdown("---")
                     col_det1, col_det2, col_det3 = st.columns(3)
                     
@@ -515,44 +308,38 @@ if st.session_state.propositions is not None and not st.session_state.propositio
                         st.metric("🚚 Nombre de camions", total_camions)
                     
                     with col_det2:
-                        try:
-                            if "Poids total" in details_df.columns:
-                                poids_total = 0
-                                for value in details_df["Poids total"]:
-                                    if pd.notna(value):
-                                        try:
-                                            if isinstance(value, str):
-                                                clean_value = value.replace(' kg', '').replace('m³', '').strip()
-                                            else:
-                                                clean_value = str(value)
-                                            poids_total += float(clean_value)
-                                        except (ValueError, TypeError):
-                                            continue
-                                st.metric("📦 Poids total", f"{poids_total:.1f} kg")
-                            else:
-                                st.metric("📦 Poids total", "N/A")
-                        except Exception as e:
-                            st.metric("📦 Poids total", "Erreur")
+                        if "Poids total" in details_df.columns:
+                            poids_total = 0
+                            for value in details_df["Poids total"]:
+                                if pd.notna(value):
+                                    try:
+                                        if isinstance(value, str):
+                                            clean_value = value.replace(' kg', '').replace('m³', '').strip()
+                                        else:
+                                            clean_value = str(value)
+                                        poids_total += float(clean_value)
+                                    except (ValueError, TypeError):
+                                        continue
+                            st.metric("📦 Poids total", f"{poids_total:.1f} kg")
+                        else:
+                            st.metric("📦 Poids total", "N/A")
                     
                     with col_det3:
-                        try:
-                            if "Volume total" in details_df.columns:
-                                volume_total = 0
-                                for value in details_df["Volume total"]:
-                                    if pd.notna(value):
-                                        try:
-                                            if isinstance(value, str):
-                                                clean_value = value.replace(' kg', '').replace('m³', '').strip()
-                                            else:
-                                                clean_value = str(value)
-                                            volume_total += float(clean_value)
-                                        except (ValueError, TypeError):
-                                            continue
-                                st.metric("📏 Volume total", f"{volume_total:.3f} m³")
-                            else:
-                                st.metric("📏 Volume total", "N/A")
-                        except Exception as e:
-                            st.metric("📏 Volume total", "Erreur")
+                        if "Volume total" in details_df.columns:
+                            volume_total = 0
+                            for value in details_df["Volume total"]:
+                                if pd.notna(value):
+                                    try:
+                                        if isinstance(value, str):
+                                            clean_value = value.replace(' kg', '').replace('m³', '').strip()
+                                        else:
+                                            clean_value = str(value)
+                                        volume_total += float(clean_value)
+                                    except (ValueError, TypeError):
+                                        continue
+                            st.metric("📏 Volume total", f"{volume_total:.3f} m³")
+                        else:
+                            st.metric("📏 Volume total", "N/A")
                         
             except Exception as e:
                 st.error(f"❌ Erreur lors de la récupération des détails : {str(e)}")
@@ -563,12 +350,11 @@ else:
 
 st.markdown("---")
 
-# =====================================================
-# 4. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 4)
-# =====================================================
-st.header("4. 🚐 Voyages par Estafette Optimisé (Inclut Camions Loués)")
+# Section 4: Voyages optimisés
+st.subheader("4. 🚐 Voyages par Estafette Optimisé (Inclut Camions Loués)")
 
 try:
+    # Récupération sécurisée du DataFrame
     if st.session_state.rental_processor:
         df_optimized_estafettes = st.session_state.rental_processor.get_df_result()
     elif "df_voyages" in st.session_state:
@@ -577,26 +363,33 @@ try:
         st.error("❌ Données non disponibles. Veuillez exécuter le traitement complet.")
         st.stop()
     
+    # Vérifier que le DataFrame n'est pas vide
     if df_optimized_estafettes.empty:
         st.warning("⚠️ Aucune donnée à afficher.")
         st.stop()
     
+    # Nettoyer les colonnes en double
     df_clean = df_optimized_estafettes.loc[:, ~df_optimized_estafettes.columns.duplicated()]
     
+    # TRIER PAR ZONE
     if "Zone" in df_clean.columns:
         df_clean["Zone_Num"] = df_clean["Zone"].str.extract('(\d+)').astype(float)
         df_clean = df_clean.sort_values("Zone_Num").drop("Zone_Num", axis=1)
     
+    # Définir l'ordre des colonnes pour l'affichage
     colonnes_ordre = [
         "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé",
         "Client(s) inclus", "Représentant(s) inclus", "BL inclus", 
         "Taux d'occupation (%)", "Location_camion", "Location_proposee", "Code Véhicule"
     ]
     
+    # Filtrer seulement les colonnes qui existent
     colonnes_finales = [col for col in colonnes_ordre if col in df_clean.columns]
     
+    # Créer le DataFrame d'affichage avec retours à la ligne
     df_display = df_clean[colonnes_finales].copy()
     
+    # Transformer les colonnes avec retours à la ligne HTML
     if "Client(s) inclus" in df_display.columns:
         df_display["Client(s) inclus"] = df_display["Client(s) inclus"].astype(str).apply(
             lambda x: "<br>".join(client.strip() for client in x.split(",")) if x != "nan" else ""
@@ -612,6 +405,7 @@ try:
             lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
         )
     
+    # Formater les colonnes numériques pour l'affichage
     if "Poids total chargé" in df_display.columns:
         df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
     if "Volume total chargé" in df_display.columns:
@@ -619,10 +413,11 @@ try:
     if "Taux d'occupation (%)" in df_display.columns:
         df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
     
-    html_table = df_display.to_html(escape=False, index=False, classes="custom-table-voyages", border=0)
+    # Afficher le tableau avec le style CSS professionnel
+    html_table = df_display.to_html(escape=False, index=False, classes="custom-table", border=0)
     
     st.markdown(f"""
-    <div class="table-container-voyages">
+    <div class="table-container">
         {html_table}
     </div>
     """, unsafe_allow_html=True)
@@ -647,13 +442,15 @@ try:
         estafettes = total_voyages - camions_loues
         st.metric("📦 Estafettes", estafettes)
     
-    # Préparer l'export Excel
+    # Préparer l'export Excel avec retours à la ligne \n
     df_export = df_clean.copy()
     
+    # S'assurer que l'export est aussi trié par zone
     if "Zone" in df_export.columns:
         df_export["Zone_Num"] = df_export["Zone"].str.extract('(\d+)').astype(float)
         df_export = df_export.sort_values("Zone_Num").drop("Zone_Num", axis=1)
     
+    # Transformer les colonnes avec retours à la ligne \n pour Excel
     if "Client(s) inclus" in df_export.columns:
         df_export["Client(s) inclus"] = df_export["Client(s) inclus"].astype(str).apply(
             lambda x: "\n".join(client.strip() for client in x.split(",")) if x != "nan" else ""
@@ -669,19 +466,23 @@ try:
             lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
         )
     
+    # Formater les colonnes numériques pour l'export
     if "Poids total chargé" in df_export.columns:
         df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
     if "Volume total chargé" in df_export.columns:
         df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
     
+    # Bouton de téléchargement avec formatage Excel
     excel_buffer = BytesIO()
     
     with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
         df_export.to_excel(writer, index=False, sheet_name="Voyages Optimisés")
         
+        # Récupérer le workbook et worksheet pour appliquer le formatage
         workbook = writer.book
         worksheet = writer.sheets["Voyages Optimisés"]
         
+        # Appliquer le style wrap_text aux colonnes avec retours à la ligne
         wrap_columns = []
         if "Client(s) inclus" in df_export.columns:
             wrap_columns.append("Client(s) inclus")
@@ -690,6 +491,7 @@ try:
         if "BL inclus" in df_export.columns:
             wrap_columns.append("BL inclus")
         
+        # Appliquer le format wrap_text à toutes les cellules des colonnes concernées
         for col_idx, col_name in enumerate(df_export.columns):
             if col_name in wrap_columns:
                 col_letter = openpyxl.utils.get_column_letter(col_idx + 1)
@@ -697,6 +499,7 @@ try:
                     cell = worksheet[f"{col_letter}{row}"]
                     cell.alignment = Alignment(wrap_text=True, vertical='top')
         
+        # Ajuster la largeur des colonnes pour une meilleure visibilité
         for column in worksheet.columns:
             max_length = 0
             column_letter = openpyxl.utils.get_column_letter(column[0].column)
@@ -732,13 +535,11 @@ except Exception as e:
 
 st.markdown("---")
 
-# =====================================================
-# TRANSFERT DE BLs ENTRE ESTAFETTES / CAMIONS
-# =====================================================
-st.markdown("## 🔁 Transfert de BLs entre Estafettes / Camions")
+# Section 5: Transfert de BLs
+st.subheader("5. 🔁 Transfert de BLs entre Estafettes / Camions")
 
-MAX_POIDS = 1550  # kg
-MAX_VOLUME = 4.608  # m³
+MAX_POIDS = 1550
+MAX_VOLUME = 4.608
 
 if "df_voyages" not in st.session_state:
     st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
@@ -773,6 +574,7 @@ else:
                 else:
                     st.subheader(f"📦 BLs actuellement assignés à {source}")
 
+                    # Créer un mapping BL → Client
                     bls_avec_clients = []
                     bls_simples = df_source["BL inclus"].iloc[0].split(";")
                     
@@ -785,20 +587,22 @@ else:
                             bl_affichage = f"{bl} - Client non trouvé"
                         bls_avec_clients.append(bl_affichage)
                     
+                    # Affichage formaté avec clients
                     df_source_display = df_source[["Véhicule N°", "Poids total chargé", "Volume total chargé"]].copy()
                     df_source_display["BL inclus (avec clients)"] = "<br>".join(bls_avec_clients)
                     
                     df_source_display["Poids total chargé"] = df_source_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                     df_source_display["Volume total chargé"] = df_source_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
+                    # Afficher le tableau source
                     html_content = f"""
                     <div class="centered-table">
                     {df_source_display.to_html(escape=False, index=False)}
                     </div>
                     """
                     st.markdown(html_content, unsafe_allow_html=True)
-
-                    # Sélection avec clients
+                    
+                    # Sélectionner les BLs à transférer
                     st.subheader("📋 Sélectionner les BLs à transférer")
                     
                     options_transfert = []
@@ -815,12 +619,25 @@ else:
                         options_transfert.append(option_affichage)
                         mapping_bl_original[option_affichage] = bl
                     
+                    # CSS pour le multiselect
+                    st.markdown("""
+                    <style>
+                    .stMultiSelect > div > div {
+                        background-color: #F8FAFC !important;
+                        border: 2px solid #CBD5E1 !important;
+                        border-radius: 8px !important;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
+                    
+                    # Multiselect avec clients
                     bls_selectionnes_affichage = st.multiselect(
                         "Sélectionnez les BLs à transférer (avec clients) :", 
                         options_transfert,
                         format_func=lambda x: x
                     )
                     
+                    # Convertir la sélection en BLs simples pour le traitement
                     bls_selectionnes = [mapping_bl_original[bl_affichage] for bl_affichage in bls_selectionnes_affichage]
 
                     if bls_selectionnes and st.button("🔁 Exécuter le transfert"):
@@ -854,6 +671,7 @@ else:
                             df_voyages = df_voyages.apply(transfer_bl, axis=1)
                             st.session_state.df_voyages = df_voyages
                             
+                            # Afficher un résumé du transfert avec clients
                             clients_transferes = df_bls_selection["Client de l'estafette"].unique()
                             st.success(f"""
                             ✅ Transfert réussi !
@@ -863,10 +681,11 @@ else:
                             - **Volume transféré :** {volume_bls:.3f} m³
                             """)
 
-                            # Affichage après transfert
+                            # Affichage Streamlit avec retours à la ligne
                             st.subheader("📊 Voyages après transfert (toutes les zones)")
                             df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
                             
+                            # Transformer les colonnes avec retours à la ligne HTML
                             if "BL inclus" in df_display.columns:
                                 df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
                                     lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
@@ -875,6 +694,7 @@ else:
                             df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                             df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                             
+                            # Affichage avec HTML amélioré
                             html_content_after = f"""
                             <div class="centered-table">
                             {df_display[colonnes_requises].to_html(escape=False, index=False)}
@@ -882,9 +702,10 @@ else:
                             """
                             st.markdown(html_content_after, unsafe_allow_html=True)
 
-                            # Export Excel
+                            # Export Excel avec retours à la ligne \n
                             df_export = df_voyages.copy()
                             
+                            # Transformer les BL avec retours à la ligne \n pour Excel
                             if "BL inclus" in df_export.columns:
                                 df_export["BL inclus"] = df_export["BL inclus"].astype(str).apply(
                                     lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
@@ -897,9 +718,11 @@ else:
                             with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
                                 df_export.to_excel(writer, index=False, sheet_name='Transfert BLs')
                                 
+                                # Appliquer le format wrap_text pour Excel
                                 workbook = writer.book
                                 worksheet = writer.sheets['Transfert BLs']
                                 
+                                # Appliquer le style wrap_text à la colonne BL inclus
                                 if "BL inclus" in df_export.columns:
                                     for col_idx, col_name in enumerate(df_export.columns):
                                         if col_name == "BL inclus":
@@ -919,12 +742,11 @@ else:
 
 st.markdown("---")
 
-# =====================================================
-# AJOUT D'OBJETS MANUELS AUX VÉHICULES
-# =====================================================
-st.markdown("## 📦 AJOUT D'OBJETS MANUELS AUX VÉHICULES")
+# Section 6: Ajout d'objets manuels
+st.subheader("6. 📦 AJOUT D'OBJETS MANUELS AUX VÉHICULES")
 
 if "df_voyages" in st.session_state:
+    # Initialiser le gestionnaire de transfert si pas déjà fait
     if "transfer_manager" not in st.session_state:
         st.session_state.transfer_manager = TruckTransferManager(
             st.session_state.df_voyages, 
@@ -936,10 +758,12 @@ if "df_voyages" in st.session_state:
     col1, col2, col3 = st.columns(3)
     
     with col1:
+        # Sélection de la zone
         zones_disponibles = sorted(df_voyages["Zone"].dropna().unique().tolist())
         zone_objet = st.selectbox("🌍 Zone", zones_disponibles, key="zone_objet")
     
     with col2:
+        # Sélection du véhicule dans la zone choisie
         if zone_objet:
             vehicules_zone = sorted(
                 df_voyages[df_voyages["Zone"] == zone_objet]["Véhicule N°"].dropna().unique().tolist()
@@ -949,6 +773,7 @@ if "df_voyages" in st.session_state:
             vehicule_objet = st.selectbox("🚚 Véhicule", [], key="vehicule_objet")
     
     with col3:
+        # Informations sur le véhicule sélectionné
         if zone_objet and vehicule_objet:
             vehicule_data = df_voyages[
                 (df_voyages["Zone"] == zone_objet) & 
@@ -968,30 +793,26 @@ if "df_voyages" in st.session_state:
                 f"{volume_actuel:.3f}m³ / {capacite_volume}m³"
             )
     
+    # Formulaire d'ajout d'objet
     st.markdown("### 📝 Détails de l'objet à ajouter")
     
     col4, col5, col6 = st.columns(3)
     
     with col4:
-        st.markdown('<div class="custom-border">', unsafe_allow_html=True)
         nom_objet = st.text_input("🏷️ Nom de l'objet", placeholder="Ex: Matériel urgent, Colis oublié...")
-        st.markdown('</div>', unsafe_allow_html=True)
     
     with col5:
-        st.markdown('<div class="custom-border">', unsafe_allow_html=True)
         poids_objet = st.number_input("⚖️ Poids (kg)", min_value=0.0, max_value=1000.0, value=10.0, step=0.1)
-        st.markdown('</div>', unsafe_allow_html=True)
     
     with col6:
-        st.markdown('<div class="custom-border">', unsafe_allow_html=True)
         volume_objet = st.number_input("📦 Volume (m³)", min_value=0.0, max_value=10.0, value=0.1, step=0.01)
-        st.markdown('</div>', unsafe_allow_html=True)
     
     if st.button("➕ Ajouter l'objet au véhicule", type="primary"):
         if not nom_objet:
             st.error("❌ Veuillez donner un nom à l'objet.")
         elif zone_objet and vehicule_objet:
             try:
+                # Appel de la méthode add_manual_object
                 success, message, df_updated = st.session_state.transfer_manager.add_manual_object(
                     df_voyages=df_voyages,
                     vehicle=vehicule_objet,
@@ -1004,6 +825,7 @@ if "df_voyages" in st.session_state:
                 if success:
                     st.success(message)
                     
+                    # Mise à jour des données
                     st.session_state.df_voyages = df_updated
                     st.session_state.transfer_manager.df_voyages = df_updated.copy()
                     
@@ -1018,12 +840,14 @@ if "df_voyages" in st.session_state:
                         except Exception as e:
                             st.warning(f"⚠️ Synchronisation partielle du processeur : {str(e)}")
                     
+                    # Mettre à jour les propositions de location si elles existent
                     if st.session_state.propositions is not None:
                         try:
                             st.session_state.propositions = st.session_state.rental_processor.detecter_propositions()
                         except:
                             pass
                     
+                    # Mettre à jour les voyages validés si ils existent
                     if 'df_voyages_valides' in st.session_state:
                         try:
                             mask_valides = df_updated["Véhicule N°"].isin(
@@ -1033,6 +857,7 @@ if "df_voyages" in st.session_state:
                         except:
                             pass
                     
+                    # Afficher le véhicule mis à jour
                     vehicule_update = df_updated[
                         (df_updated["Zone"] == zone_objet) & 
                         (df_updated["Véhicule N°"] == vehicule_objet)
@@ -1057,8 +882,10 @@ if "df_voyages" in st.session_state:
         else:
             st.error("❌ Veuillez sélectionner une zone et un véhicule.")
     
+    # Affichage des objets ajoutés récemment
     st.markdown("### 📋 Historique des objets ajoutés")
     
+    # Rechercher les objets manuels dans les BLs
     objets_manuels = []
     for idx, row in df_voyages.iterrows():
         bls = str(row.get("BL inclus", ""))
@@ -1084,8 +911,14 @@ if "df_voyages" in st.session_state:
     
     if objets_manuels:
         df_objets = pd.DataFrame(objets_manuels)
-        show_df(df_objets, use_container_width=True)
         
+        # Fonction show_df simplifiée pour cette page
+        def show_df_simple(df, **kwargs):
+            st.dataframe(df, **kwargs)
+        
+        show_df_simple(df_objets, use_container_width=True)
+        
+        # Bouton pour supprimer tous les objets
         col_clear1, col_clear2 = st.columns([3, 1])
         with col_clear2:
             if st.button("🗑️ Supprimer tous les objets", type="secondary"):
@@ -1103,18 +936,7 @@ if "df_voyages" in st.session_state:
                 st.success("✅ Tous les objets manuels ont été supprimés")
                 st.rerun()
     else:
-        st.info(" Aucun objet manuel ajouté pour le moment.")
+        st.info("Aucun objet manuel ajouté pour le moment.")
 
-# =====================================================
-# PIED DE PAGE
-# =====================================================
-st.markdown("---")
-st.markdown(
-    """
-    <div style='text-align: center; color: #666;'>
-        <p>🚚 <strong>Système d'Optimisation des Livraisons</strong> - Développé par Zaineb KCHAOU</p>
-        <p>📧 Support : Zaineb.KCHAOU@sopal.com | 📞 Hotline : +216 23 130 088</p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+else:
+    st.warning("⚠️ Données non disponibles.")

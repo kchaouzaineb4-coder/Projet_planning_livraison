@@ -1,27 +1,117 @@
 import streamlit as st
 
+# Configuration de la page
 st.set_page_config(
-    page_title="Planning Livraisons",
-    page_icon="🚚",
+    page_title="Planning Livraisons", 
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-st.title("🚚 Système de Planning de Livraisons")
-st.markdown("---")
-
+# CSS pour la navigation et le style général
 st.markdown("""
-### 📋 Navigation
+<style>
+    /* Navigation stylée */
+    .nav-container {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin-bottom: 2rem;
+        padding: 1rem;
+        background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
+        border-radius: 10px;
+    }
+    .nav-button {
+        padding: 12px 20px;
+        border: none;
+        border-radius: 8px;
+        background-color: white;
+        color: #1E3A8A;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .nav-button:hover {
+        background-color: #EFF6FF;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .nav-button.active {
+        background-color: #0369A1;
+        color: white;
+    }
+    
+    /* Style pour centrer le titre */
+    h1 {
+        text-align: center !important;
+        color: #1E3A8A;
+        margin-bottom: 1rem;
+    }
+    
+    /* Style général pour les tableaux */
+    .custom-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .custom-table th {
+        background-color: #0369A1;
+        color: white;
+        padding: 12px 8px;
+        text-align: center;
+        border: 2px solid #4682B4;
+        font-weight: normal;
+        font-size: 13px;
+        vertical-align: middle;
+    }
+    .custom-table td {
+        padding: 10px 8px;
+        text-align: center;
+        border: 1px solid #B0C4DE;
+        background-color: white;
+        color: #000000;
+        vertical-align: middle;
+        font-weight: normal;
+    }
+    .table-container {
+        overflow-x: auto;
+        margin: 1rem 0;
+        border-radius: 8px;
+        border: 2px solid #4682B4;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-Utilisez la sidebar à gauche pour naviguer entre les différentes sections :
+# Titre principal
+st.title("🚚 Planning de Livraisons & Optimisation des Tournées")
 
-1. **📥 Import et Analyse** - Chargement et analyse initiale des données
-2. **🔄 Optimisation et Transfert** - Optimisation des tournées et transferts
-3. **✅ Validation et Attribution** - Validation et attribution véhicules/chauffeurs
-4. **📋 Planning Final** - Génération du planning final et rapports
+# Navigation
+st.markdown("""
+<div class="nav-container">
+    <a href="/1_📥_Import_et_Analyse" target="_self" class="nav-button">📥 Import & Analyse</a>
+    <a href="/2_🚚_Optimisation_et_Transfert" target="_self" class="nav-button">🚚 Optimisation & Transfert</a>
+    <a href="/3_✅_Validation_et_Planning" target="_self" class="nav-button">✅ Validation & Planning</a>
+    <a href="/4_📊_KPIs_et_Dashboard" target="_self" class="nav-button">📊 KPIs & Dashboard</a>
+</div>
+""", unsafe_allow_html=True)
 
-### 🔄 État de la session
-Toutes les données sont conservées pendant votre navigation.
+# Message d'accueil sur la page principale
+st.markdown("---")
+st.success("👆 **Utilisez les boutons de navigation ci-dessus pour accéder aux différentes sections de l'application**")
+
+st.info("""
+**Fonctionnalités disponibles :**
+- 📥 **Page 1** : Import des données et analyse des livraisons
+- 🚚 **Page 2** : Optimisation et transfert entre véhicules  
+- ✅ **Page 3** : Validation des voyages et planning final
+- 📊 **Page 4** : Tableau de bord et indicateurs de performance
 """)
 
 # Initialisation de l'état de session
@@ -39,9 +129,19 @@ if 'data_processed' not in st.session_state:
     st.session_state.message = ""
     st.session_state.df_voyages = None
     st.session_state.df_livraisons = None
+    st.session_state.df_voyages_valides = None
+    st.session_state.transfer_manager = None
+    st.session_state.validations = {}
+    st.session_state.attributions = {}
 
-# Afficher l'état actuel
-if st.session_state.data_processed:
-    st.success("✅ Données chargées et prêtes pour l'analyse")
-else:
-    st.info("📤 Veuillez commencer par importer les données dans la section 'Import et Analyse'")
+# Pied de page
+st.markdown("---")
+st.markdown(
+    """
+    <div style='text-align: center; color: #666;'>
+        <p>🚚 <strong>Système d'Optimisation des Livraisons</strong> - Développé par Zaineb KCHAOU</p>
+        <p>📧 Support : Zaineb.KCHAOU@sopal.com | 📞 Hotline : +216 23 130 088</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
