@@ -1,6 +1,22 @@
 import streamlit as st
 import pandas as pd
-from backend import DeliveryProcessor, SEUIL_POIDS, SEUIL_VOLUME 
+import sys
+import os
+from pathlib import Path
+
+# CORRECTION : Import sécurisé du backend
+try:
+    # Ajouter le dossier parent au path
+    current_dir = Path(__file__).parent
+    parent_dir = current_dir.parent
+    sys.path.append(str(parent_dir))
+    
+    from backend import DeliveryProcessor, SEUIL_POIDS, SEUIL_VOLUME
+except ImportError as e:
+    st.error(f"❌ Erreur d'import du backend : {e}")
+    st.error("Vérifiez que le fichier backend.py est dans le même dossier que app.py")
+    st.stop()
+
 import plotly.express as px
 from io import BytesIO
 
