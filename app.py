@@ -33,6 +33,7 @@ st.markdown("""
         display: flex;
         align-items: center;
         gap: 8px;
+        font-size: 16px;
     }
     .nav-button:hover {
         background-color: #EFF6FF;
@@ -86,19 +87,31 @@ st.markdown("""
         border-radius: 8px;
         border: 2px solid #4682B4;
     }
+    
+    /* Cacher la sidebar par défaut */
+    section[data-testid="stSidebar"] {
+        display: none;
+    }
+    
+    /* Forcer l'affichage en plein écran */
+    .main .block-container {
+        max-width: 100%;
+        padding-left: 2rem;
+        padding-right: 2rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # Titre principal
 st.title("🚚 Planning de Livraisons & Optimisation des Tournées")
 
-# Navigation
+# Navigation avec liens directs vers les pages
 st.markdown("""
 <div class="nav-container">
-    <a href="/1_📥_Import_et_Analyse" target="_self" class="nav-button">📥 Import & Analyse</a>
-    <a href="/2_🚚_Optimisation_et_Transfert" target="_self" class="nav-button">🚚 Optimisation & Transfert</a>
-    <a href="/3_✅_Validation_et_Planning" target="_self" class="nav-button">✅ Validation & Planning</a>
-    <a href="/4_📊_KPIs_et_Dashboard" target="_self" class="nav-button">📊 KPIs & Dashboard</a>
+    <a href="/1_Import_et_Analyse" target="_self" class="nav-button">📥 Import & Analyse</a>
+    <a href="/2_Optimisation_et_Transfert" target="_self" class="nav-button">🚚 Optimisation & Transfert</a>
+    <a href="/3_Validation_et_Planning" target="_self" class="nav-button">✅ Validation & Planning</a>
+    <a href="/4_KPIs_et_Dashboard" target="_self" class="nav-button">📊 KPIs & Dashboard</a>
 </div>
 """, unsafe_allow_html=True)
 
@@ -133,6 +146,16 @@ if 'data_processed' not in st.session_state:
     st.session_state.transfer_manager = None
     st.session_state.validations = {}
     st.session_state.attributions = {}
+
+# Instructions pour la navigation
+st.markdown("---")
+st.markdown("### 🎯 Comment naviguer entre les pages :")
+st.markdown("""
+1. **Cliquez sur les boutons colorés en haut** pour changer de page
+2. **Chaque page conserve les données** que vous avez saisies
+3. **L'ordre recommandé** est de suivre les pages de 1 à 4
+4. **Vous pouvez revenir** à n'importe quelle page à tout moment
+""")
 
 # Pied de page
 st.markdown("---")
