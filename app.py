@@ -2312,7 +2312,7 @@ elif st.session_state.current_page == 'voyages':
                         'Client(s) inclus': {'width': 30, 'header': 'Clients'},
                         'Représentant(s) inclus': {'width': 30, 'header': 'Représentants'},
                         'BL inclus': {'width': 35, 'header': 'BL associés'},
-                        'Taux d'occupation (%)': {'width': 18, 'header': 'Taux %'},
+                        'Taux d\'occupation (%)': {'width': 18, 'header': 'Taux %'},
                         'Véhicule attribué': {'width': 25, 'header': 'Véhicule Attribué'},
                         'Chauffeur attribué': {'width': 25, 'header': 'Chauffeur'},
                         'Matricule chauffeur': {'width': 20, 'header': 'Matricule'}
