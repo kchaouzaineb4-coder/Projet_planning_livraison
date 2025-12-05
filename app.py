@@ -97,10 +97,19 @@ st.title("🚚 Planning de Livraisons & Optimisation des Tournées")
 # NAVIGATION HORIZONTALE - VERSION CORRIGÉE
 # =====================================================
 
-# D'abord, appliquer le CSS
+# 1. Initialiser current_page s'il n'existe pas
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = 'import'
+
+# 2. Récupérer la page depuis l'URL (si présente)
+query_params = st.query_params
+if 'page' in query_params and query_params['page'] in ['import', 'analyse', 'location', 'voyages']:
+    st.session_state.current_page = query_params['page']
+
+# 3. CSS pour la navigation
 st.markdown("""
 <style>
-/* Navigation horizontale fixe */
+/* Navigation horizontale */
 .nav-container {
     display: flex;
     justify-content: center;
@@ -109,9 +118,6 @@ st.markdown("""
     border-radius: 15px;
     margin-bottom: 2rem;
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    position: sticky;
-    top: 0;
-    z-index: 100;
 }
 
 .nav-button {
@@ -128,6 +134,7 @@ st.markdown("""
     align-items: center;
     justify-content: center;
     min-width: 120px;
+    text-decoration: none !important;
     font-size: 16px;
 }
 
@@ -144,11 +151,6 @@ st.markdown("""
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
 
-.nav-icon {
-    margin-right: 8px;
-    font-size: 1.2em;
-}
-
 /* Responsive */
 @media (max-width: 768px) {
     .nav-container {
@@ -163,7 +165,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Ensuite, créer les boutons avec des liens qui fonctionnent dans Streamlit
+# 4. Définir les pages
 pages = {
     'import': ('📥 Importation', 'import'),
     'analyse': ('🔍 Analyse', 'analyse'),
@@ -171,54 +173,26 @@ pages = {
     'voyages': ('🚐 Voyages', 'voyages')
 }
 
-# Créer le conteneur de navigation
+# 5. Créer les boutons avec des liens Streamlit
 nav_html = '<div class="nav-container">'
 
 for page_key, (page_name, page_icon) in pages.items():
     is_active = "active" if st.session_state.current_page == page_key else ""
     
-    # Utiliser st.link_button ou une méthode Streamlit-friendly
-    # Pour l'instant, on crée juste l'affichage visuel
+    # Créer un lien qui fonctionne avec Streamlit
     nav_html += f'''
-    <div class="nav-button {is_active}" 
-         onclick="window.parent.postMessage({{'type': 'streamlit:setQueryParams', 'queryParams': {{'page': '{page_key}'}}}}, '*')">
+    <a href="?page={page_key}" class="nav-button {is_active}" style="text-decoration: none;">
         <span class="nav-icon">{page_icon}</span> {page_name}
-    </div>
+    </a>
     '''
 
 nav_html += '</div>'
 
-# Afficher la navigation
+# 6. Afficher la navigation
 st.markdown(nav_html, unsafe_allow_html=True)
 
-# Ajouter des boutons Streamlit invisibles pour gérer les clics
-# Cette partie gère réellement la navigation
-query_params = st.query_params
-
-# Détecter le clic via JavaScript
-st.markdown("""
-<script>
-document.addEventListener('click', function(e) {
-    if (e.target.closest('.nav-button')) {
-        const button = e.target.closest('.nav-button');
-        // Empêcher le comportement par défaut
-        e.preventDefault();
-        
-        // Récupérer la page depuis l'attribut onclick
-        const onclick = button.getAttribute('onclick');
-        const match = onclick.match(/'page': '(\w+)'/);
-        if (match) {
-            const page = match[1];
-            // Envoyer un message à Streamlit
-            window.parent.postMessage({
-                'type': 'streamlit:setQueryParams',
-                'queryParams': {'page': page}
-            }, '*');
-        }
-    }
-});
-</script>
-""", unsafe_allow_html=True)
+# 7. Ligne de séparation
+st.markdown("---")
 
 # Initialisation de la page dans session state
 if 'current_page' not in st.session_state:
