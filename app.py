@@ -94,104 +94,37 @@ h1 {
 st.title("🚚 Planning de Livraisons & Optimisation des Tournées")
 
 # =====================================================
-# NAVIGATION HORIZONTALE
+# NAVIGATION HORIZONTALE AVEC BOUTONS STREAMLIT
 # =====================================================
 
-st.markdown("""
-<style>
-/* Navigation horizontale fixe */
-.nav-container {
-    display: flex;
-    justify-content: center;
-    background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
-    padding: 1rem;
-    border-radius: 15px;
-    margin-bottom: 2rem;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-}
+# Créer des colonnes pour les boutons
+col1, col2, col3, col4 = st.columns(4)
 
-.nav-button {
-    background: transparent;
-    border: 2px solid rgba(255,255,255,0.3);
-    color: white;
-    padding: 0.8rem 1.5rem;
-    margin: 0 0.5rem;
-    border-radius: 50px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 120px;
-}
+with col1:
+    if st.button("📥 Importation", use_container_width=True, 
+                 type="primary" if st.session_state.current_page == 'import' else "secondary"):
+        st.query_params["page"] = "import"
+        st.rerun()
 
-.nav-button:hover {
-    background: rgba(255,255,255,0.2);
-    border-color: white;
-    transform: translateY(-2px);
-}
+with col2:
+    if st.button("🔍 Analyse", use_container_width=True,
+                 type="primary" if st.session_state.current_page == 'analyse' else "secondary"):
+        st.query_params["page"] = "analyse"
+        st.rerun()
 
-.nav-button.active {
-    background: white;
-    color: #1E3A8A;
-    border-color: white;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-}
+with col3:
+    if st.button("🚚 Location", use_container_width=True,
+                 type="primary" if st.session_state.current_page == 'location' else "secondary"):
+        st.query_params["page"] = "location"
+        st.rerun()
 
-.nav-icon {
-    margin-right: 8px;
-    font-size: 1.2em;
-}
+with col4:
+    if st.button("🚐 Voyages", use_container_width=True,
+                 type="primary" if st.session_state.current_page == 'voyages' else "secondary"):
+        st.query_params["page"] = "voyages"
+        st.rerun()
 
-/* Responsive */
-@media (max-width: 768px) {
-    .nav-container {
-        flex-wrap: wrap;
-    }
-    .nav-button {
-        margin: 0.3rem;
-        padding: 0.6rem 1rem;
-        min-width: 100px;
-    }
-}
-</style>
-""", unsafe_allow_html=True)
-
-# Initialisation de la page dans session state
-if 'current_page' not in st.session_state:
-    st.session_state.current_page = 'import'
-
-# Définition des pages
-pages = {
-    'import': ('📥 Importation', 'import'),
-    'analyse': ('🔍 Analyse', 'analyse'),
-    'location': ('🚚 Location', 'location'),
-    'voyages': ('🚐 Voyages', 'voyages')
-}
-
-# Création des boutons de navigation
-cols = st.columns(len(pages))
-
-# Créer le HTML pour la navigation
-nav_html = """
-<div class="nav-container">
-"""
-
-for page_key, (page_name, page_icon) in pages.items():
-    is_active = "active" if st.session_state.current_page == page_key else ""
-    nav_html += f"""
-    <div class="nav-button {is_active}" onclick="window.location.href='?page={page_key}'">
-        <span class="nav-icon">{page_icon}</span> {page_name}
-    </div>
-    """
-
-nav_html += "</div>"
-
-st.markdown(nav_html, unsafe_allow_html=True)
+st.markdown("---")
 
 # Récupérer la page depuis les paramètres d'URL
 query_params = st.query_params
