@@ -209,20 +209,7 @@ pages = {
 # Création des boutons de navigation
 cols = st.columns(len(pages))
 
-# Créer le HTML pour la navigation
-nav_html = """
-<div class="nav-container">
-"""
 
-for page_key, (page_name, page_icon) in pages.items():
-    is_active = "active" if st.session_state.current_page == page_key else ""
-    nav_html += f"""
-    <div class="nav-button {is_active}" onclick="window.location.href='?page={page_key}'">
-        <span class="nav-icon">{page_icon}</span> {page_name}
-    </div>
-    """
-
-nav_html += "</div>"
 
 st.markdown(nav_html, unsafe_allow_html=True)
 
