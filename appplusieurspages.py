@@ -520,27 +520,18 @@ def main():
     
     # Sidebar avec navigation
     with st.sidebar:
+        # LOGO CENTRÉ
         st.markdown("""
-        <style>
-        .logo-hover {
-            transition: transform 0.3s ease;
-        }
-        .logo-hover:hover {
-            transform: scale(1.05);
-        }
-        </style>
-        
-        <div style="text-align: center; padding: 25px 0;">
-            <div class="logo-hover">
-                <img src="logo.png" width="100" 
-                    style="border-radius: 50%; box-shadow: 0 4px 12px rgba(30, 58, 138, 0.3);">
-            </div>
-            <h3 style="color: #1E3A8A; margin: 15px 0 5px 0; font-weight: 700;">SOPAL Logistics</h3>
-            <p style="color: #4B5563; font-size: 13px; margin: 0;">Optimisation des tournées</p>
+        <div style="text-align: center; padding-top: 20px;">
+            <img src="logo.png" width="110">
         </div>
         """, unsafe_allow_html=True)
-            
-          
+        
+        # Titre également centré
+        st.markdown("<h2 style='text-align: center; color: #1E3A8A; margin-top: 10px;'>🚚 Planning Livraisons</h2>", 
+                unsafe_allow_html=True)
+        
+        st.markdown("---")
         
         # Boutons de navigation avec icônes
         page_options = {
