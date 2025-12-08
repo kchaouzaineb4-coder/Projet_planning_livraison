@@ -1225,10 +1225,10 @@ def page_optimisation():
             st.success("✅ Aucune proposition de location de camion en attente de décision.")
             
             # Bouton pour forcer la détection
-           #if st.button("🔍 Vérifier à nouveau les propositions"):
-            #   if st.session_state.rental_processor:
-             #      update_propositions_view()
-    #               st.rerun()
+            if st.button("🔍 Vérifier à nouveau les propositions"):
+                if st.session_state.rental_processor:
+                   update_propositions_view()
+                st.rerun()
     
     # --- Onglet 2: Transfert BLs ---
     with tab2:
