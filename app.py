@@ -3071,15 +3071,6 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                         # Le paramètre use_container_width=True s'adapte à la largeur de col_center
                         st.dataframe(df_apercu, use_container_width=True)
                     
-                    # OU Option B: Avec st.table() qui est souvent mieux centré
-                    st.markdown("<br>", unsafe_allow_html=True)  # Un peu d'espace
-                    
-                    col1, col2, col3 = st.columns([0.5, 5, 0.5])  # Colonnes plus larges au centre
-                    
-                    with col2:
-                        # st.table() affiche un tableau simple centré
-                        st.table(df_apercu)
-                    
                     # =====================================================
                     # TÉLÉCHARGEMENT (aussi centré)
                     # =====================================================
