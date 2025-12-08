@@ -3054,31 +3054,32 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                     if "Volume total chargé" in df_apercu.columns:
                         df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
-                    # Convertir le DataFrame en HTML
-                    html_table = df_apercu.to_html(index=False, classes='centered-table')
-                    
-                    # Ajouter le style CSS pour centrer
-                    centered_html = f"""
-                    <div style="display: flex; justify-content: center; width: 100%; overflow-x: auto;">
-                        {html_table}
-                    </div>
+                    # Solution ultime : Créer un conteneur HTML avec centrage forcé
+                    st.markdown("""
                     <style>
-                        .centered-table {{
-                            margin: 0 auto;
-                            border-collapse: collapse;
-                        }}
-                        .centered-table th, .centered-table td {{
-                            border: 1px solid #ddd;
-                            padding: 8px;
-                            text-align: left;
-                        }}
-                        .centered-table th {{
-                            background-color: #f2f2f2;
-                        }}
+                    @media (min-width: 768px) {
+                        .table-container {
+                            display: flex !important;
+                            justify-content: center !important;
+                            align-items: center !important;
+                            width: 100% !important;
+                            margin: 0 auto !important;
+                            padding: 0 !important;
+                        }
+                        .table-container > div {
+                            transform: translateX(-50%);
+                            left: 50% !important;
+                            position: relative !important;
+                        }
+                    }
                     </style>
-                    """
+                    <div class="table-container">
+                    """, unsafe_allow_html=True)
                     
-                    st.markdown(centered_html, unsafe_allow_html=True)
+                    # Utiliser st.dataframe avec width spécifique
+                    st.dataframe(df_apercu, width=800)
+                    
+                    st.markdown("</div>", unsafe_allow_html=True)
                     
                     # Proposer le téléchargement
                     with open(f"{nom_fichier}.xlsx", "rb") as file:
