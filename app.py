@@ -3054,24 +3054,14 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                     if "Volume total chargé" in df_apercu.columns:
                         df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
-                    # Option 1: Colonnes égales mais vide sur les côtés
-                    left_padding, center_content, right_padding = st.columns([0.5, 4, 0.5])
-                    
-                    with center_content:
-                        # Afficher le tableau
-                        st.dataframe(df_apercu, use_container_width=True)
-                    
-                    # OU Option 2: Ajuster selon la largeur du tableau
-                    st.markdown("<br>", unsafe_allow_html=True)  # Petit espace
-                    
-                    col1, col2, col3 = st.columns([2, 5, 2])
+                    # Colonnes pour centrer - TRÈS SIMILAIRE À VOTRE EXEMPLE
+                    col1, col2, col3 = st.columns([1, 3, 1])
                     
                     with col2:
-                        st.dataframe(df_apercu, use_container_width=True)
+                        # Utiliser st.table() qui est souvent mieux pour l'affichage simple
+                        st.table(df_apercu)
                     
-                    st.markdown("<br>", unsafe_allow_html=True)  # Petit espace
-                    
-                    # Proposer le téléchargement (centré aussi si vous voulez)
+                    # Proposer le téléchargement (aussi centré)
                     download_col1, download_col2, download_col3 = st.columns([1, 2, 1])
                     
                     with download_col2:
