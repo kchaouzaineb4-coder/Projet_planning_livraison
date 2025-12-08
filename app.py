@@ -3044,16 +3044,32 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                     st.subheader("👁️ Aperçu du format d'export")
                     colonnes_apercu = ["Code voyage", "Zone", "Véhicule N°", "Chauffeur", "BL inclus", "Client(s) inclus", "Poids total chargé", "Volume total chargé"]
                     colonnes_apercu = [col for col in colonnes_apercu if col in df_export_formate.columns]
-                    
+
                     df_apercu = df_export_formate[colonnes_apercu].head(5).copy()
-                    
+
                     # Formater l'affichage
                     if "Poids total chargé" in df_apercu.columns:
                         df_apercu["Poids total chargé"] = df_apercu["Poids total chargé"].map(lambda x: f"{x:.1f} kg")
                     if "Volume total chargé" in df_apercu.columns:
                         df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-                    
-                    show_df(df_apercu, use_container_width=True)
+
+                    # Appliquer un style CSS pour centrer le tableau
+                    st.markdown("""
+                    <style>
+                        div[data-testid="stDataFrame"] {
+                            margin: 0 auto !important;
+                            display: flex !important;
+                            justify-content: center !important;
+                        }
+                        .stDataFrame {
+                            margin-left: auto !important;
+                            margin-right: auto !important;
+                        }
+                    </style>
+                    """, unsafe_allow_html=True)
+
+                    # Afficher le tableau avec centrage
+                    st.dataframe(df_apercu, use_container_width=True)
                     
                     # Proposer le téléchargement
                     with open(f"{nom_fichier}.xlsx", "rb") as file:
