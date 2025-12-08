@@ -1230,57 +1230,135 @@ def page_optimisation():
                    update_propositions_view()
                 st.rerun()
     
-    # --- Onglet 2: Transfert BLs ---
-    with tab2:
-        st.subheader("Transfert de BLs entre véhicules")
-        st.info("Réorganisez les livraisons entre estafettes/camions")
+   # --- Onglet 2: Transfert BLs ---
+with tab2:
+    st.subheader("Transfert de BLs entre véhicules")
+    st.info("Réorganisez les livraisons entre estafettes/camions")
+    
+    MAX_POIDS = 1550  # kg
+    MAX_VOLUME = 4.608  # m³
+    
+    if st.session_state.df_voyages is None and st.session_state.rental_processor:
+        # Générer les voyages optimisés si pas encore fait
+        df_optimized = st.session_state.rental_processor.get_df_result()
+        st.session_state.df_voyages = df_optimized
+    
+    if st.session_state.df_voyages is not None and st.session_state.df_livraisons is not None:
+        # Interface de transfert complète
+        df_voyages = st.session_state.df_voyages.copy()
+        df_livraisons = st.session_state.df_livraisons.copy()
         
-        if st.session_state.df_voyages is None and st.session_state.rental_processor:
-            # Générer les voyages optimisés si pas encore fait
-            df_optimized = st.session_state.rental_processor.get_df_result()
-            st.session_state.df_voyages = df_optimized
+        colonnes_requises = ["Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]
         
-        if st.session_state.df_voyages is not None and st.session_state.df_livraisons is not None:
-            # Interface de transfert complète
-            col_trans1, col_trans2 = st.columns(2)
-            
-            with col_trans1:
-                zones = st.session_state.df_voyages["Zone"].unique().tolist()
-                selected_zone = st.selectbox("Sélectionnez une zone", zones)
-            
-            with col_trans2:
-                if selected_zone:
-                    vehicules = st.session_state.df_voyages[
-                        st.session_state.df_voyages["Zone"] == selected_zone
-                    ]["Véhicule N°"].unique().tolist()
-                    source_veh = st.selectbox("Véhicule source", vehicules)
-            
-            # Afficher les BLs du véhicule source
-            if selected_zone and source_veh:
-                source_data = st.session_state.df_voyages[
-                    (st.session_state.df_voyages["Zone"] == selected_zone) & 
-                    (st.session_state.df_voyages["Véhicule N°"] == source_veh)
-                ]
-                
-                if not source_data.empty and "BL inclus" in source_data.columns:
-                    bls = source_data.iloc[0]["BL inclus"].split(";")
-                    
-                    # SUPPRIMÉ: L'affichage "BLs disponibles dans le véhicule source"
-                    # st.write(f"**BLs disponibles dans {source_veh}:**")
-                    # for bl in bls:
-                    #     st.write(f"- {bl}")
-                    
-                    # Sélection des BLs à transférer
-                    selected_bls = st.multiselect("Sélectionnez les BLs à transférer", bls)
-                    
-                    # Véhicule destination
-                    dest_vehicles = [v for v in vehicules if v != source_veh]
-                    dest_veh = st.selectbox("Véhicule destination", dest_vehicles)
-                    
-                    if selected_bls and dest_veh and st.button("🔄 Exécuter le transfert"):
-                        st.success(f"Transfert de {len(selected_bls)} BL(s) de {source_veh} vers {dest_veh} simulé avec succès")
+        if not all(col in df_voyages.columns for col in colonnes_requises):
+            st.error(f"❌ Colonnes manquantes : {', '.join(colonnes_requises)}")
         else:
-            st.info("ℹ️ Générez d'abord les voyages optimisés dans l'onglet 1")
+            zones = st.session_state.df_voyages["Zone"].unique().tolist()
+            selected_zone = st.selectbox("Sélectionnez une zone", zones)
+            
+            if selected_zone:
+                df_zone = df_voyages[df_voyages["Zone"] == selected_zone]
+                vehicules = df_zone["Véhicule N°"].unique().tolist()
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    source_veh = st.selectbox("Véhicule source", vehicules)
+                with col2:
+                    if source_veh:
+                        dest_vehicles = [v for v in vehicules if v != source_veh]
+                        dest_veh = st.selectbox("Véhicule destination", dest_vehicles)
+                
+                if source_veh and dest_veh:
+                    df_source = df_zone[df_zone["Véhicule N°"] == source_veh]
+                    
+                    if df_source.empty or df_source["BL inclus"].isna().all():
+                        st.warning("⚠️ Aucun BL trouvé pour ce véhicule source.")
+                    else:
+                        # Afficher les BLs avec clients
+                        bls_simples = df_source["BL inclus"].iloc[0].split(";")
+                        
+                        # Créer options avec clients
+                        options_transfert = []
+                        mapping_bl_original = {}
+                        
+                        for bl in bls_simples:
+                            client_info = df_livraisons[df_livraisons["No livraison"] == bl]
+                            if not client_info.empty:
+                                client_nom = client_info["Client de l'estafette"].iloc[0]
+                                option_affichage = f"{bl} - {client_nom}"
+                            else:
+                                option_affichage = f"{bl} - Client non trouvé"
+                            
+                            options_transfert.append(option_affichage)
+                            mapping_bl_original[option_affichage] = bl
+                        
+                        # Multiselect avec clients
+                        bls_selectionnes_affichage = st.multiselect(
+                            "Sélectionnez les BLs à transférer (avec clients) :", 
+                            options_transfert
+                        )
+                        
+                        # Convertir en BLs simples
+                        bls_selectionnes = [mapping_bl_original[bl_affichage] for bl_affichage in bls_selectionnes_affichage]
+                        
+                        if bls_selectionnes and st.button("🔁 Exécuter le transfert"):
+                            # Vérifications de poids/volume
+                            df_bls_selection = df_livraisons[df_livraisons["No livraison"].isin(bls_selectionnes)]
+                            poids_bls = df_bls_selection["Poids total"].sum()
+                            volume_bls = df_bls_selection["Volume total"].sum()
+                            
+                            df_cible = df_zone[df_zone["Véhicule N°"] == dest_veh]
+                            poids_cible = df_cible["Poids total chargé"].sum()
+                            volume_cible = df_cible["Volume total chargé"].sum()
+                            
+                            if (poids_cible + poids_bls) > MAX_POIDS or (volume_cible + volume_bls) > MAX_VOLUME:
+                                st.warning("⚠️ Le transfert dépasse les limites de poids ou volume du véhicule cible.")
+                            else:
+                                # Fonction de transfert
+                                def transfer_bl(row):
+                                    bls = row["BL inclus"].split(";") if pd.notna(row["BL inclus"]) else []
+                                    bls_to_move = [b for b in bls if b in bls_selectionnes]
+                                    
+                                    if row["Véhicule N°"] == source_veh:
+                                        new_bls = [b for b in bls if b not in bls_to_move]
+                                        row["BL inclus"] = ";".join(new_bls)
+                                        row["Poids total chargé"] = max(0, row["Poids total chargé"] - poids_bls)
+                                        row["Volume total chargé"] = max(0, row["Volume total chargé"] - volume_bls)
+                                    elif row["Véhicule N°"] == dest_veh:
+                                        new_bls = bls + bls_to_move
+                                        row["BL inclus"] = ";".join(new_bls)
+                                        row["Poids total chargé"] += poids_bls
+                                        row["Volume total chargé"] += volume_bls
+                                    return row
+                                
+                                df_voyages = df_voyages.apply(transfer_bl, axis=1)
+                                st.session_state.df_voyages = df_voyages
+                                
+                                # Résumé
+                                clients_transferes = df_bls_selection["Client de l'estafette"].unique()
+                                st.success(f"""
+                                ✅ Transfert réussi !
+                                - **{len(bls_selectionnes)} BL(s)** déplacé(s) de **{source_veh}** vers **{dest_veh}**
+                                - **Clients concernés :** {', '.join(clients_transferes)}
+                                - **Poids transféré :** {poids_bls:.1f} kg
+                                - **Volume transféré :** {volume_bls:.3f} m³
+                                """)
+                                
+                                # Afficher tableau mis à jour
+                                st.subheader("📊 Voyages après transfert")
+                                df_display = df_voyages[df_voyages["Zone"] == selected_zone].copy()
+                                
+                                if "BL inclus" in df_display.columns:
+                                    df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
+                                        lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
+                                    )
+                                
+                                df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
+                                df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+                                
+                                st.markdown(df_display[colonnes_requises].to_html(escape=False, index=False), unsafe_allow_html=True)
+    else:
+        st.info("ℹ️ Générez d'abord les voyages optimisés dans l'onglet 1")
         
     # --- Onglet 3: Ajout d'objets ---
     with tab3:
