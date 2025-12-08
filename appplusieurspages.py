@@ -520,57 +520,121 @@ def main():
     
     # Sidebar avec navigation
     with st.sidebar:
-        # LOGO CENTRÉ
+        # LOGO CENTRÉ AVEC STYLE PROFESSIONNEL
         st.markdown("""
-        <div style="text-align: center; padding-top: 20px;">
-            <img src="logo.png" width="110">
+        <style>
+        .sidebar-logo {
+            text-align: center;
+            padding: 25px 0 15px 0;
+        }
+        .sidebar-logo img {
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(30, 58, 138, 0.2);
+            border: 3px solid #EFF6FF;
+            transition: transform 0.3s ease;
+        }
+        .sidebar-logo img:hover {
+            transform: scale(1.05);
+        }
+        .sidebar-title {
+            color: #1E3A8A;
+            font-size: 24px;
+            font-weight: 700;
+            margin: 15px 0 5px 0;
+        }
+        .sidebar-subtitle {
+            color: #6B7280;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        </style>
+        
+        <div class="sidebar-logo">
+            <img src="logo.png" width="120" alt="Logo SOPAL">
+            <div class="sidebar-title">🚚 Planning Livraisons</div>
+            <div class="sidebar-subtitle">Optimisation des Tournées</div>
         </div>
         """, unsafe_allow_html=True)
         
-        # Titre également centré
-        st.markdown("<h2 style='text-align: center; color: #1E3A8A; margin-top: 10px;'>🚚 Planning Livraisons</h2>", 
-                unsafe_allow_html=True)
-        
         st.markdown("---")
         
-        # Boutons de navigation avec icônes
-        page_options = {
-            "import": {"icon": "📥", "label": "Importation Données"},
-            "analyse": {"icon": "🔍", "label": "Analyse Détaillée"},
-            "optimisation": {"icon": "🚚", "label": "Optimisation"},
-            "finalisation": {"icon": "✅", "label": "Validation & Export"}
-        }
+        # Boutons de navigation stylisés
+        st.markdown("### 📋 Navigation")
         
-        for page_key, page_info in page_options.items():
-            is_active = st.session_state.page == page_key
-            button_type = "primary" if is_active else "secondary"
+        # Pages avec icônes et descriptions
+        pages = [
+            {"id": "import", "icon": "📥", "label": "Importation", 
+             "desc": "Import des fichiers sources", "color": "#3B82F6"},
+            {"id": "analyse", "icon": "📊", "label": "Analyse", 
+             "desc": "Analyse détaillée des données", "color": "#10B981"},
+            {"id": "optimisation", "icon": "🚚", "label": "Optimisation", 
+             "desc": "Tournées & location camions", "color": "#F59E0B"},
+            {"id": "finalisation", "icon": "✅", "label": "Export", 
+             "desc": "Validation & export final", "color": "#8B5CF6"}
+        ]
+        
+        for page in pages:
+            is_active = st.session_state.page == page["id"]
+            
+            # Style CSS conditionnel pour bouton actif
+            active_style = f"""
+            <style>
+            .nav-btn-{page["id"]} {{
+                background: linear-gradient(135deg, {page["color"]} 0%, {page["color"]}80 100%) !important;
+                color: white !important;
+                border-left: 4px solid {page["color"]} !important;
+            }}
+            </style>
+            """ if is_active else ""
+            
+            st.markdown(active_style, unsafe_allow_html=True)
             
             if st.button(
-                f"{page_info['icon']} {page_info['label']}",
-                key=f"nav_{page_key}",
+                f"{page['icon']} **{page['label']}**  \n"
+                f"<small style='color: #6B7280;'>{page['desc']}</small>",
+                key=f"nav_{page['id']}",
                 use_container_width=True,
-                type=button_type
+                type="primary" if is_active else "secondary"
             ):
-                st.session_state.page = page_key
+                st.session_state.page = page["id"]
                 st.rerun()
         
         st.markdown("---")
         
-        # Statut de l'application
+        # Section d'information
         st.markdown("### 📊 Statut")
+        
         if st.session_state.data_processed:
             st.success("✅ Données chargées")
+            if st.session_state.df_grouped is not None:
+                total_livraisons = len(st.session_state.df_grouped)
+                st.info(f"📦 {total_livraisons} livraisons")
             if st.session_state.df_voyages_valides is not None:
-                st.success("✅ Planning validé")
+                st.success(f"✅ {len(st.session_state.df_voyages_valides)} voyages validés")
         else:
-            st.warning("⏳ Données requises")
+            st.warning("⏳ En attente de données")
+            st.info("""
+            **Fichiers requis :**
+            1. 📄 Livraisons (BL)
+            2. 📦 Volumes (Articles)
+            3. 🏢 Clients/Zones
+            """)
         
-        # Pied de page sidebar
         st.markdown("---")
+        
+        # Informations de contact
         st.markdown("""
-        <div style='text-align: center; font-size: 12px; color: #666;'>
-            <p>Développé par Zaineb KCHAOU</p>
-            <p>📧 Zaineb.KCHAOU@sopal.com</p>
+        <div style='text-align: center; padding: 15px 0;'>
+            <div style='color: #1E3A8A; font-weight: bold; margin-bottom: 8px;'>
+                SOPAL Tunisia
+            </div>
+            <div style='font-size: 13px; color: #6B7280; line-height: 1.5;'>
+                <div>📧 Zaineb.KCHAOU@sopal.com</div>
+                <div>📞 +216 23 130 088</div>
+                <div style='margin-top: 10px; font-size: 11px; color: #9CA3AF;'>
+                    Développé par Zaineb KCHAOU
+                </div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
     
