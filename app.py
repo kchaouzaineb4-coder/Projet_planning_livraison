@@ -3053,24 +3053,11 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                     if "Volume total chargé" in df_apercu.columns:
                         df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
-                    # Afficher le tableau avec centrage
-                    st.markdown("""
-                    <style>
-                        .centered-table-container {
-                            display: flex;
-                            justify-content: center;
-                            width: 100%;
-                        }
-                        table {
-                            margin: 0 auto !important;
-                        }
-                    </style>
-                    <div class="centered-table-container">
-                    """, unsafe_allow_html=True)
+                    # Utiliser des colonnes pour centrer le tableau
+                    col_left, col_center, col_right = st.columns([1, 4, 1])
                     
-                    st.table(df_apercu)
-                    
-                    st.markdown("</div>", unsafe_allow_html=True)
+                    with col_center:
+                        st.dataframe(df_apercu, use_container_width=True)
                     
                     # Proposer le téléchargement
                     with open(f"{nom_fichier}.xlsx", "rb") as file:
