@@ -3054,21 +3054,34 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                     if "Volume total chargé" in df_apercu.columns:
                         df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
-                    # Utiliser des colonnes pour centrer le tableau - JUSTE COMME DANS VOTRE EXEMPLE
-                    col_left, col_center, col_right = st.columns([1, 3, 1])
+                    # Option 1: Colonnes égales mais vide sur les côtés
+                    left_padding, center_content, right_padding = st.columns([0.5, 4, 0.5])
                     
-                    with col_center:
-                        # Afficher le tableau dans la colonne du milieu
+                    with center_content:
+                        # Afficher le tableau
                         st.dataframe(df_apercu, use_container_width=True)
                     
-                    # Proposer le téléchargement
-                    with open(f"{nom_fichier}.xlsx", "rb") as file:
-                        btn = st.download_button(
-                            label="💾 Télécharger le planning complet",
-                            data=file,
-                            file_name=f"{nom_fichier}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        )
+                    # OU Option 2: Ajuster selon la largeur du tableau
+                    st.markdown("<br>", unsafe_allow_html=True)  # Petit espace
+                    
+                    col1, col2, col3 = st.columns([2, 5, 2])
+                    
+                    with col2:
+                        st.dataframe(df_apercu, use_container_width=True)
+                    
+                    st.markdown("<br>", unsafe_allow_html=True)  # Petit espace
+                    
+                    # Proposer le téléchargement (centré aussi si vous voulez)
+                    download_col1, download_col2, download_col3 = st.columns([1, 2, 1])
+                    
+                    with download_col2:
+                        with open(f"{nom_fichier}.xlsx", "rb") as file:
+                            btn = st.download_button(
+                                label="💾 Télécharger le planning complet",
+                                data=file,
+                                file_name=f"{nom_fichier}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            )
                 else:
                     st.error(message)
                     
