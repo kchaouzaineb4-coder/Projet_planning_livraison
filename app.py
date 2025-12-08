@@ -3108,7 +3108,7 @@ if generer_export:
                 margin: 1rem auto !important;
                 border-radius: 8px;
                 border: 2px solid #4682B4;
-                width: fit-content !important;
+                width: 100% important;
                 max-width: 100% !important;
                 display: flex !important;
                 justify-content: center !important;
