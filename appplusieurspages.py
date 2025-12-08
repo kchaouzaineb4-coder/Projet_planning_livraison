@@ -520,7 +520,7 @@ def main():
     
     # Sidebar avec navigation
     with st.sidebar:
-        st.image("https://cdn-icons-png.flaticon.com/512/3095/3095113.png", width=100)
+        st.image("https://th.bing.com/th/id/OIP.NX4XkAk56j_1bs6CiYhdxQHaHa?w=171&h=180&c=7&r=0&o=7&cb=ucfimg2&dpr=1.3&pid=1.7&rm=3&ucfimg=1.png",widh=100)
         st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚚 Planning Livraisons</h2>", 
                    unsafe_allow_html=True)
         
