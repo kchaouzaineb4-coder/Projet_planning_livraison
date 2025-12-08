@@ -3054,26 +3054,14 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                     if "Volume total chargé" in df_apercu.columns:
                         df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
-                    # Appliquer un style CSS pour centrer le tableau
+                    # Centrer le tableau avec HTML et CSS
                     st.markdown("""
-                    <style>
-                    div[data-testid="stDataFrame"] {
-                        margin-left: auto !important;
-                        margin-right: auto !important;
-                        display: table !important;
-                    }
-                    .stDataFrame {
-                        margin: 0 auto !important;
-                        width: fit-content !important;
-                    }
-                    div[data-testid="stDataFrameResizable"] {
-                        margin: 0 auto !important;
-                    }
-                    </style>
+                    <div style="display: flex; justify-content: center; width: 100%;">
                     """, unsafe_allow_html=True)
                     
-                    # Afficher le tableau avec centrage
-                    st.dataframe(df_apercu, use_container_width=False)
+                    st.table(df_apercu)
+                    
+                    st.markdown("</div>", unsafe_allow_html=True)
                     
                     # Proposer le téléchargement
                     with open(f"{nom_fichier}.xlsx", "rb") as file:
