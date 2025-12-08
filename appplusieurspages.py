@@ -520,13 +520,16 @@ def main():
     
     # Sidebar avec navigation
     with st.sidebar:
-        # Logo centré avec CSS
+        # LOGO CENTRÉ
         st.markdown("""
-        <div style="text-align: center;">
-            <img src="https://via.placeholder.com/100x100/1E3A8A/FFFFFF?text=SOPAL" 
-                width="100" style="display: block; margin: 0 auto;">
+        <div style="text-align: center; padding-top: 20px;">
+            <img src="logo.png" width="110">
         </div>
         """, unsafe_allow_html=True)
+        
+        # Titre également centré
+        st.markdown("<h2 style='text-align: center; color: #1E3A8A; margin-top: 10px;'>🚚 Planning Livraisons</h2>", 
+                unsafe_allow_html=True)
         
         st.markdown("---")
         
