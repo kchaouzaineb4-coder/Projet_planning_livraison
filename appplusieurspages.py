@@ -152,6 +152,63 @@ if 'data_processed' not in st.session_state:
     st.session_state.transfer_manager = None
     st.session_state.attributions = {}
     st.session_state.validations = {}
+# =====================================================
+# 📌 Constantes pour les véhicules et chauffeurs
+# =====================================================
+VEHICULES_DISPONIBLES = [
+    'SLG-VEH11', 'SLG-VEH14', 'SLG-VEH22', 'SLG-VEH19',
+    'SLG-VEH10', 'SLG-VEH16', 'SLG-VEH23', 'SLG-VEH08', 'SLG-VEH20', 'code-Camion'
+]
+
+CHAUFFEURS_DETAILS = {
+    '09254': 'DAMMAK Karim', '06002': 'MAAZOUN Bassem', '11063': 'SASSI Ramzi',
+    '10334': 'BOUJELBENE Mohamed', '15144': 'GADDOUR Rami', '08278': 'DAMMAK Wissem',
+    '18339': 'REKIK Ahmed', '07250': 'BARKIA Mustapha', '13321': 'BADRI Moez','99999': 'Chauffeur Camion'
+}
+# =====================================================
+# Fonctions de Callback pour la Location
+# =====================================================
+
+def update_propositions_view():
+    """Met à jour le DataFrame de propositions après une action."""
+    if st.session_state.rental_processor:
+        st.session_state.propositions = st.session_state.rental_processor.detecter_propositions()
+        
+        # CORRECTION : Vérifier si le DataFrame de propositions n'est pas vide et contient la colonne 'Client'
+        if (st.session_state.propositions is not None and 
+            not st.session_state.propositions.empty and 
+            'Client' in st.session_state.propositions.columns):
+            
+            # Réinitialiser la sélection si le client n'est plus dans les propositions ouvertes
+            if (st.session_state.selected_client is not None and 
+                st.session_state.selected_client not in st.session_state.propositions['Client'].astype(str).tolist()):
+                st.session_state.selected_client = None
+    else:
+        st.session_state.propositions = pd.DataFrame()
+
+def handle_location_action(accepter):
+    """Gère l'acceptation ou le refus de la proposition de location."""
+    if st.session_state.rental_processor and st.session_state.selected_client:
+        try:
+            # Assurer que le client est une chaîne valide
+            client_to_process = str(st.session_state.selected_client)
+            ok, msg, _ = st.session_state.rental_processor.appliquer_location(
+                client_to_process, accepter=accepter
+            )
+            st.session_state.message = msg
+            update_propositions_view()
+        except Exception as e:
+            st.session_state.message = f"❌ Erreur lors du traitement : {str(e)}"
+    elif not st.session_state.selected_client:
+        st.session_state.message = "⚠️ Veuillez sélectionner un client à traiter."
+    else:
+        st.session_state.message = "⚠️ Le processeur de location n'est pas initialisé."
+
+def accept_location_callback():
+    handle_location_action(True)
+
+def refuse_location_callback():
+    handle_location_action(False)
 
 # =====================================================
 # PAGE 1: IMPORTATION DES DONNÉES
@@ -1168,10 +1225,10 @@ def page_optimisation():
             st.success("✅ Aucune proposition de location de camion en attente de décision.")
             
             # Bouton pour forcer la détection
-            if st.button("🔍 Vérifier à nouveau les propositions"):
-                if st.session_state.rental_processor:
-                    update_propositions_view()
-                    st.rerun()
+           #if st.button("🔍 Vérifier à nouveau les propositions"):
+            #   if st.session_state.rental_processor:
+             #      update_propositions_view()
+    #               st.rerun()
     
     # --- Onglet 2: Transfert BLs ---
     with tab2:
