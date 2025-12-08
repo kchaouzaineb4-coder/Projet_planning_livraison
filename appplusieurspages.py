@@ -1230,276 +1230,7 @@ def page_optimisation():
                 if st.session_state.rental_processor:
                    update_propositions_view()
                 st.rerun()
-    # =====================================================
-# 4. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 4 - Résultat final)
-# =====================================================
-st.header("4. 🚐 Voyages par Estafette Optimisé (Inclut Camions Loués)")
-
-try:
-    # Récupération sécurisée du DataFrame
-    if st.session_state.rental_processor:
-        df_optimized_estafettes = st.session_state.rental_processor.get_df_result()
-    elif "df_voyages" in st.session_state:
-        df_optimized_estafettes = st.session_state.df_voyages.copy()
-    else:
-        st.error("❌ Données non disponibles. Veuillez exécuter le traitement complet.")
-        st.stop()
     
-    # Vérifier que le DataFrame n'est pas vide
-    if df_optimized_estafettes.empty:
-        st.warning("⚠️ Aucune donnée à afficher.")
-        st.stop()
-    
-    # CORRECTION : Nettoyer les colonnes en double
-    df_clean = df_optimized_estafettes.loc[:, ~df_optimized_estafettes.columns.duplicated()]
-    
-    # CORRECTION : TRIER PAR ZONE D'ABORD
-    if "Zone" in df_clean.columns:
-        # Extraire le numéro de zone pour un tri numérique
-        df_clean["Zone_Num"] = df_clean["Zone"].str.extract('(\d+)').astype(float)
-        df_clean = df_clean.sort_values("Zone_Num").drop("Zone_Num", axis=1)
-        # Alternative plus simple si l'extraction échoue :
-        # df_clean = df_clean.sort_values("Zone")
-    
-    # Définir l'ordre des colonnes pour l'affichage
-    colonnes_ordre = [
-        "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé",
-        "Client(s) inclus", "Représentant(s) inclus", "BL inclus", 
-        "Taux d'occupation (%)", "Location_camion", "Location_proposee", "Code Véhicule"
-    ]
-    
-    # Filtrer seulement les colonnes qui existent
-    colonnes_finales = [col for col in colonnes_ordre if col in df_clean.columns]
-    
-    # Créer le DataFrame d'affichage avec retours à la ligne POUR STREAMLIT
-    df_display = df_clean[colonnes_finales].copy()
-    
-    # Transformer les colonnes avec retours à la ligne HTML pour l'affichage Streamlit
-    if "Client(s) inclus" in df_display.columns:
-        df_display["Client(s) inclus"] = df_display["Client(s) inclus"].astype(str).apply(
-            lambda x: "<br>".join(client.strip() for client in x.split(",")) if x != "nan" else ""
-        )
-    
-    if "Représentant(s) inclus" in df_display.columns:
-        df_display["Représentant(s) inclus"] = df_display["Représentant(s) inclus"].astype(str).apply(
-            lambda x: "<br>".join(rep.strip() for rep in x.split(",")) if x != "nan" else ""
-        )
-    
-    if "BL inclus" in df_display.columns:
-        df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
-            lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
-        )
-    
-    # Formater les colonnes numériques pour l'affichage
-    if "Poids total chargé" in df_display.columns:
-        df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-    if "Volume total chargé" in df_display.columns:
-        df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-    if "Taux d'occupation (%)" in df_display.columns:
-        df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
-    
-    # CSS POUR UN TABLEAU PROFESSIONNEL (identique aux autres sections)
-    st.markdown("""
-    <style>
-    /* Style général du tableau */
-    .custom-table-voyages {
-        width: 100%;
-        border-collapse: collapse;
-        font-family: Arial, sans-serif;
-        font-size: 14px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        border-radius: 8px;
-        overflow: hidden;
-    }
-    
-    /* En-têtes du tableau - BLEU ROYAL SANS DÉGRADÉ */
-    .custom-table-voyages th {
-        background-color: #0369A1;
-        color: white;
-        padding: 12px 8px;
-        text-align: center;
-        border: 2px solid #4682B4;
-        font-weight: bold;
-        font-size: 13px;
-        vertical-align: middle;
-    }
-    
-    /* Cellules du tableau - TOUTES EN BLANC */
-    .custom-table-voyages td {
-        padding: 10px 8px;
-        text-align: center;
-        border: 1px solid #B0C4DE;
-        background-color: white;
-        color: #000000;
-        vertical-align: middle;
-    }
-    
-    /* Bordures visibles pour toutes les cellules */
-    .custom-table-voyages th, 
-    .custom-table-voyages td {
-        border: 1px solid #B0C4DE !important;
-    }
-    
-    /* Bordures épaisses pour l'extérieur du tableau */
-    .custom-table-voyages {
-        border: 2px solid #4682B4 !important;
-    }
-    
-    /* Conteneur du tableau avec défilement horizontal */
-    .table-container-voyages {
-        overflow-x: auto;
-        margin: 1rem 0;
-        border-radius: 8px;
-        border: 2px solid #4682B4;
-    }
-    
-    /* Supprimer l'alternance des couleurs - TOUTES LES LIGNES BLANCHES */
-    .custom-table-voyages tr:nth-child(even) td {
-        background-color: white !important;
-    }
-    
-    /* Survol des lignes - léger effet */
-    .custom-table-voyages tr:hover td {
-        background-color: #F0F8FF !important;
-    }
-    
-    /* Style pour les cellules multilignes */
-    .custom-table-voyages td {
-        line-height: 1.4;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Afficher le tableau avec le style CSS professionnel
-    html_table = df_display.to_html(escape=False, index=False, classes="custom-table-voyages", border=0)
-    
-    st.markdown(f"""
-    <div class="table-container-voyages">
-        {html_table}
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # MÉTRIQUES RÉSUMÉES
-    st.markdown("---")
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        total_voyages = len(df_display)
-        st.metric("🚐 Total Voyages", total_voyages)
-    
-    with col2:
-        total_zones = df_display["Zone"].nunique() if "Zone" in df_display.columns else 0
-        st.metric("🌍 Zones couvertes", total_zones)
-    
-    with col3:
-        camions_loues = df_display["Location_camion"].sum() if "Location_camion" in df_display.columns else 0
-        st.metric("🚚 Camions loués", int(camions_loues))
-    
-    with col4:
-        estafettes = total_voyages - camions_loues
-        st.metric("📦 Estafettes", estafettes)
-    
-    # Préparer l'export Excel avec retours à la ligne \n
-    df_export = df_clean.copy()
-    
-    # CORRECTION : S'assurer que l'export est aussi trié par zone
-    if "Zone" in df_export.columns:
-        df_export["Zone_Num"] = df_export["Zone"].str.extract('(\d+)').astype(float)
-        df_export = df_export.sort_values("Zone_Num").drop("Zone_Num", axis=1)
-    
-    # Transformer les colonnes avec retours à la ligne \n pour Excel
-    if "Client(s) inclus" in df_export.columns:
-        df_export["Client(s) inclus"] = df_export["Client(s) inclus"].astype(str).apply(
-            lambda x: "\n".join(client.strip() for client in x.split(",")) if x != "nan" else ""
-        )
-    
-    if "Représentant(s) inclus" in df_export.columns:
-        df_export["Représentant(s) inclus"] = df_export["Représentant(s) inclus"].astype(str).apply(
-            lambda x: "\n".join(rep.strip() for rep in x.split(",")) if x != "nan" else ""
-        )
-    
-    if "BL inclus" in df_export.columns:
-        df_export["BL inclus"] = df_export["BL inclus"].astype(str).apply(
-            lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
-        )
-    
-    # Formater les colonnes numériques pour l'export
-    if "Poids total chargé" in df_export.columns:
-        df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
-    if "Volume total chargé" in df_export.columns:
-        df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
-    
-    # Bouton de téléchargement avec formatage Excel
-    from io import BytesIO
-    import openpyxl
-    from openpyxl.styles import Alignment
-    
-    excel_buffer = BytesIO()
-    
-    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-        df_export.to_excel(writer, index=False, sheet_name="Voyages Optimisés")
-        
-        # Récupérer le workbook et worksheet pour appliquer le formatage
-        workbook = writer.book
-        worksheet = writer.sheets["Voyages Optimisés"]
-        
-        # Appliquer le style wrap_text aux colonnes avec retours à la ligne
-        wrap_columns = []
-        if "Client(s) inclus" in df_export.columns:
-            wrap_columns.append("Client(s) inclus")
-        if "Représentant(s) inclus" in df_export.columns:
-            wrap_columns.append("Représentant(s) inclus")
-        if "BL inclus" in df_export.columns:
-            wrap_columns.append("BL inclus")
-        
-        # Appliquer le format wrap_text à toutes les cellules des colonnes concernées
-        for col_idx, col_name in enumerate(df_export.columns):
-            if col_name in wrap_columns:
-                col_letter = openpyxl.utils.get_column_letter(col_idx + 1)
-                for row in range(2, len(df_export) + 2):  # Commence à la ligne 2 (après l'en-tête)
-                    cell = worksheet[f"{col_letter}{row}"]
-                    cell.alignment = Alignment(wrap_text=True, vertical='top')
-        
-        # Ajuster la largeur des colonnes pour une meilleure visibilité
-        for column in worksheet.columns:
-            max_length = 0
-            column_letter = openpyxl.utils.get_column_letter(column[0].column)
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            adjusted_width = min(max_length + 2, 50)  # Largeur max de 50
-            worksheet.column_dimensions[column_letter].width = adjusted_width
-    
-    excel_buffer.seek(0)
-    
-    st.download_button(
-        label="💾 Télécharger Voyages Estafette Optimisés",
-        data=excel_buffer,
-        file_name="Voyages_Estafette_Optimises.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-    
-    # Mise à jour pour les sections suivantes
-    st.session_state.df_voyages = df_clean
-
-except KeyError as e:
-    st.error(f"❌ Erreur de colonne manquante : {e}")
-    st.info("🔄 Tentative de récupération des données...")
-    
-    # Tentative de récupération
-    if st.session_state.rental_processor:
-        st.session_state.df_voyages = st.session_state.rental_processor.df_base.copy()
-        st.rerun()
-        
-except Exception as e:
-    st.error(f"❌ Erreur lors de l'affichage des voyages optimisés: {str(e)}")
-    # Afficher les données brutes pour debug
-    st.write("Données brutes pour debug:")
-    if st.session_state.rental_processor:
-        st.write("Colonnes du df_base:", list(st.session_state.rental_processor.df_base.columns))
     # --- Onglet 2: Transfert BLs ---
     with tab2:
         st.subheader("🔁 Transfert de BLs entre véhicules")
@@ -1832,8 +1563,276 @@ except Exception as e:
             st.rerun()
 
 # =====================================================
-# PAGE 4: VOYAGES OPTIMISÉS & VALIDATION (VERSION COMPLÈTE)
+# 4. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 4 - Résultat final)
 # =====================================================
+st.header("4. 🚐 Voyages par Estafette Optimisé (Inclut Camions Loués)")
+
+try:
+    # Récupération sécurisée du DataFrame
+    if st.session_state.rental_processor:
+        df_optimized_estafettes = st.session_state.rental_processor.get_df_result()
+    elif "df_voyages" in st.session_state:
+        df_optimized_estafettes = st.session_state.df_voyages.copy()
+    else:
+        st.error("❌ Données non disponibles. Veuillez exécuter le traitement complet.")
+        st.stop()
+    
+    # Vérifier que le DataFrame n'est pas vide
+    if df_optimized_estafettes.empty:
+        st.warning("⚠️ Aucune donnée à afficher.")
+        st.stop()
+    
+    # CORRECTION : Nettoyer les colonnes en double
+    df_clean = df_optimized_estafettes.loc[:, ~df_optimized_estafettes.columns.duplicated()]
+    
+    # CORRECTION : TRIER PAR ZONE D'ABORD
+    if "Zone" in df_clean.columns:
+        # Extraire le numéro de zone pour un tri numérique
+        df_clean["Zone_Num"] = df_clean["Zone"].str.extract('(\d+)').astype(float)
+        df_clean = df_clean.sort_values("Zone_Num").drop("Zone_Num", axis=1)
+        # Alternative plus simple si l'extraction échoue :
+        # df_clean = df_clean.sort_values("Zone")
+    
+    # Définir l'ordre des colonnes pour l'affichage
+    colonnes_ordre = [
+        "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé",
+        "Client(s) inclus", "Représentant(s) inclus", "BL inclus", 
+        "Taux d'occupation (%)", "Location_camion", "Location_proposee", "Code Véhicule"
+    ]
+    
+    # Filtrer seulement les colonnes qui existent
+    colonnes_finales = [col for col in colonnes_ordre if col in df_clean.columns]
+    
+    # Créer le DataFrame d'affichage avec retours à la ligne POUR STREAMLIT
+    df_display = df_clean[colonnes_finales].copy()
+    
+    # Transformer les colonnes avec retours à la ligne HTML pour l'affichage Streamlit
+    if "Client(s) inclus" in df_display.columns:
+        df_display["Client(s) inclus"] = df_display["Client(s) inclus"].astype(str).apply(
+            lambda x: "<br>".join(client.strip() for client in x.split(",")) if x != "nan" else ""
+        )
+    
+    if "Représentant(s) inclus" in df_display.columns:
+        df_display["Représentant(s) inclus"] = df_display["Représentant(s) inclus"].astype(str).apply(
+            lambda x: "<br>".join(rep.strip() for rep in x.split(",")) if x != "nan" else ""
+        )
+    
+    if "BL inclus" in df_display.columns:
+        df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
+            lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
+        )
+    
+    # Formater les colonnes numériques pour l'affichage
+    if "Poids total chargé" in df_display.columns:
+        df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
+    if "Volume total chargé" in df_display.columns:
+        df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+    if "Taux d'occupation (%)" in df_display.columns:
+        df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
+    
+    # CSS POUR UN TABLEAU PROFESSIONNEL (identique aux autres sections)
+    st.markdown("""
+    <style>
+    /* Style général du tableau */
+    .custom-table-voyages {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    /* En-têtes du tableau - BLEU ROYAL SANS DÉGRADÉ */
+    .custom-table-voyages th {
+        background-color: #0369A1;
+        color: white;
+        padding: 12px 8px;
+        text-align: center;
+        border: 2px solid #4682B4;
+        font-weight: bold;
+        font-size: 13px;
+        vertical-align: middle;
+    }
+    
+    /* Cellules du tableau - TOUTES EN BLANC */
+    .custom-table-voyages td {
+        padding: 10px 8px;
+        text-align: center;
+        border: 1px solid #B0C4DE;
+        background-color: white;
+        color: #000000;
+        vertical-align: middle;
+    }
+    
+    /* Bordures visibles pour toutes les cellules */
+    .custom-table-voyages th, 
+    .custom-table-voyages td {
+        border: 1px solid #B0C4DE !important;
+    }
+    
+    /* Bordures épaisses pour l'extérieur du tableau */
+    .custom-table-voyages {
+        border: 2px solid #4682B4 !important;
+    }
+    
+    /* Conteneur du tableau avec défilement horizontal */
+    .table-container-voyages {
+        overflow-x: auto;
+        margin: 1rem 0;
+        border-radius: 8px;
+        border: 2px solid #4682B4;
+    }
+    
+    /* Supprimer l'alternance des couleurs - TOUTES LES LIGNES BLANCHES */
+    .custom-table-voyages tr:nth-child(even) td {
+        background-color: white !important;
+    }
+    
+    /* Survol des lignes - léger effet */
+    .custom-table-voyages tr:hover td {
+        background-color: #F0F8FF !important;
+    }
+    
+    /* Style pour les cellules multilignes */
+    .custom-table-voyages td {
+        line-height: 1.4;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Afficher le tableau avec le style CSS professionnel
+    html_table = df_display.to_html(escape=False, index=False, classes="custom-table-voyages", border=0)
+    
+    st.markdown(f"""
+    <div class="table-container-voyages">
+        {html_table}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # MÉTRIQUES RÉSUMÉES
+    st.markdown("---")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        total_voyages = len(df_display)
+        st.metric("🚐 Total Voyages", total_voyages)
+    
+    with col2:
+        total_zones = df_display["Zone"].nunique() if "Zone" in df_display.columns else 0
+        st.metric("🌍 Zones couvertes", total_zones)
+    
+    with col3:
+        camions_loues = df_display["Location_camion"].sum() if "Location_camion" in df_display.columns else 0
+        st.metric("🚚 Camions loués", int(camions_loues))
+    
+    with col4:
+        estafettes = total_voyages - camions_loues
+        st.metric("📦 Estafettes", estafettes)
+    
+    # Préparer l'export Excel avec retours à la ligne \n
+    df_export = df_clean.copy()
+    
+    # CORRECTION : S'assurer que l'export est aussi trié par zone
+    if "Zone" in df_export.columns:
+        df_export["Zone_Num"] = df_export["Zone"].str.extract('(\d+)').astype(float)
+        df_export = df_export.sort_values("Zone_Num").drop("Zone_Num", axis=1)
+    
+    # Transformer les colonnes avec retours à la ligne \n pour Excel
+    if "Client(s) inclus" in df_export.columns:
+        df_export["Client(s) inclus"] = df_export["Client(s) inclus"].astype(str).apply(
+            lambda x: "\n".join(client.strip() for client in x.split(",")) if x != "nan" else ""
+        )
+    
+    if "Représentant(s) inclus" in df_export.columns:
+        df_export["Représentant(s) inclus"] = df_export["Représentant(s) inclus"].astype(str).apply(
+            lambda x: "\n".join(rep.strip() for rep in x.split(",")) if x != "nan" else ""
+        )
+    
+    if "BL inclus" in df_export.columns:
+        df_export["BL inclus"] = df_export["BL inclus"].astype(str).apply(
+            lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
+        )
+    
+    # Formater les colonnes numériques pour l'export
+    if "Poids total chargé" in df_export.columns:
+        df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
+    if "Volume total chargé" in df_export.columns:
+        df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
+    
+    # Bouton de téléchargement avec formatage Excel
+    from io import BytesIO
+    import openpyxl
+    from openpyxl.styles import Alignment
+    
+    excel_buffer = BytesIO()
+    
+    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+        df_export.to_excel(writer, index=False, sheet_name="Voyages Optimisés")
+        
+        # Récupérer le workbook et worksheet pour appliquer le formatage
+        workbook = writer.book
+        worksheet = writer.sheets["Voyages Optimisés"]
+        
+        # Appliquer le style wrap_text aux colonnes avec retours à la ligne
+        wrap_columns = []
+        if "Client(s) inclus" in df_export.columns:
+            wrap_columns.append("Client(s) inclus")
+        if "Représentant(s) inclus" in df_export.columns:
+            wrap_columns.append("Représentant(s) inclus")
+        if "BL inclus" in df_export.columns:
+            wrap_columns.append("BL inclus")
+        
+        # Appliquer le format wrap_text à toutes les cellules des colonnes concernées
+        for col_idx, col_name in enumerate(df_export.columns):
+            if col_name in wrap_columns:
+                col_letter = openpyxl.utils.get_column_letter(col_idx + 1)
+                for row in range(2, len(df_export) + 2):  # Commence à la ligne 2 (après l'en-tête)
+                    cell = worksheet[f"{col_letter}{row}"]
+                    cell.alignment = Alignment(wrap_text=True, vertical='top')
+        
+        # Ajuster la largeur des colonnes pour une meilleure visibilité
+        for column in worksheet.columns:
+            max_length = 0
+            column_letter = openpyxl.utils.get_column_letter(column[0].column)
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)  # Largeur max de 50
+            worksheet.column_dimensions[column_letter].width = adjusted_width
+    
+    excel_buffer.seek(0)
+    
+    st.download_button(
+        label="💾 Télécharger Voyages Estafette Optimisés",
+        data=excel_buffer,
+        file_name="Voyages_Estafette_Optimises.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    
+    # Mise à jour pour les sections suivantes
+    st.session_state.df_voyages = df_clean
+
+except KeyError as e:
+    st.error(f"❌ Erreur de colonne manquante : {e}")
+    st.info("🔄 Tentative de récupération des données...")
+    
+    # Tentative de récupération
+    if st.session_state.rental_processor:
+        st.session_state.df_voyages = st.session_state.rental_processor.df_base.copy()
+        st.rerun()
+        
+except Exception as e:
+    st.error(f"❌ Erreur lors de l'affichage des voyages optimisés: {str(e)}")
+    # Afficher les données brutes pour debug
+    st.write("Données brutes pour debug:")
+    if st.session_state.rental_processor:
+        st.write("Colonnes du df_base:", list(st.session_state.rental_processor.df_base.columns))
+        
 def page_finalisation():
     st.markdown("<h1 class='main-header'>4. 🚐 VOYAGES OPTIMISÉS & VALIDATION</h1>", unsafe_allow_html=True)
     
