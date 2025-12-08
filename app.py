@@ -3054,37 +3054,112 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                     if "Volume total chargé" in df_apercu.columns:
                         df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
-                    # Préparer les données
+                    # =====================================================
+                    # STYLE CSS AVEC CENTRAGE FORCÉ
+                    # =====================================================
+                    st.markdown("""
+                    <style>
+                    /* Style général du tableau */
+                    .custom-table {
+                        border-collapse: collapse;
+                        font-family: Arial, sans-serif;
+                        font-size: 14px;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        border-radius: 8px;
+                        overflow: hidden;
+                        margin: 0 auto !important; /* CENTRAGE FORCÉ */
+                        display: table !important;
+                    }
+                    
+                    /* En-têtes du tableau - BLEU ROYAL */
+                    .custom-table th {
+                        background-color: #0369A1;
+                        color: white;
+                        padding: 12px 8px;
+                        text-align: center;
+                        border: 2px solid #4682B4;
+                        font-weight: normal;
+                        font-size: 13px;
+                        vertical-align: middle;
+                    }
+                    
+                    /* Cellules du tableau */
+                    .custom-table td {
+                        padding: 10px 8px;
+                        text-align: center;
+                        border: 1px solid #B0C4DE;
+                        background-color: white;
+                        color: #000000;
+                        vertical-align: middle;
+                        font-weight: normal;
+                    }
+                    
+                    /* Conteneur du tableau avec CENTRAGE ABSOLU */
+                    .table-container {
+                        overflow-x: auto;
+                        margin: 1rem auto !important;
+                        border-radius: 8px;
+                        border: 2px solid #4682B4;
+                        width: fit-content !important;
+                        max-width: 100% !important;
+                        display: flex !important;
+                        justify-content: center !important;
+                        padding: 10px !important;
+                    }
+                    
+                    /* Wrapper pour centrer tout */
+                    .table-wrapper {
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        width: 100%;
+                        padding: 20px 0;
+                    }
+                    
+                    /* Survol des lignes */
+                    .custom-table tr:hover td {
+                        background-color: #F0F8FF !important;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
+                    
+                    # Préparer les données pour l'affichage HTML
                     if "BL inclus" in df_apercu.columns:
                         df_apercu["BL inclus"] = df_apercu["BL inclus"].astype(str).apply(
-                            lambda x: "\n".join(bl.strip() for bl in str(x).split(",") if bl.strip())
+                            lambda x: "<br>".join(bl.strip() for bl in str(x).split(",") if bl.strip())
                         )
                     
                     if "Client(s) inclus" in df_apercu.columns:
                         df_apercu["Client(s) inclus"] = df_apercu["Client(s) inclus"].astype(str).apply(
-                            lambda x: "\n".join(client.strip() for client in str(x).split(",") if client.strip())
+                            lambda x: "<br>".join(client.strip() for client in str(x).split(",") if client.strip())
                         )
                     
-                    # =====================================================
-                    # SOLUTION ULTIME : COLONNES + st.table()
-                    # =====================================================
-                    # Créer un espace vide à gauche et à droite
-                    col1, col2, col3 = st.columns([0.5, 5, 0.5])
+                    # Convertir le DataFrame en HTML
+                    html_table = df_apercu.to_html(
+                        escape=False, 
+                        index=False, 
+                        classes="custom-table",
+                        border=0
+                    )
                     
-                    with col2:
-                        # st.table() est naturellement mieux centré
-                        st.table(df_apercu)
+                    # Afficher le tableau dans un conteneur centré
+                    st.markdown(f"""
+                    <div class="table-wrapper">
+                        <div class="table-container">
+                            {html_table}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
                     
                     # Téléchargement
-                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.markdown("<br><br>", unsafe_allow_html=True)
                     
                     with open(f"{nom_fichier}.xlsx", "rb") as file:
-                        st.download_button(
+                        btn = st.download_button(
                             label="💾 Télécharger le planning complet",
                             data=file,
                             file_name=f"{nom_fichier}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True  # Ceci va centrer le bouton
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
                 else:
                     st.error(message)
