@@ -3054,15 +3054,12 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                     if "Volume total chargé" in df_apercu.columns:
                         df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
-                    # Solution 1: Utiliser st.table() avec un conteneur HTML centré
-                    st.markdown("""
-                    <div style="display: flex; justify-content: center; width: 100%;">
-                    """, unsafe_allow_html=True)
+                    # Utiliser des colonnes pour centrer le tableau - JUSTE COMME DANS VOTRE EXEMPLE
+                    col_left, col_center, col_right = st.columns([1, 3, 1])
                     
-                    # Utiliser st.table() qui est généralement mieux centré
-                    st.table(df_apercu)
-                    
-                    st.markdown("</div>", unsafe_allow_html=True)
+                    with col_center:
+                        # Afficher le tableau dans la colonne du milieu
+                        st.dataframe(df_apercu, use_container_width=True)
                     
                     # Proposer le téléchargement
                     with open(f"{nom_fichier}.xlsx", "rb") as file:
