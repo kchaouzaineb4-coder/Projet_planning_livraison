@@ -3000,11 +3000,14 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
     col_export1, col_export2 = st.columns(2)
     
     with col_export1:
-        nom_fichier = st.text_input(
-            "📝 Nom du fichier d'export", 
-            value=f"Planning_Livraisons_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}",
-            help="Le fichier sera sauvegardé avec l'extension .xlsx"
-        )
+    # Solution simple : UTC+1 (Tunis est en GMT+1)
+    date_tunis = pd.Timestamp.now() + pd.Timedelta(hours=1)
+    
+    nom_fichier = st.text_input(
+        "📝 Nom du fichier d'export", 
+        value=f"Planning_Livraisons_{date_tunis.strftime('%Y%m%d_%H%M')}",
+        help="Le fichier sera sauvegardé avec l'extension .xlsx"
+    )
     
     with col_export2:
         st.markdown("<br>", unsafe_allow_html=True)
