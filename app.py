@@ -3054,17 +3054,40 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                     if "Volume total chargé" in df_apercu.columns:
                         df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
-                    # Colonnes pour centrer - TRÈS SIMILAIRE À VOTRE EXEMPLE
-                    col1, col2, col3 = st.columns([1, 3, 1])
+                    # =====================================================
+                    # COLONNES POUR CENTRER LE TABLEAU DANS LA PAGE
+                    # =====================================================
+                    # Ces 3 colonnes servent UNIQUEMENT à centrer le tableau
+                    # col_left: colonne vide à gauche pour l'espacement
+                    # col_center: colonne du milieu qui CONTIENT votre tableau (avec ses 8 colonnes)
+                    # col_right: colonne vide à droite pour l'espacement
+                    # =====================================================
+                    
+                    # Option A: Proportion 1-3-1 (recommandé pour les grands tableaux)
+                    col_left, col_center, col_right = st.columns([1, 3, 1])
+                    
+                    with col_center:
+                        # Ici, votre tableau conserve SES 8 COLONNES DE DONNÉES
+                        # Le paramètre use_container_width=True s'adapte à la largeur de col_center
+                        st.dataframe(df_apercu, use_container_width=True)
+                    
+                    # OU Option B: Avec st.table() qui est souvent mieux centré
+                    st.markdown("<br>", unsafe_allow_html=True)  # Un peu d'espace
+                    
+                    col1, col2, col3 = st.columns([0.5, 5, 0.5])  # Colonnes plus larges au centre
                     
                     with col2:
-                        # Utiliser st.table() qui est souvent mieux pour l'affichage simple
+                        # st.table() affiche un tableau simple centré
                         st.table(df_apercu)
                     
-                    # Proposer le téléchargement (aussi centré)
-                    download_col1, download_col2, download_col3 = st.columns([1, 2, 1])
+                    # =====================================================
+                    # TÉLÉCHARGEMENT (aussi centré)
+                    # =====================================================
+                    st.markdown("<br><br>", unsafe_allow_html=True)  # Espacement
                     
-                    with download_col2:
+                    download_left, download_center, download_right = st.columns([1, 2, 1])
+                    
+                    with download_center:
                         with open(f"{nom_fichier}.xlsx", "rb") as file:
                             btn = st.download_button(
                                 label="💾 Télécharger le planning complet",
