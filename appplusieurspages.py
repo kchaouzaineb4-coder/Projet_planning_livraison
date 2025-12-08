@@ -267,7 +267,7 @@ def page_import():
                 st.rerun()
 
 # =====================================================
-# PAGE 2: ANALYSE DÉTAILLÉE
+# PAGE 2: ANALYSE DÉTAILLÉE (VERSION COMPLÈTE)
 # =====================================================
 def page_analyse():
     st.markdown("<h1 class='main-header'>2. 🔍 ANALYSE DÉTAILLÉE</h1>", unsafe_allow_html=True)
@@ -279,66 +279,474 @@ def page_analyse():
             st.rerun()
         return
     
+    # CSS PERSONNALISÉ POUR LES ONGLETS
+    st.markdown("""
+    <style>
+        /* Style pour les onglets - COULEUR BLEUE */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 8px;
+        }
+        
+        .stTabs [data-baseweb="tab"] {
+            height: 50px;
+            white-space: pre-wrap;
+            background-color: #F0F2F6;
+            border-radius: 8px 8px 0px 0px;
+            gap: 8px;
+            padding: 10px 16px;
+            font-weight: 600;
+        }
+        
+        .stTabs [data-baseweb="tab"]:hover {
+            background-color: #E6F3FF;
+            color: #0369A1;
+        }
+        
+        /* ONGLET ACTIF - BLEU ROYAL */
+        .stTabs [aria-selected="true"] {
+            background-color: #0369A1 !important;
+            color: white !important;
+        }
+        
+        /* TEXTE DES ONGLETS */
+        .stTabs [data-baseweb="tab"] p {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        /* COULEUR DU TEXTE POUR ONGLET ACTIF */
+        .stTabs [aria-selected="true"] p {
+            color: white !important;
+        }
+        
+        /* Style général du tableau */
+        .custom-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        /* En-têtes du tableau - BLEU ROYAL SANS DÉGRADÉ */
+        .custom-table th {
+            background-color: #0369A1;
+            color: white;
+            padding: 12px 8px;
+            text-align: center;
+            border: 2px solid #4682B4;
+            font-weight: normal;
+            font-size: 13px;
+            vertical-align: middle;
+        }
+        
+        /* Cellules du tableau - TOUTES EN BLANC */
+        .custom-table td {
+            padding: 10px 8px;
+            text-align: center;
+            border: 1px solid #B0C4DE;
+            background-color: white;
+            color: #000000;
+            vertical-align: middle;
+            font-weight: normal;
+        }
+        
+        /* Bordures visibles pour toutes les cellules */
+        .custom-table th, 
+        .custom-table td {
+            border: 1px solid #B0C4DE !important;
+        }
+        
+        /* Bordures épaisses pour l'extérieur du tableau */
+        .custom-table {
+            border: 2px solid #4682B4 !important;
+        }
+        
+        /* Conteneur du tableau avec défilement horizontal */
+        .table-container {
+            overflow-x: auto;
+            margin: 1rem 0;
+            border-radius: 8px;
+            border: 2px solid #4682B4;
+        }
+        
+        /* Supprimer l'alternance des couleurs - TOUTES LES LIGNES BLANCHES */
+        .custom-table tr:nth-child(even) td {
+            background-color: white !important;
+        }
+        
+        /* Survol des lignes - léger effet */
+        .custom-table tr:hover td {
+            background-color: #F0F8FF !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
     # Onglets pour différents types d'analyse
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📊 Par Ville", 
-        "🏢 Par Client", 
-        "🌍 Par Zone", 
-        "📈 Graphiques"
+    tab_grouped, tab_city, tab_zone_group, tab_zone_summary, tab_charts = st.tabs([
+        "Livraisons Client/Ville", 
+        "Besoin Estafette par Ville", 
+        "Livraisons Client/Zone", 
+        "Besoin Estafette par Zone",
+        "Graphiques"
     ])
     
-    with tab1:
-        st.subheader("Analyse par Ville")
-        if st.session_state.df_city is not None:
-            show_df(st.session_state.df_city, use_container_width=True)
+    # --- Onglet Livraisons Client/Ville ---
+    with tab_grouped:
+        st.subheader("Livraisons par Client & Ville")
+        
+        # Créer une copie du DataFrame et FILTRER TRIPOLI
+        df_liv = st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').copy()
+        df_liv = df_liv[df_liv["Ville"] != "TRIPOLI"]  # ← FILTRE TRIPOLI
+        
+        # Vérifier si le DataFrame n'est pas vide après filtrage
+        if df_liv.empty:
+            st.info("ℹ️ Aucune livraison à afficher (TRIPOLI exclue)")
+        else:
+            # Préparer les données pour l'affichage HTML
+            if "Article" in df_liv.columns:
+                # Transformer les articles avec retours à la ligne HTML - SANS "•"
+                df_liv["Article"] = df_liv["Article"].astype(str).apply(
+                    lambda x: "<br>".join(a.strip() for a in x.split(",") if a.strip())
+                )
             
-    with tab2:
-        st.subheader("Analyse par Client")
-        if st.session_state.df_grouped is not None:
-            show_df(st.session_state.df_grouped, use_container_width=True)
+            # Formater les nombres - 3 chiffres après la virgule
+            if "Poids total" in df_liv.columns:
+                df_liv["Poids total"] = df_liv["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
+            if "Volume total" in df_liv.columns:
+                df_liv["Volume total"] = df_liv["Volume total"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "")
             
-    with tab3:
-        st.subheader("Analyse par Zone")
-        if st.session_state.df_zone is not None:
-            show_df(st.session_state.df_zone, use_container_width=True)
+            # Afficher le tableau avec le style CSS
+            html_table = df_liv.to_html(
+                escape=False, 
+                index=False, 
+                classes="custom-table",
+                border=0
+            )
+            
+            st.markdown(f"""
+            <div class="table-container">
+                {html_table}
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Métriques résumées
+        st.markdown("---")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            total_livraisons = len(df_liv) if not df_liv.empty else 0
+            st.metric("📦 Total Livraisons", total_livraisons)
+        
+        with col2:
+            total_clients = df_liv["Client"].nunique() if not df_liv.empty else 0
+            st.metric("👥 Clients Uniques", total_clients)
+        
+        with col3:
+            # Calculer le poids total à partir des données filtrées
+            df_liv_original = st.session_state.df_grouped[st.session_state.df_grouped["Ville"] != "TRIPOLI"]
+            total_poids = df_liv_original["Poids total"].sum() if not df_liv_original.empty else 0
+            st.metric("⚖️ Poids Total", f"{total_poids:.3f} kg")
+        
+        with col4:
+            # Calculer le volume total à partir des données filtrées
+            total_volume = df_liv_original["Volume total"].sum() if not df_liv_original.empty else 0
+            st.metric("📏 Volume Total", f"{total_volume:.3f} m³")
+        
+        # Bouton de téléchargement
+        from io import BytesIO
+        excel_buffer_grouped = BytesIO()
+        with pd.ExcelWriter(excel_buffer_grouped, engine='openpyxl') as writer:
+            st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').to_excel(writer, index=False, sheet_name="Livraisons Client Ville")
+        excel_buffer_grouped.seek(0)
+        
+        st.download_button(
+            label="💾 Télécharger Livraisons Client/Ville",
+            data=excel_buffer_grouped,
+            file_name="Livraisons_Client_Ville.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        
+        # Stockage pour la section transfert
+        if "df_livraisons" not in st.session_state:
+            st.session_state.df_livraisons = df_liv.copy()
     
-    with tab4:
-        st.subheader("Graphiques de distribution")
-        if st.session_state.df_city is not None:
-            col_chart1, col_chart2 = st.columns(2)
+    # --- Onglet Besoin Estafette par Ville ---
+    with tab_city:
+        st.subheader("Besoin Estafette par Ville")
+        
+        # Créer une copie du DataFrame et FILTRER TRIPOLI
+        df_city_display = st.session_state.df_city.copy()
+        df_city_display = df_city_display[df_city_display["Ville"] != "TRIPOLI"]
+        
+        # Formater les nombres - 3 chiffres après la virgule
+        if "Poids total" in df_city_display.columns:
+            df_city_display["Poids total"] = df_city_display["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
+        if "Volume total" in df_city_display.columns:
+            df_city_display["Volume total"] = df_city_display["Volume total"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "")
+        if "Besoin estafette réel" in df_city_display.columns:
+            df_city_display["Besoin estafette réel"] = df_city_display["Besoin estafette réel"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+        
+        # Vérifier si le DataFrame n'est pas vide
+        if df_city_display.empty:
+            st.info("ℹ️ Aucune ville à afficher (TRIPOLI exclue)")
+        else:
+            # Afficher le tableau avec le style CSS
+            html_table_city = df_city_display.to_html(
+                escape=False, 
+                index=False, 
+                classes="custom-table",
+                border=0
+            )
             
-            with col_chart1:
-                fig1 = px.bar(st.session_state.df_city, x="Ville", y="Poids total",
-                             title="Poids total par ville")
+            st.markdown(f"""
+            <div class="table-container">
+                {html_table_city}
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Métriques résumées
+        st.markdown("---")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            total_villes = len(df_city_display)
+            st.metric("🏙️ Total Villes", total_villes)
+        
+        with col2:
+            # Calculer le total des BLs
+            df_city_original_filtered = st.session_state.df_city[st.session_state.df_city["Ville"] != "TRIPOLI"]
+            total_bls = df_city_original_filtered["Nombre de BLs"].sum() if "Nombre de BLs" in df_city_original_filtered.columns else 0
+            st.metric("📦 Total BLs", int(total_bls))
+        
+        with col3:
+            # Calculer le total des estafettes nécessaires
+            total_estafettes = df_city_original_filtered["Besoin estafette réel"].sum() if "Besoin estafette réel" in df_city_original_filtered.columns else 0
+            st.metric("🚐 Besoin Estafettes", f"{total_estafettes:.1f}")
+
+        # Bouton de téléchargement
+        excel_buffer_city = BytesIO()
+        with pd.ExcelWriter(excel_buffer_city, engine='openpyxl') as writer:
+            st.session_state.df_city.to_excel(writer, index=False, sheet_name="Besoin Estafette Ville")
+        excel_buffer_city.seek(0)
+        
+        st.download_button(
+            label="💾 Télécharger Besoin par Ville",
+            data=excel_buffer_city,
+            file_name="Besoin_Estafette_Ville.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    
+    # --- Onglet Livraisons Client & Ville + Zone ---
+    with tab_zone_group:
+        st.subheader("Livraisons par Client & Ville + Zone")
+        
+        # Créer une copie du DataFrame
+        df_liv_zone = st.session_state.df_grouped_zone.copy()
+        
+        # Préparer les données pour l'affichage HTML
+        if "Article" in df_liv_zone.columns:
+            # Transformer les articles avec retours à la ligne HTML - SANS "•"
+            df_liv_zone["Article"] = df_liv_zone["Article"].astype(str).apply(
+                lambda x: "<br>".join(a.strip() for a in x.split(",") if a.strip())
+            )
+        
+        # Formater les nombres - 3 chiffres après la virgule
+        if "Poids total" in df_liv_zone.columns:
+            df_liv_zone["Poids total"] = df_liv_zone["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
+        if "Volume total" in df_liv_zone.columns:
+            df_liv_zone["Volume total"] = df_liv_zone["Volume total"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "")
+        
+        # Afficher le tableau avec le style CSS
+        html_table_zone_group = df_liv_zone.to_html(
+            escape=False, 
+            index=False, 
+            classes="custom-table",
+            border=0
+        )
+        
+        st.markdown(f"""
+        <div class="table-container">
+            {html_table_zone_group}
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Métriques résumées
+        st.markdown("---")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            total_livraisons_zone = len(df_liv_zone)
+            st.metric("📦 Total Livraisons", total_livraisons_zone)
+        
+        with col2:
+            zones_count = df_liv_zone["Zone"].nunique()
+            st.metric("🌍 Zones", zones_count)
+        
+        with col3:
+            villes_count = df_liv_zone["Ville"].nunique()
+            st.metric("🏙️ Villes", villes_count)
+        
+        # Bouton de téléchargement
+        excel_buffer_zone_group = BytesIO()
+        with pd.ExcelWriter(excel_buffer_zone_group, engine='openpyxl') as writer:
+            st.session_state.df_grouped_zone.to_excel(writer, index=False, sheet_name="Livraisons Client Ville Zone")
+        excel_buffer_zone_group.seek(0)
+        
+        st.download_button(
+            label="💾 Télécharger Livraisons Client/Ville/Zone",
+            data=excel_buffer_zone_group,
+            file_name="Livraisons_Client_Ville_Zone.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    
+    # --- Onglet Besoin Estafette par Zone ---
+    with tab_zone_summary:
+        st.subheader("Besoin Estafette par Zone")
+        
+        # Créer une copie du DataFrame et renommer la colonne
+        df_zone_display = st.session_state.df_zone.copy()
+        
+        # RENOMMER LA COLONNE "Nombre livraisons" en "Nombre de BLs"
+        df_zone_display = df_zone_display.rename(columns={"Nombre livraisons": "Nombre de BLs"})
+        
+        # Formater les nombres
+        if "Poids total" in df_zone_display.columns:
+            df_zone_display["Poids total"] = df_zone_display["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
+        if "Volume total" in df_zone_display.columns:
+            df_zone_display["Volume total"] = df_zone_display["Volume total"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "")
+        if "Besoin estafette réel" in df_zone_display.columns:
+            df_zone_display["Besoin estafette réel"] = df_zone_display["Besoin estafette réel"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
+        if "Nombre de BLs" in df_zone_display.columns:
+            df_zone_display["Nombre de BLs"] = df_zone_display["Nombre de BLs"].map(lambda x: f"{int(x)}" if pd.notna(x) else "")
+        
+        # Afficher le tableau avec le style CSS
+        html_table_zone = df_zone_display.to_html(
+            escape=False, 
+            index=False, 
+            classes="custom-table",
+            border=0
+        )
+        
+        st.markdown(f"""
+        <div class="table-container">
+            {html_table_zone}
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Métriques résumées
+        st.markdown("---")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            total_zones = len(df_zone_display)
+            st.metric("🌍 Total Zones", total_zones)
+        
+        with col2:
+            # Calculer le total des BLs
+            if "Nombre livraisons" in st.session_state.df_zone.columns:
+                total_bls_zone = st.session_state.df_zone["Nombre livraisons"].sum()
+            else:
+                total_bls_zone = 0
+            st.metric("📦 Total BLs", int(total_bls_zone))
+        
+        with col3:
+            # Calculer le total des estafettes nécessaires
+            total_estafettes_zone = st.session_state.df_zone["Besoin estafette réel"].sum() if "Besoin estafette réel" in st.session_state.df_zone.columns else 0
+            st.metric("🚐 Besoin Estafettes", f"{total_estafettes_zone:.1f}")
+        
+        # Bouton de téléchargement
+        excel_buffer_zone = BytesIO()
+        with pd.ExcelWriter(excel_buffer_zone, engine='openpyxl') as writer:
+            st.session_state.df_zone.to_excel(writer, index=False, sheet_name="Besoin Estafette Zone")
+        excel_buffer_zone.seek(0)
+        
+        st.download_button(
+            label="💾 Télécharger Besoin par Zone",
+            data=excel_buffer_zone,
+            file_name="Besoin_Estafette_Zone.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    
+    # --- Onglet Graphiques ---
+    with tab_charts:
+        st.subheader("Statistiques par Ville")
+        
+        # FILTRER LES DONNÉES POUR EXCLURE TRIPOLI
+        df_filtered = st.session_state.df_city[st.session_state.df_city["Ville"] != "TRIPOLI"]
+        
+        if not df_filtered.empty:
+            # Configuration commune pour tous les graphiques
+            chart_config = {
+                'color_discrete_sequence': ['#0369A1'],  # BLEU ROYAL
+                'template': 'plotly_white',
+            }
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                fig1 = px.bar(df_filtered, x="Ville", y="Poids total", **chart_config)
+                fig1.update_layout(title_text="Poids total livré par ville", title_x=0.5)
                 st.plotly_chart(fig1, use_container_width=True)
                 
-            with col_chart2:
-                fig2 = px.bar(st.session_state.df_city, x="Ville", y="Volume total",
-                             title="Volume total par ville")
+            with col2:
+                fig2 = px.bar(df_filtered, x="Ville", y="Volume total", **chart_config)
+                fig2.update_layout(title_text="Volume total livré par ville (m³)", title_x=0.5)
                 st.plotly_chart(fig2, use_container_width=True)
+
+            col3, col4 = st.columns(2)
+            with col3:
+                # DIAGRAMME CORRIGÉ : Nombre de BL par ville
+                df_chart = df_filtered.rename(columns={"Nombre livraisons": "Nombre de BLs"})
+                fig3 = px.bar(df_chart, x="Ville", y="Nombre de BLs", **chart_config)
+                fig3.update_layout(title_text="Nombre de BL par ville", title_x=0.5)
+                st.plotly_chart(fig3, use_container_width=True)
+                
+            with col4:
+                fig4 = px.bar(df_filtered, x="Ville", y="Besoin estafette réel", **chart_config)
+                fig4.update_layout(title_text="Besoin en Estafettes par ville", title_x=0.5)
+                st.plotly_chart(fig4, use_container_width=True)
+        else:
+            st.info("ℹ️ Aucune donnée disponible pour les graphiques (TRIPOLI exclue)")
     
-    # Navigation
+    # Navigation entre pages
     st.markdown("---")
     col_nav1, col_nav2, col_nav3 = st.columns(3)
     
     with col_nav1:
-        if st.button("← Retour à l'importation"):
+        if st.button("← Retour à l'importation", use_container_width=True):
             st.session_state.page = "import"
             st.rerun()
     
     with col_nav2:
-        if st.button("📊 Exporter l'analyse"):
-            if st.session_state.df_city is not None:
-                excel_data = to_excel(st.session_state.df_city, "Analyse")
-                st.download_button(
-                    label="💾 Télécharger Excel",
-                    data=excel_data,
-                    file_name="analyse_livraisons.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+        if st.button("📊 Exporter toute l'analyse", use_container_width=True):
+            # Créer un fichier Excel avec tous les onglets
+            from io import BytesIO
+            
+            excel_buffer = BytesIO()
+            with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                if st.session_state.df_grouped is not None:
+                    st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').to_excel(writer, sheet_name="Livraisons Client Ville", index=False)
+                if st.session_state.df_city is not None:
+                    st.session_state.df_city.to_excel(writer, sheet_name="Besoin par Ville", index=False)
+                if st.session_state.df_grouped_zone is not None:
+                    st.session_state.df_grouped_zone.to_excel(writer, sheet_name="Livraisons Client Zone", index=False)
+                if st.session_state.df_zone is not None:
+                    st.session_state.df_zone.to_excel(writer, sheet_name="Besoin par Zone", index=False)
+            
+            excel_buffer.seek(0)
+            
+            st.download_button(
+                label="💾 Télécharger l'analyse complète",
+                data=excel_buffer,
+                file_name="Analyse_Complete_Livraisons.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
     
     with col_nav3:
-        if st.button("🚚 Optimisation des tournées →"):
+        if st.button("🚚 Passer à l'optimisation →", type="primary", use_container_width=True):
             st.session_state.page = "optimisation"
             st.rerun()
 
