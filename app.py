@@ -3053,8 +3053,7 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                     if "Volume total chargé" in df_apercu.columns:
                         df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
-                    # st.table() est souvent mieux centré que st.dataframe()
-                    st.table(df_apercu)
+                    show_df(df_apercu, use_container_width=True)
                     
                     # Proposer le téléchargement
                     with open(f"{nom_fichier}.xlsx", "rb") as file:
@@ -3068,7 +3067,7 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                     st.error(message)
                     
             except Exception as e:
-                st.error(f"❌ Erreur lors de l'export : {str(e)}")
+                st.error(f"❌ Erreur lors de l'export : {str(e)}")      
 
     # =====================================================
     # APERÇU DU PLANNING FINAL (TABLEAU SIMPLE)
