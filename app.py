@@ -3055,30 +3055,122 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                         df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
                     # =====================================================
-                    # COLONNES POUR CENTRER LE TABLEAU DANS LA PAGE
+                    # STYLE CSS IDENTIQUE À VOTRE TABLEAU D'ANALYSE
                     # =====================================================
-                    # Ces 3 colonnes servent UNIQUEMENT à centrer le tableau
-                    # col_left: colonne vide à gauche pour l'espacement
-                    # col_center: colonne du milieu qui CONTIENT votre tableau (avec ses 8 colonnes)
-                    # col_right: colonne vide à droite pour l'espacement
+                    st.markdown("""
+                    <style>
+                    /* Style général du tableau */
+                    .custom-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        font-family: Arial, sans-serif;
+                        font-size: 14px;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        border-radius: 8px;
+                        overflow: hidden;
+                    }
+                    
+                    /* En-têtes du tableau - BLEU ROYAL SANS DÉGRADÉ */
+                    .custom-table th {
+                        background-color: #0369A1;
+                        color: white;
+                        padding: 12px 8px;
+                        text-align: center;
+                        border: 2px solid #4682B4;
+                        font-weight: normal;
+                        font-size: 13px;
+                        vertical-align: middle;
+                    }
+                    
+                    /* Cellules du tableau - TOUTES EN BLANC */
+                    .custom-table td {
+                        padding: 10px 8px;
+                        text-align: center;
+                        border: 1px solid #B0C4DE;
+                        background-color: white;
+                        color: #000000;
+                        vertical-align: middle;
+                        font-weight: normal;
+                    }
+                    
+                    /* Bordures visibles pour toutes les cellules */
+                    .custom-table th, 
+                    .custom-table td {
+                        border: 1px solid #B0C4DE !important;
+                    }
+                    
+                    /* Bordures épaisses pour l'extérieur du tableau */
+                    .custom-table {
+                        border: 2px solid #4682B4 !important;
+                    }
+                    
+                    /* Conteneur du tableau avec défilement horizontal et CENTRAGE */
+                    .table-container {
+                        overflow-x: auto;
+                        margin: 1rem auto;
+                        border-radius: 8px;
+                        border: 2px solid #4682B4;
+                        max-width: 95%;
+                        display: table;
+                    }
+                    
+                    /* Supprimer l'alternance des couleurs - TOUTES LES LIGNES BLANCHES */
+                    .custom-table tr:nth-child(even) td {
+                        background-color: white !important;
+                    }
+                    
+                    /* Survol des lignes - léger effet */
+                    .custom-table tr:hover td {
+                        background-color: #F0F8FF !important;
+                    }
+                    
+                    /* Centrage du conteneur */
+                    .centered-container {
+                        display: flex;
+                        justify-content: center;
+                        width: 100%;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
+                    
+                    # Préparer les données pour l'affichage HTML
+                    # Formater les colonnes avec retours à la ligne si nécessaire
+                    if "BL inclus" in df_apercu.columns:
+                        df_apercu["BL inclus"] = df_apercu["BL inclus"].astype(str).apply(
+                            lambda x: "<br>".join(bl.strip() for bl in str(x).split(",") if bl.strip())
+                        )
+                    
+                    if "Client(s) inclus" in df_apercu.columns:
+                        df_apercu["Client(s) inclus"] = df_apercu["Client(s) inclus"].astype(str).apply(
+                            lambda x: "<br>".join(client.strip() for client in str(x).split(",") if client.strip())
+                        )
+                    
+                    # Convertir le DataFrame en HTML avec le même style
+                    html_table = df_apercu.to_html(
+                        escape=False, 
+                        index=False, 
+                        classes="custom-table",
+                        border=0
+                    )
+                    
+                    # Afficher le tableau dans un conteneur centré
+                    st.markdown(f"""
+                    <div class="centered-container">
+                        <div class="table-container">
+                            {html_table}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
                     # =====================================================
-                    
-                    # Option A: Proportion 1-3-1 (recommandé pour les grands tableaux)
-                    col_left, col_center, col_right = st.columns([1, 3, 1])
-                    
-                    with col_center:
-                        # Ici, votre tableau conserve SES 8 COLONNES DE DONNÉES
-                        # Le paramètre use_container_width=True s'adapte à la largeur de col_center
-                        st.dataframe(df_apercu, use_container_width=True)
-                    
-                    # =====================================================
-                    # TÉLÉCHARGEMENT (aussi centré)
+                    # TÉLÉCHARGEMENT (centré aussi)
                     # =====================================================
                     st.markdown("<br><br>", unsafe_allow_html=True)  # Espacement
                     
-                    download_left, download_center, download_right = st.columns([1, 2, 1])
+                    # Utiliser des colonnes pour centrer le bouton de téléchargement
+                    col_left, col_center, col_right = st.columns([1, 2, 1])
                     
-                    with download_center:
+                    with col_center:
                         with open(f"{nom_fichier}.xlsx", "rb") as file:
                             btn = st.download_button(
                                 label="💾 Télécharger le planning complet",
