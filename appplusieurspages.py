@@ -520,7 +520,7 @@ def main():
     
     # Sidebar avec navigation
     with st.sidebar:
-        st.image("https://th.bing.com/th/id/OIP.NX4XkAk56j_1bs6CiYhdxQHaHa?pid=ImgDet&rs=1", width=100)
+        st.image("https://th.bing.com/th/id/OIP.NX4XkAk56j_1bs6CiYhdxQHaHa?pid=ImgDet&rs=1", width=120)
         st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚚 Planning Livraisons</h2>", 
                    unsafe_allow_html=True)
         
