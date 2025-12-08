@@ -1207,9 +1207,11 @@ def page_optimisation():
                 
                 if not source_data.empty and "BL inclus" in source_data.columns:
                     bls = source_data.iloc[0]["BL inclus"].split(";")
-                    st.write(f"**BLs disponibles dans {source_veh}:**")
-                    for bl in bls:
-                        st.write(f"- {bl}")
+                    
+                    # SUPPRIMÉ: L'affichage "BLs disponibles dans le véhicule source"
+                    # st.write(f"**BLs disponibles dans {source_veh}:**")
+                    # for bl in bls:
+                    #     st.write(f"- {bl}")
                     
                     # Sélection des BLs à transférer
                     selected_bls = st.multiselect("Sélectionnez les BLs à transférer", bls)
@@ -1222,7 +1224,7 @@ def page_optimisation():
                         st.success(f"Transfert de {len(selected_bls)} BL(s) de {source_veh} vers {dest_veh} simulé avec succès")
         else:
             st.info("ℹ️ Générez d'abord les voyages optimisés dans l'onglet 1")
-    
+        
     # --- Onglet 3: Ajout d'objets ---
     with tab3:
         st.subheader("Ajout d'objets manuels")
