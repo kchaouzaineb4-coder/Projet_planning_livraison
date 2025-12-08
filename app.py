@@ -3054,30 +3054,13 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                     if "Volume total chargé" in df_apercu.columns:
                         df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
-                    # Solution ultime : Créer un conteneur HTML avec centrage forcé
+                    # Solution 1: Utiliser st.table() avec un conteneur HTML centré
                     st.markdown("""
-                    <style>
-                    @media (min-width: 768px) {
-                        .table-container {
-                            display: flex !important;
-                            justify-content: center !important;
-                            align-items: center !important;
-                            width: 100% !important;
-                            margin: 0 auto !important;
-                            padding: 0 !important;
-                        }
-                        .table-container > div {
-                            transform: translateX(-50%);
-                            left: 50% !important;
-                            position: relative !important;
-                        }
-                    }
-                    </style>
-                    <div class="table-container">
+                    <div style="display: flex; justify-content: center; width: 100%;">
                     """, unsafe_allow_html=True)
                     
-                    # Utiliser st.dataframe avec width spécifique
-                    st.dataframe(df_apercu, width=800)
+                    # Utiliser st.table() qui est généralement mieux centré
+                    st.table(df_apercu)
                     
                     st.markdown("</div>", unsafe_allow_html=True)
                     
