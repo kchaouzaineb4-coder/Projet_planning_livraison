@@ -3066,57 +3066,26 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                         )
                     
                     # =====================================================
-                    # SOLUTION FONDAMENTALE : UTILISER DES COLONNES STREAMLIT
+                    # SOLUTION ULTIME : COLONNES + st.table()
                     # =====================================================
-                    # Créer 3 colonnes avec la colonne centrale plus large
-                    left_space, center_content, right_space = st.columns([1, 6, 1])
+                    # Créer un espace vide à gauche et à droite
+                    col1, col2, col3 = st.columns([0.5, 5, 0.5])
                     
-                    with center_content:
-                        # Appliquer le style CSS uniquement dans cette colonne
-                        st.markdown("""
-                        <style>
-                        /* Style pour le tableau dans la colonne centrale */
-                        .centered-table-container table {
-                            margin: 0 auto !important;
-                            border-collapse: collapse;
-                            border: 2px solid #4682B4;
-                            font-family: Arial, sans-serif;
-                        }
-                        .centered-table-container th {
-                            background-color: #0369A1;
-                            color: white;
-                            padding: 12px;
-                            text-align: center;
-                            border: 1px solid #4682B4;
-                        }
-                        .centered-table-container td {
-                            padding: 10px;
-                            text-align: center;
-                            border: 1px solid #B0C4DE;
-                            background-color: white;
-                        }
-                        </style>
-                        <div class="centered-table-container">
-                        """, unsafe_allow_html=True)
-                        
-                        # Utiliser st.dataframe avec un width spécifique
-                        st.dataframe(df_apercu, width=900)
-                        
-                        st.markdown("</div>", unsafe_allow_html=True)
+                    with col2:
+                        # st.table() est naturellement mieux centré
+                        st.table(df_apercu)
                     
-                    # Téléchargement (aussi centré)
-                    st.markdown("<br><br>", unsafe_allow_html=True)
+                    # Téléchargement
+                    st.markdown("<br>", unsafe_allow_html=True)
                     
-                    download_left, download_center, download_right = st.columns([1, 2, 1])
-                    
-                    with download_center:
-                        with open(f"{nom_fichier}.xlsx", "rb") as file:
-                            btn = st.download_button(
-                                label="💾 Télécharger le planning complet",
-                                data=file,
-                                file_name=f"{nom_fichier}.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                            )
+                    with open(f"{nom_fichier}.xlsx", "rb") as file:
+                        st.download_button(
+                            label="💾 Télécharger le planning complet",
+                            data=file,
+                            file_name=f"{nom_fichier}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True  # Ceci va centrer le bouton
+                        )
                 else:
                     st.error(message)
                     
