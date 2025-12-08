@@ -2799,11 +2799,6 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
     
     df_final = st.session_state.df_voyages_valides.copy()
     
-    #st.info("""
-    #**Génération automatique des codes voyage uniques pour chaque mission.**
-    #Le format : **Véhicule/Date/NuméroSéquentiel**
-    #""")
-    
     # Configuration des paramètres de génération
     col1, col2, col3 = st.columns(3)
     
@@ -2848,10 +2843,93 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
             
             st.success(f"✅ {len(df_final)} codes voyage générés avec succès !")
             
-            # Afficher un aperçu des codes générés
+            # =====================================================
+            # APERÇU DES CODES VOYAGE AVEC STYLE CSS
+            # =====================================================
             st.markdown("### 📋 Aperçu des codes voyage générés")
+            
+            # CSS pour le tableau
+            st.markdown("""
+            <style>
+            /* Style général du tableau */
+            .codes-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-family: Arial, sans-serif;
+                font-size: 14px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                border-radius: 8px;
+                overflow: hidden;
+                margin: 1rem 0;
+            }
+            
+            /* En-têtes du tableau - BLEU ROYAL */
+            .codes-table th {
+                background-color: #0369A1;
+                color: white;
+                padding: 12px 8px;
+                text-align: center;
+                border: 2px solid #4682B4;
+                font-weight: normal;
+                font-size: 13px;
+                vertical-align: middle;
+            }
+            
+            /* Cellules du tableau */
+            .codes-table td {
+                padding: 10px 8px;
+                text-align: center;
+                border: 1px solid #B0C4DE;
+                background-color: white;
+                color: #000000;
+                vertical-align: middle;
+                font-weight: normal;
+            }
+            
+            /* Conteneur du tableau */
+            .codes-container {
+                overflow-x: auto;
+                margin: 1rem 0;
+                border-radius: 8px;
+                border: 2px solid #4682B4;
+            }
+            
+            /* Survol des lignes */
+            .codes-table tr:hover td {
+                background-color: #F0F8FF !important;
+            }
+            
+            /* Alternance des couleurs */
+            .codes-table tr:nth-child(even) td {
+                background-color: #f9f9f9;
+            }
+            
+            /* Style spécifique pour la colonne Code voyage */
+            .codes-table td:nth-child(3) {
+                font-family: 'Courier New', monospace;
+                font-weight: bold;
+                color: #0369A1;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            # Afficher un aperçu des codes générés
             df_apercu = df_final[['Véhicule N°', 'Zone', 'Code voyage']].copy()
-            show_df(df_apercu, use_container_width=True)
+            
+            # Convertir en HTML avec style
+            html_table = df_apercu.to_html(
+                index=False,
+                classes="codes-table",
+                border=0,
+                escape=False
+            )
+            
+            # Afficher le tableau stylisé
+            st.markdown(f"""
+            <div class="codes-container">
+                {html_table}
+            </div>
+            """, unsafe_allow_html=True)
             
             print("✅ Colonne 'Code voyage' créée avec succès.")
             
@@ -2861,17 +2939,92 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
     # Afficher les codes existants si déjà générés
     elif 'Code voyage' in df_final.columns:
         st.success("✅ Codes voyage déjà générés")
+        
+        # =====================================================
+        # AFFICHAGE DES CODES EXISTANTS AVEC STYLE
+        # =====================================================
+        st.markdown("### 📋 Codes voyage générés")
+        
+        # Appliquer le même CSS
+        st.markdown("""
+        <style>
+        .codes-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .codes-table th {
+            background-color: #0369A1;
+            color: white;
+            padding: 12px 8px;
+            text-align: center;
+            border: 2px solid #4682B4;
+            font-weight: normal;
+            font-size: 13px;
+        }
+        
+        .codes-table td {
+            padding: 10px 8px;
+            text-align: center;
+            border: 1px solid #B0C4DE;
+            background-color: white;
+        }
+        
+        .codes-container {
+            overflow-x: auto;
+            margin: 1rem 0;
+            border-radius: 8px;
+            border: 2px solid #4682B4;
+        }
+        
+        .codes-table tr:hover td {
+            background-color: #F0F8FF !important;
+        }
+        
+        .codes-table tr:nth-child(even) td {
+            background-color: #f9f9f9;
+        }
+        
+        .codes-table td:nth-child(3) {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #0369A1;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
         df_apercu = df_final[['Véhicule N°', 'Zone', 'Code voyage']].copy()
-        show_df(df_apercu, use_container_width=True)
+        
+        # Convertir en HTML
+        html_table = df_apercu.to_html(
+            index=False,
+            classes="codes-table",
+            border=0,
+            escape=False
+        )
+        
+        # Afficher le tableau
+        st.markdown(f"""
+        <div class="codes-container">
+            {html_table}
+        </div>
+        """, unsafe_allow_html=True)
         
         # Option pour regénérer les codes
-        if st.button("🔄 Regénérer les codes voyage"):
-            del df_final['Code voyage']
-            del df_final['Date Voyage Format']
-            del df_final['Numero Séquentiel']
-            del df_final['Numero Séquentiel Formatted']
-            st.session_state.df_voyages_valides = df_final
-            st.rerun()
+        col_regen1, col_regen2, col_regen3 = st.columns([1, 2, 1])
+        with col_regen2:
+            if st.button("🔄 Regénérer les codes voyage", use_container_width=True):
+                del df_final['Code voyage']
+                del df_final['Date Voyage Format']
+                del df_final['Numero Séquentiel']
+                del df_final['Numero Séquentiel Formatted']
+                st.session_state.df_voyages_valides = df_final
+                st.rerun()
 
 else:
     st.warning("⚠️ Vous devez d'abord valider les voyages.")
