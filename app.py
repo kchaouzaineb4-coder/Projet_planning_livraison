@@ -3048,20 +3048,20 @@ if generer_export:
             # =====================================================
             # APERÇU DU FORMAT D'EXPORT (MAINTENANT EN DEHORS !)
             # =====================================================
-            
+
             # Aperçu du format d'export
             st.subheader("👁️ Aperçu du format d'export")
             colonnes_apercu = ["Code voyage", "Zone", "Véhicule N°", "Chauffeur", "BL inclus", "Client(s) inclus", "Poids total chargé", "Volume total chargé"]
             colonnes_apercu = [col for col in colonnes_apercu if col in df_export_formate.columns]
-            
+
             df_apercu = df_export_formate[colonnes_apercu].head(5).copy()
-            
+
             # Formater l'affichage
             if "Poids total chargé" in df_apercu.columns:
                 df_apercu["Poids total chargé"] = df_apercu["Poids total chargé"].map(lambda x: f"{x:.1f} kg")
             if "Volume total chargé" in df_apercu.columns:
                 df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-            
+
             # =====================================================
             # STYLE CSS AVEC CENTRAGE FORCÉ
             # =====================================================
@@ -3078,7 +3078,7 @@ if generer_export:
                 margin: 0 auto !important;
                 display: table !important;
             }
-            
+
             /* En-têtes du tableau - BLEU ROYAL */
             .custom-table th {
                 background-color: #0369A1;
@@ -3090,7 +3090,7 @@ if generer_export:
                 font-size: 13px;
                 vertical-align: middle;
             }
-            
+
             /* Cellules du tableau */
             .custom-table td {
                 padding: 10px 8px;
@@ -3101,7 +3101,7 @@ if generer_export:
                 vertical-align: middle;
                 font-weight: normal;
             }
-            
+
             /* Conteneur du tableau avec CENTRAGE ABSOLU */
             .table-container {
                 overflow-x: auto;
@@ -3114,7 +3114,7 @@ if generer_export:
                 justify-content: center !important;
                 padding: 10px !important;
             }
-            
+
             /* Wrapper pour centrer tout */
             .table-wrapper {
                 display: flex;
@@ -3123,33 +3123,52 @@ if generer_export:
                 width: 100%;
                 padding: 20px 0;
             }
-            
+
             /* Survol des lignes */
             .custom-table tr:hover td {
                 background-color: #F0F8FF !important;
             }
+
+            /* Pour les cellules avec retours à ligne */
+            .custom-table td br {
+                display: block;
+                content: "";
+                margin-top: 2px;
+            }
             </style>
             """, unsafe_allow_html=True)
-            
-            # Préparer les données pour l'affichage HTML
+
+            # =====================================================
+            # PRÉPARATION DES DONNÉES AVEC <br> POUR HTML
+            # =====================================================
+            # IMPORTANT : Pour l'affichage HTML, utiliser <br> au lieu de \n
             if "BL inclus" in df_apercu.columns:
+                # Si la colonne contient déjà des \n, les remplacer par <br>
                 df_apercu["BL inclus"] = df_apercu["BL inclus"].astype(str).apply(
-                    lambda x: "<br>".join(bl.strip() for bl in str(x).split(",") if bl.strip())
+                    lambda x: "<br>".join(
+                        bl.strip() 
+                        for bl in str(x).replace('\n', ',').replace('\\n', ',').split(",") 
+                        if bl.strip() and bl.strip() != 'nan'
+                    )
                 )
-            
+
             if "Client(s) inclus" in df_apercu.columns:
                 df_apercu["Client(s) inclus"] = df_apercu["Client(s) inclus"].astype(str).apply(
-                    lambda x: "<br>".join(client.strip() for client in str(x).split(",") if client.strip())
+                    lambda x: "<br>".join(
+                        client.strip() 
+                        for client in str(x).replace('\n', ',').replace('\\n', ',').split(",") 
+                        if client.strip() and client.strip() != 'nan'
+                    )
                 )
-            
-            # Convertir le DataFrame en HTML
+
+            # Convertir le DataFrame en HTML avec escape=False pour que <br> fonctionne
             html_table = df_apercu.to_html(
-                escape=False, 
+                escape=False,  # TRÈS IMPORTANT : escape=False pour interpréter <br>
                 index=False, 
                 classes="custom-table",
                 border=0
             )
-            
+
             # Afficher le tableau dans un conteneur centré
             st.markdown(f"""
             <div class="table-wrapper">
