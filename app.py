@@ -2995,184 +2995,187 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                                 st.write(f"• {bl_clean}")
 
     # =====================================================
-    # EXPORT EXCEL AVEC RETOURS À LA LIGNE
-    # =====================================================
-    col_export1, col_export2 = st.columns(2)
+# EXPORT EXCEL AVEC RETOURS À LA LIGNE
+# =====================================================
+col_export1, col_export2 = st.columns(2)
 
-    with col_export1:
-        # Solution simple : UTC+1 (Tunis est en GMT+1)
-        date_tunis = pd.Timestamp.now() + pd.Timedelta(hours=1)
+with col_export1:
+    # Solution simple : UTC+1 (Tunis est en GMT+1)
+    date_tunis = pd.Timestamp.now() + pd.Timedelta(hours=1)
+    
+    nom_fichier = st.text_input(
+        "📝 Nom du fichier d'export", 
+        value=f"Planning_Livraisons_{date_tunis.strftime('%Y%m%d_%H%M')}",
+        help="Le fichier sera sauvegardé avec l'extension .xlsx"
+    )
+
+with col_export2:
+    st.markdown("<br>", unsafe_allow_html=True)
+    generer_export = st.button("🚀 Générer l'export complet", type="primary")
+
+# =====================================================
+# CODE D'EXPORT (EN DEHORS DES COLONNES !)
+# =====================================================
+if generer_export:
+    try:
+        from backend import exporter_planning_excel
         
-        nom_fichier = st.text_input(
-            "📝 Nom du fichier d'export", 
-            value=f"Planning_Livraisons_{date_tunis.strftime('%Y%m%d_%H%M')}",
-            help="Le fichier sera sauvegardé avec l'extension .xlsx"
+        # Préparer les données supplémentaires
+        donnees_supplementaires = {}
+        
+        # Ajouter les données de base si disponibles
+        if st.session_state.df_grouped is not None:
+            donnees_supplementaires['Livraisons_Client_Ville'] = st.session_state.df_grouped
+        if st.session_state.df_city is not None:
+            donnees_supplementaires['Besoin_Estafette_Ville'] = st.session_state.df_city
+        if st.session_state.df_zone is not None:
+            donnees_supplementaires['Besoin_Estafette_Zone'] = st.session_state.df_zone
+        
+        # Appliquer le formatage avec retours à ligne avant l'export
+        df_export_formate = formater_colonnes_retours_ligne(df_export_final)
+        
+        # Générer l'export
+        success, message = exporter_planning_excel(
+            df_export_formate,  # Utiliser le DataFrame formaté avec retours à ligne
+            f"{nom_fichier}.xlsx",
+            donnees_supplementaires,
+            st.session_state.df_livraisons_original
         )
-
-    with col_export2:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🚀 Générer l'export complet", type="primary"):
-            try:
-                from backend import exporter_planning_excel
-                
-                # Préparer les données supplémentaires
-                donnees_supplementaires = {}
-                
-                # Ajouter les données de base si disponibles
-                if st.session_state.df_grouped is not None:
-                    donnees_supplementaires['Livraisons_Client_Ville'] = st.session_state.df_grouped
-                if st.session_state.df_city is not None:
-                    donnees_supplementaires['Besoin_Estafette_Ville'] = st.session_state.df_city
-                if st.session_state.df_zone is not None:
-                    donnees_supplementaires['Besoin_Estafette_Zone'] = st.session_state.df_zone
-                
-                # Appliquer le formatage avec retours à ligne avant l'export
-                df_export_formate = formater_colonnes_retours_ligne(df_export_final)
-                
-                # Générer l'export
-                success, message = exporter_planning_excel(
-                    df_export_formate,  # Utiliser le DataFrame formaté avec retours à ligne
-                    f"{nom_fichier}.xlsx",
-                    donnees_supplementaires,
-                    st.session_state.df_livraisons_original
+        
+        if success:
+            st.success(message)
+            
+            # =====================================================
+            # APERÇU DU FORMAT D'EXPORT (MAINTENANT EN DEHORS !)
+            # =====================================================
+            
+            # Aperçu du format d'export
+            st.subheader("👁️ Aperçu du format d'export")
+            colonnes_apercu = ["Code voyage", "Zone", "Véhicule N°", "Chauffeur", "BL inclus", "Client(s) inclus", "Poids total chargé", "Volume total chargé"]
+            colonnes_apercu = [col for col in colonnes_apercu if col in df_export_formate.columns]
+            
+            df_apercu = df_export_formate[colonnes_apercu].head(5).copy()
+            
+            # Formater l'affichage
+            if "Poids total chargé" in df_apercu.columns:
+                df_apercu["Poids total chargé"] = df_apercu["Poids total chargé"].map(lambda x: f"{x:.1f} kg")
+            if "Volume total chargé" in df_apercu.columns:
+                df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+            
+            # =====================================================
+            # STYLE CSS AVEC CENTRAGE FORCÉ
+            # =====================================================
+            st.markdown("""
+            <style>
+            /* Style général du tableau */
+            .custom-table {
+                border-collapse: collapse;
+                font-family: Arial, sans-serif;
+                font-size: 14px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                border-radius: 8px;
+                overflow: hidden;
+                margin: 0 auto !important;
+                display: table !important;
+            }
+            
+            /* En-têtes du tableau - BLEU ROYAL */
+            .custom-table th {
+                background-color: #0369A1;
+                color: white;
+                padding: 12px 8px;
+                text-align: center;
+                border: 2px solid #4682B4;
+                font-weight: normal;
+                font-size: 13px;
+                vertical-align: middle;
+            }
+            
+            /* Cellules du tableau */
+            .custom-table td {
+                padding: 10px 8px;
+                text-align: center;
+                border: 1px solid #B0C4DE;
+                background-color: white;
+                color: #000000;
+                vertical-align: middle;
+                font-weight: normal;
+            }
+            
+            /* Conteneur du tableau avec CENTRAGE ABSOLU */
+            .table-container {
+                overflow-x: auto;
+                margin: 1rem auto !important;
+                border-radius: 8px;
+                border: 2px solid #4682B4;
+                width: fit-content !important;
+                max-width: 100% !important;
+                display: flex !important;
+                justify-content: center !important;
+                padding: 10px !important;
+            }
+            
+            /* Wrapper pour centrer tout */
+            .table-wrapper {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                width: 100%;
+                padding: 20px 0;
+            }
+            
+            /* Survol des lignes */
+            .custom-table tr:hover td {
+                background-color: #F0F8FF !important;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            # Préparer les données pour l'affichage HTML
+            if "BL inclus" in df_apercu.columns:
+                df_apercu["BL inclus"] = df_apercu["BL inclus"].astype(str).apply(
+                    lambda x: "<br>".join(bl.strip() for bl in str(x).split(",") if bl.strip())
                 )
-                
-                
-                if success:
-                    st.success(message)
-                    
-                    # =====================================================
-                    # APERÇU DU FORMAT D'EXPORT (EN DEHORS DES COLONNES !)
-                    # =====================================================
-                    
-                    # Aperçu du format d'export
-                    st.subheader("👁️ Aperçu du format d'export")
-                    colonnes_apercu = ["Code voyage", "Zone", "Véhicule N°", "Chauffeur", "BL inclus", "Client(s) inclus", "Poids total chargé", "Volume total chargé"]
-                    colonnes_apercu = [col for col in colonnes_apercu if col in df_export_formate.columns]
-                    
-                    df_apercu = df_export_formate[colonnes_apercu].head(5).copy()
-                    
-                    # Formater l'affichage
-                    if "Poids total chargé" in df_apercu.columns:
-                        df_apercu["Poids total chargé"] = df_apercu["Poids total chargé"].map(lambda x: f"{x:.1f} kg")
-                    if "Volume total chargé" in df_apercu.columns:
-                        df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-                    
-                    # =====================================================
-                    # STYLE CSS AVEC CENTRAGE FORCÉ
-                    # =====================================================
-                    st.markdown("""
-                    <style>
-                    /* Style général du tableau */
-                    .custom-table {
-                        border-collapse: collapse;
-                        font-family: Arial, sans-serif;
-                        font-size: 14px;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                        border-radius: 8px;
-                        overflow: hidden;
-                        margin: 0 auto !important; /* CENTRAGE FORCÉ */
-                        display: table !important;
-                    }
-                    
-                    /* En-têtes du tableau - BLEU ROYAL */
-                    .custom-table th {
-                        background-color: #0369A1;
-                        color: white;
-                        padding: 12px 8px;
-                        text-align: center;
-                        border: 2px solid #4682B4;
-                        font-weight: normal;
-                        font-size: 13px;
-                        vertical-align: middle;
-                    }
-                    
-                    /* Cellules du tableau */
-                    .custom-table td {
-                        padding: 10px 8px;
-                        text-align: center;
-                        border: 1px solid #B0C4DE;
-                        background-color: white;
-                        color: #000000;
-                        vertical-align: middle;
-                        font-weight: normal;
-                    }
-                    
-                    /* Conteneur du tableau avec CENTRAGE ABSOLU */
-                    .table-container {
-                        overflow-x: auto;
-                        margin: 1rem auto !important;
-                        border-radius: 8px;
-                        border: 2px solid #4682B4;
-                        width: fit-content !important;
-                        max-width: 100% !important;
-                        display: flex !important;
-                        justify-content: center !important;
-                        padding: 10px !important;
-                    }
-                    
-                    /* Wrapper pour centrer tout */
-                    .table-wrapper {
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        width: 100%;
-                        padding: 20px 0;
-                    }
-                    
-                    /* Survol des lignes */
-                    .custom-table tr:hover td {
-                        background-color: #F0F8FF !important;
-                    }
-                    </style>
-                    """, unsafe_allow_html=True)
-                    
-                    # Préparer les données pour l'affichage HTML
-                    if "BL inclus" in df_apercu.columns:
-                        df_apercu["BL inclus"] = df_apercu["BL inclus"].astype(str).apply(
-                            lambda x: "<br>".join(bl.strip() for bl in str(x).split(",") if bl.strip())
-                        )
-                    
-                    if "Client(s) inclus" in df_apercu.columns:
-                        df_apercu["Client(s) inclus"] = df_apercu["Client(s) inclus"].astype(str).apply(
-                            lambda x: "<br>".join(client.strip() for client in str(x).split(",") if client.strip())
-                        )
-                    
-                    # Convertir le DataFrame en HTML
-                    html_table = df_apercu.to_html(
-                        escape=False, 
-                        index=False, 
-                        classes="custom-table",
-                        border=0
-                    )
-                    
-                    # Afficher le tableau dans un conteneur centré
-                    st.markdown(f"""
-                    <div class="table-wrapper">
-                        <div class="table-container">
-                            {html_table}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # =====================================================
-                    # TÉLÉCHARGEMENT (aussi centré)
-                    # =====================================================
-                    st.markdown("<br><br>", unsafe_allow_html=True)
-                    
-                    with open(f"{nom_fichier}.xlsx", "rb") as file:
-                        btn = st.download_button(
-                            label="💾 Télécharger le planning complet",
-                            data=file,
-                            file_name=f"{nom_fichier}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        )
-                else:
-                    st.error(message)
-                    
-            except Exception as e:
-                st.error(f"❌ Erreur lors de l'export : {str(e)}")
-
+            
+            if "Client(s) inclus" in df_apercu.columns:
+                df_apercu["Client(s) inclus"] = df_apercu["Client(s) inclus"].astype(str).apply(
+                    lambda x: "<br>".join(client.strip() for client in str(x).split(",") if client.strip())
+                )
+            
+            # Convertir le DataFrame en HTML
+            html_table = df_apercu.to_html(
+                escape=False, 
+                index=False, 
+                classes="custom-table",
+                border=0
+            )
+            
+            # Afficher le tableau dans un conteneur centré
+            st.markdown(f"""
+            <div class="table-wrapper">
+                <div class="table-container">
+                    {html_table}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # =====================================================
+            # TÉLÉCHARGEMENT (aussi centré)
+            # =====================================================
+            st.markdown("<br><br>", unsafe_allow_html=True)
+            
+            with open(f"{nom_fichier}.xlsx", "rb") as file:
+                btn = st.download_button(
+                    label="💾 Télécharger le planning complet",
+                    data=file,
+                    file_name=f"{nom_fichier}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+        else:
+            st.error(message)
+            
+    except Exception as e:
+        st.error(f"❌ Erreur lors de l'export : {str(e)}")
     # =====================================================
     # APERÇU DU PLANNING FINAL (TABLEAU SIMPLE)
     # =====================================================
