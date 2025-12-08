@@ -3055,22 +3055,23 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                         df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
                     
                     # =====================================================
-                    # STYLE CSS IDENTIQUE À VOTRE TABLEAU D'ANALYSE
+                    # STYLE CSS AVEC CENTRAGE FORCÉ
                     # =====================================================
                     st.markdown("""
                     <style>
                     /* Style général du tableau */
                     .custom-table {
-                        width: 100%;
                         border-collapse: collapse;
                         font-family: Arial, sans-serif;
                         font-size: 14px;
                         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
                         border-radius: 8px;
                         overflow: hidden;
+                        margin: 0 auto !important; /* CENTRAGE FORCÉ */
+                        display: table !important;
                     }
                     
-                    /* En-têtes du tableau - BLEU ROYAL SANS DÉGRADÉ */
+                    /* En-têtes du tableau - BLEU ROYAL */
                     .custom-table th {
                         background-color: #0369A1;
                         color: white;
@@ -3082,7 +3083,7 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                         vertical-align: middle;
                     }
                     
-                    /* Cellules du tableau - TOUTES EN BLANC */
+                    /* Cellules du tableau */
                     .custom-table td {
                         padding: 10px 8px;
                         text-align: center;
@@ -3093,48 +3094,36 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                         font-weight: normal;
                     }
                     
-                    /* Bordures visibles pour toutes les cellules */
-                    .custom-table th, 
-                    .custom-table td {
-                        border: 1px solid #B0C4DE !important;
-                    }
-                    
-                    /* Bordures épaisses pour l'extérieur du tableau */
-                    .custom-table {
-                        border: 2px solid #4682B4 !important;
-                    }
-                    
-                    /* Conteneur du tableau avec défilement horizontal et CENTRAGE */
+                    /* Conteneur du tableau avec CENTRAGE ABSOLU */
                     .table-container {
                         overflow-x: auto;
-                        margin: 1rem auto;
+                        margin: 1rem auto !important;
                         border-radius: 8px;
                         border: 2px solid #4682B4;
-                        max-width: 95%;
-                        display: table;
+                        width: fit-content !important;
+                        max-width: 100% !important;
+                        display: flex !important;
+                        justify-content: center !important;
+                        padding: 10px !important;
                     }
                     
-                    /* Supprimer l'alternance des couleurs - TOUTES LES LIGNES BLANCHES */
-                    .custom-table tr:nth-child(even) td {
-                        background-color: white !important;
-                    }
-                    
-                    /* Survol des lignes - léger effet */
-                    .custom-table tr:hover td {
-                        background-color: #F0F8FF !important;
-                    }
-                    
-                    /* Centrage du conteneur */
-                    .centered-container {
+                    /* Wrapper pour centrer tout */
+                    .table-wrapper {
                         display: flex;
                         justify-content: center;
+                        align-items: center;
                         width: 100%;
+                        padding: 20px 0;
+                    }
+                    
+                    /* Survol des lignes */
+                    .custom-table tr:hover td {
+                        background-color: #F0F8FF !important;
                     }
                     </style>
                     """, unsafe_allow_html=True)
                     
                     # Préparer les données pour l'affichage HTML
-                    # Formater les colonnes avec retours à la ligne si nécessaire
                     if "BL inclus" in df_apercu.columns:
                         df_apercu["BL inclus"] = df_apercu["BL inclus"].astype(str).apply(
                             lambda x: "<br>".join(bl.strip() for bl in str(x).split(",") if bl.strip())
@@ -3145,7 +3134,7 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                             lambda x: "<br>".join(client.strip() for client in str(x).split(",") if client.strip())
                         )
                     
-                    # Convertir le DataFrame en HTML avec le même style
+                    # Convertir le DataFrame en HTML
                     html_table = df_apercu.to_html(
                         escape=False, 
                         index=False, 
@@ -3155,29 +3144,23 @@ if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_
                     
                     # Afficher le tableau dans un conteneur centré
                     st.markdown(f"""
-                    <div class="centered-container">
+                    <div class="table-wrapper">
                         <div class="table-container">
                             {html_table}
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # =====================================================
-                    # TÉLÉCHARGEMENT (centré aussi)
-                    # =====================================================
-                    st.markdown("<br><br>", unsafe_allow_html=True)  # Espacement
+                    # Téléchargement
+                    st.markdown("<br><br>", unsafe_allow_html=True)
                     
-                    # Utiliser des colonnes pour centrer le bouton de téléchargement
-                    col_left, col_center, col_right = st.columns([1, 2, 1])
-                    
-                    with col_center:
-                        with open(f"{nom_fichier}.xlsx", "rb") as file:
-                            btn = st.download_button(
-                                label="💾 Télécharger le planning complet",
-                                data=file,
-                                file_name=f"{nom_fichier}.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                            )
+                    with open(f"{nom_fichier}.xlsx", "rb") as file:
+                        btn = st.download_button(
+                            label="💾 Télécharger le planning complet",
+                            data=file,
+                            file_name=f"{nom_fichier}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
                 else:
                     st.error(message)
                     
