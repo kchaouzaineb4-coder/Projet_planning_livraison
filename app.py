@@ -2294,7 +2294,7 @@ else:
 # =====================================================
 # 8️⃣ ATTRIBUTION DES VÉHICULES ET CHAUFFEURS
 # =====================================================
-st.markdown("## 🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS")
+st.markdown("## 🚛 Attribution des véhicules et chauffeurs ")
 
 if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_valides.empty:
 
