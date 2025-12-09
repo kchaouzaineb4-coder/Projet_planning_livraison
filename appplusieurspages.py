@@ -3265,6 +3265,470 @@ def page_optimisation():
         else:
             st.warning("⚠️ Vous devez d'abord valider les voyages.")
 
+# =====================================================
+# PAGE 4: VALIDATION & EXPORT (VERSION OPTIMISÉE)
+# =====================================================
+def page_finalisation():
+    st.markdown("<h1 class='main-header'>4. ✅ VALIDATION & EXPORT</h1>", unsafe_allow_html=True)
+    
+    # =====================================================
+    # 📤 EXPORT FINAL ET PLANNING COMPLET - VERSION OPTIMISÉE
+    # =====================================================
+    st.markdown("## 📤 EXPORT FINAL ET PLANNING COMPLET")
+
+    if "df_voyages_valides" in st.session_state and not st.session_state.df_voyages_valides.empty:
+        
+        df_export_final = st.session_state.df_voyages_valides.copy()
+        
+        # =====================================================
+        # GARANTIR QUE TOUTES LES COLONNES REQUISES EXISTENT
+        # =====================================================
+        
+        # Vérifier et créer la colonne "Chauffeur" si nécessaire
+        if "Chauffeur" not in df_export_final.columns:
+            # Priorité 1 : Utiliser "Chauffeur attribué"
+            if "Chauffeur attribué" in df_export_final.columns:
+                df_export_final["Chauffeur"] = df_export_final["Chauffeur attribué"]
+                st.success("✅ Colonne 'Chauffeur' créée à partir de 'Chauffeur attribué'")
+            # Priorité 2 : Utiliser "Matricule chauffeur" avec format
+            elif "Matricule chauffeur" in df_export_final.columns:
+                df_export_final["Chauffeur"] = df_export_final["Matricule chauffeur"].apply(
+                    lambda x: f"Chauffeur {x}" if pd.notna(x) and x != "" else "À attribuer"
+                )
+            # Fallback
+            else:
+                df_export_final["Chauffeur"] = "À attribuer"
+                st.warning("⚠️ Colonne 'Chauffeur' créée vide")
+        
+        # Vérifier que "Code voyage" existe
+        if "Code voyage" not in df_export_final.columns:
+            st.error("❌ La colonne 'Code voyage' est manquante. Veuillez d'abord générer les codes voyage dans la section 10.")
+            st.stop()
+        
+        # =====================================================
+        # FONCTION POUR FORMATER LES COLONNES AVEC RETOURS À LA LIGNE
+        # =====================================================
+        def formater_colonnes_retours_ligne(df):
+            df_formate = df.copy()
+            colonnes_a_formater = ['BL inclus', 'Client(s) inclus', 'Représentant(s) inclus']
+            
+            for col in colonnes_a_formater:
+                if col in df_formate.columns:
+                    df_formate[col] = df_formate[col].apply(
+                        lambda x: '\n'.join([elem.strip() for elem in str(x).replace(';', ',').split(',') if elem.strip()]) 
+                        if pd.notna(x) else ""
+                    )
+            return df_formate
+        
+        # =====================================================
+        # AFFICHAGE DÉTAILLÉ AVEC RETOURS À LA LIGNE
+        # =====================================================
+        st.markdown("### 📊 Planning de Livraisons Détaillé")
+        
+        # Appliquer le formatage pour l'affichage Streamlit
+        df_affichage_formate = formater_colonnes_retours_ligne(df_export_final)
+        
+        # Afficher chaque voyage avec expanders détaillés
+        for idx, row in df_affichage_formate.iterrows():
+            with st.expander(f"🚚 Voyage {row['Véhicule N°']} | Zone : {row['Zone']} | Véhicule: {row.get('Véhicule attribué', 'N/A')} | Chauffeur: {row.get('Chauffeur', 'N/A')}"):
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.write("**Informations de base:**")
+                    st.write(f"**Code voyage:** {row['Code voyage']}")
+                    st.write(f"**Zone:** {row['Zone']}")
+                    st.write(f"**Véhicule N°:** {row['Véhicule N°']}")
+                    if "Poids total chargé" in row:
+                        st.write(f"**Poids total chargé:** {row['Poids total chargé']:.3f} kg")
+                    if "Volume total chargé" in row:
+                        st.write(f"**Volume total chargé:** {row['Volume total chargé']:.3f} m³")
+                    if "Taux d'occupation (%)" in row:
+                        st.write(f"**Taux d'occupation:** {row['Taux d\'occupation (%)']:.3f}%")
+                    if "Véhicule attribué" in row:
+                        st.write(f"**Véhicule attribué:** {row['Véhicule attribué']}")
+                    if "Chauffeur" in row:
+                        st.write(f"**Chauffeur:** {row['Chauffeur']}")
+                
+                with col2:
+                    # Afficher les clients avec retours à ligne
+                    if 'Client(s) inclus' in row and pd.notna(row['Client(s) inclus']):
+                        st.write("**📋 Clients inclus:**")
+                        clients = str(row['Client(s) inclus']).split('\n')
+                        for client in clients:
+                            client_clean = client.strip()
+                            if client_clean:
+                                st.write(f"• {client_clean}")
+                    
+                    # Afficher les représentants avec retours à ligne
+                    if 'Représentant(s) inclus' in row and pd.notna(row['Représentant(s) inclus']):
+                        st.write("**👤 Représentants inclus:**")
+                        representants = str(row['Représentant(s) inclus']).split('\n')
+                        for rep in representants:
+                            rep_clean = rep.strip()
+                            if rep_clean:
+                                st.write(f"• {rep_clean}")
+                
+                with col3:
+                    # Afficher les BL avec retours à ligne
+                    if 'BL inclus' in row and pd.notna(row['BL inclus']):
+                        st.write("**📄 BL associés:**")
+                        bls = str(row['BL inclus']).split('\n')
+                        # Afficher en colonnes si beaucoup de BL
+                        if len(bls) > 5:
+                            cols = st.columns(2)
+                            half = len(bls) // 2
+                            for i, bl in enumerate(bls):
+                                bl_clean = bl.strip()
+                                if bl_clean:
+                                    col_idx = 0 if i < half else 1
+                                    with cols[col_idx]:
+                                        st.write(f"• {bl_clean}")
+                        else:
+                            for bl in bls:
+                                bl_clean = bl.strip()
+                                if bl_clean:
+                                    st.write(f"• {bl_clean}")
+
+        # =====================================================
+        # EXPORT EXCEL AVEC RETOURS À LA LIGNE
+        # =====================================================
+        col_export1, col_export2 = st.columns(2)
+
+        with col_export1:
+            # Solution simple : UTC+1 (Tunis est en GMT+1)
+            date_tunis = pd.Timestamp.now() + pd.Timedelta(hours=1)
+            
+            nom_fichier = st.text_input(
+                "📝 Nom du fichier d'export", 
+                value=f"Planning_Livraisons_{date_tunis.strftime('%Y%m%d_%H%M')}",
+                help="Le fichier sera sauvegardé avec l'extension .xlsx"
+            )
+
+        with col_export2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            generer_export = st.button("🚀 Générer l'export complet", type="primary")
+
+        # =====================================================
+        # CODE D'EXPORT (EN DEHORS DES COLONNES !)
+        # =====================================================
+        if generer_export:
+            try:
+                # Importer la fonction d'export depuis le backend
+                from backend import exporter_planning_excel
+                
+                # Préparer les données supplémentaires
+                donnees_supplementaires = {}
+                
+                # Ajouter les données de base si disponibles
+                if st.session_state.df_grouped is not None:
+                    donnees_supplementaires['Livraisons_Client_Ville'] = st.session_state.df_grouped
+                if st.session_state.df_city is not None:
+                    donnees_supplementaires['Besoin_Estafette_Ville'] = st.session_state.df_city
+                if st.session_state.df_zone is not None:
+                    donnees_supplementaires['Besoin_Estafette_Zone'] = st.session_state.df_zone
+                
+                # Appliquer le formatage avec retours à ligne avant l'export
+                df_export_formate = formater_colonnes_retours_ligne(df_export_final)
+                
+                # Générer l'export
+                success, message = exporter_planning_excel(
+                    df_export_formate,  # Utiliser le DataFrame formaté avec retours à ligne
+                    f"{nom_fichier}.xlsx",
+                    donnees_supplementaires,
+                    st.session_state.df_livraisons_original
+                )
+                
+                if success:
+                    st.success(message)
+                    
+                    # =====================================================
+                    # APERÇU DU FORMAT D'EXPORT
+                    # =====================================================
+
+                    # Aperçu du format d'export
+                    st.subheader("👁️ Aperçu du format d'export")
+                    colonnes_apercu = ["Code voyage", "Zone", "Véhicule N°", "Chauffeur", "BL inclus", "Client(s) inclus", "Poids total chargé", "Volume total chargé"]
+                    colonnes_apercu = [col for col in colonnes_apercu if col in df_export_formate.columns]
+
+                    df_apercu = df_export_formate[colonnes_apercu].head(5).copy()
+
+                    # Formater l'affichage
+                    if "Poids total chargé" in df_apercu.columns:
+                        df_apercu["Poids total chargé"] = df_apercu["Poids total chargé"].map(lambda x: f"{x:.1f} kg")
+                    if "Volume total chargé" in df_apercu.columns:
+                        df_apercu["Volume total chargé"] = df_apercu["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+
+                    # =====================================================
+                    # STYLE CSS AVEC CENTRAGE FORCÉ
+                    # =====================================================
+                    st.markdown("""
+                    <style>
+                    /* Style général du tableau */
+                    .custom-table {
+                        border-collapse: collapse;
+                        font-family: Arial, sans-serif;
+                        font-size: 14px;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        border-radius: 8px;
+                        overflow: hidden;
+                        margin: 0 auto !important;
+                        display: table !important;
+                    }
+
+                    /* En-têtes du tableau - BLEU ROYAL */
+                    .custom-table th {
+                        background-color: #0369A1;
+                        color: white;
+                        padding: 12px 8px;
+                        text-align: center;
+                        border: 2px solid #4682B4;
+                        font-weight: normal;
+                        font-size: 13px;
+                        vertical-align: middle;
+                    }
+
+                    /* Cellules du tableau */
+                    .custom-table td {
+                        padding: 10px 8px;
+                        text-align: center;
+                        border: 1px solid #B0C4DE;
+                        background-color: white;
+                        color: #000000;
+                        vertical-align: middle;
+                        font-weight: normal;
+                    }
+
+                    /* Conteneur du tableau avec CENTRAGE ABSOLU */
+                    .table-container {
+                        overflow-x: auto;
+                        margin: 1rem auto !important;
+                        border-radius: 8px;
+                        border: 2px solid #4682B4;
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        display: flex !important;
+                        justify-content: center !important;
+                        padding: 10px !important;
+                    }
+
+                    /* Wrapper pour centrer tout */
+                    .table-wrapper {
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        width: 100%;
+                        padding: 20px 0;
+                    }
+
+                    /* Survol des lignes */
+                    .custom-table tr:hover td {
+                        background-color: #F0F8FF !important;
+                    }
+
+                    /* Pour les cellules avec retours à ligne */
+                    .custom-table td br {
+                        display: block;
+                        content: "";
+                        margin-top: 2px;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True)
+
+                    # =====================================================
+                    # PRÉPARATION DES DONNÉES AVEC <br> POUR HTML
+                    # =====================================================
+                    # IMPORTANT : Pour l'affichage HTML, utiliser <br> au lieu de \n
+                    if "BL inclus" in df_apercu.columns:
+                        # Si la colonne contient déjà des \n, les remplacer par <br>
+                        df_apercu["BL inclus"] = df_apercu["BL inclus"].astype(str).apply(
+                            lambda x: "<br>".join(
+                                bl.strip() 
+                                for bl in str(x).replace('\n', ',').replace('\\n', ',').split(",") 
+                                if bl.strip() and bl.strip() != 'nan'
+                            )
+                        )
+
+                    if "Client(s) inclus" in df_apercu.columns:
+                        df_apercu["Client(s) inclus"] = df_apercu["Client(s) inclus"].astype(str).apply(
+                            lambda x: "<br>".join(
+                                client.strip() 
+                                for client in str(x).replace('\n', ',').replace('\\n', ',').split(",") 
+                                if client.strip() and client.strip() != 'nan'
+                            )
+                        )
+
+                    # Convertir le DataFrame en HTML avec escape=False pour que <br> fonctionne
+                    html_table = df_apercu.to_html(
+                        escape=False,  # TRÈS IMPORTANT : escape=False pour interpréter <br>
+                        index=False, 
+                        classes="custom-table",
+                        border=0
+                    )
+
+                    # Afficher le tableau dans un conteneur centré
+                    st.markdown(f"""
+                    <div class="table-wrapper">
+                        <div class="table-container">
+                            {html_table}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # =====================================================
+                    # TÉLÉCHARGEMENT (aussi centré)
+                    # =====================================================
+                    st.markdown("<br><br>", unsafe_allow_html=True)
+                    
+                    with open(f"{nom_fichier}.xlsx", "rb") as file:
+                        btn = st.download_button(
+                            label="💾 Télécharger le planning complet",
+                            data=file,
+                            file_name=f"{nom_fichier}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                else:
+                    st.error(message)
+                    
+            except Exception as e:
+                st.error(f"❌ Erreur lors de l'export : {str(e)}")
+        
+        # =====================================================
+        # 🎯 RÉSUMÉ ET TABLEAU DE BORD FINAL
+        # =====================================================
+        st.markdown("## 🎯 RÉSUMÉ DU PLANNING")
+
+        if "df_voyages" in st.session_state:
+            df_final = st.session_state.df_voyages.copy()
+            
+            # Calcul des métriques principales
+            total_vehicules = len(df_final)
+            estafettes = len(df_final[df_final["Code Véhicule"] == "ESTAFETTE"])
+            camions = len(df_final[df_final["Code Véhicule"] == "CAMION-LOUE"])
+            poids_total = df_final["Poids total chargé"].sum()
+            volume_total = df_final["Volume total chargé"].sum()
+            taux_moyen = df_final["Taux d'occupation (%)"].mean() if "Taux d'occupation (%)" in df_final.columns else 0
+            
+            # Affichage des métriques
+            col_metric1, col_metric2, col_metric3, col_metric4 = st.columns(4)
+            
+            with col_metric1:
+                st.metric("🚚 Total Véhicules", total_vehicules)
+            
+            with col_metric2:
+                st.metric("🚐 Estafettes", estafettes)
+            
+            with col_metric3:
+                st.metric("🚛 Camions", camions)
+            
+            with col_metric4:
+                st.metric("⚖️ Poids Total", f"{poids_total:.0f} kg")
+            
+            col_metric5, col_metric6, col_metric7, col_metric8 = st.columns(4)
+            
+            with col_metric5:
+                st.metric("📦 Volume Total", f"{volume_total:.1f} m³")
+            
+            with col_metric6:
+                st.metric("📊 Taux Occupation Moyen", f"{taux_moyen:.1f}%")
+            
+            with col_metric7:
+                # Calcul de l'efficacité
+                efficacite = " Bonne" if taux_moyen > 70 else " Moyenne" if taux_moyen > 50 else " Faible"
+                st.metric("🎯 Efficacité", efficacite)
+            
+            with col_metric8:
+                # Statut de complétion
+                status = "✅ Complet" if 'df_voyages_valides' in st.session_state else "🟡 En cours"
+                st.metric("📋 Statut", status)
+            
+            # Graphique de répartition par zone
+            st.subheader("📊 Répartition par Zone")
+            if 'Zone' in df_final.columns:
+                repartition_zone = df_final.groupby("Zone").size().reset_index(name="Nombre de véhicules")
+                
+                if not repartition_zone.empty:
+                    import plotly.express as px
+
+                    fig_zone = px.bar(
+                        repartition_zone, 
+                        x="Zone", 
+                        y="Nombre de véhicules",
+                        title="Nombre de véhicules par zone",
+                        color="Nombre de véhicules",
+                        color_continuous_scale=[
+                            "#ADE8F4",   # Bleu clair visible
+                            "#90E0EF",
+                            "#4EA8DE",
+                            "#3A86FF",
+                            "#1E6091",
+                            "#0A3D62" 
+                        ],
+                        text="Nombre de véhicules"
+                    )
+
+                    fig_zone.update_layout(coloraxis_colorbar=dict(title="Nb Véhicules"))
+                    st.plotly_chart(fig_zone, use_container_width=True)
+
+            # Graphique de répartition par type de véhicule
+            st.subheader("🚗 Répartition par Type de Véhicule")
+            if "Code Véhicule" in df_final.columns:
+                repartition_type = df_final["Code Véhicule"].value_counts().reset_index()
+                repartition_type.columns = ["Type Véhicule", "Nombre"]
+                
+                fig_type = px.pie(
+                    repartition_type, 
+                    values="Nombre", 
+                    names="Type Véhicule",
+                    title="Répartition des types de véhicules"
+                )
+                st.plotly_chart(fig_type, use_container_width=True)
+
+        else:
+            st.warning("⚠️ Le planning n'est pas encore généré.")
+        
+        # =====================================================
+        # NAVIGATION ENTRE PAGES
+        # =====================================================
+        st.markdown("---")
+        col_nav1, col_nav2, col_nav3 = st.columns(3)
+        
+        with col_nav1:
+            if st.button("← Retour à l'optimisation", use_container_width=True):
+                st.session_state.page = "optimisation"
+                st.rerun()
+        
+        with col_nav2:
+            voyages_valides = len(st.session_state.df_voyages_valides) if st.session_state.df_voyages_valides is not None else 0
+            st.metric("📊 Voyages validés", voyages_valides)
+        
+        with col_nav3:
+            if st.button("🔄 Recommencer", type="secondary", use_container_width=True):
+                # Réinitialiser seulement certaines données
+                keys_to_keep = ['page', 'data_processed', 'df_grouped', 'df_city', 'df_grouped_zone', 
+                              'df_zone', 'df_livraisons_original', 'df_livraisons']
+                
+                for key in list(st.session_state.keys()):
+                    if key not in keys_to_keep:
+                        del st.session_state[key]
+                
+                st.session_state.rental_processor = TruckRentalProcessor(
+                    st.session_state.df_optimized_estafettes, 
+                    st.session_state.df_livraisons_original
+                )
+                st.success("✅ Application réinitialisée. Vous pouvez repartir de l'optimisation.")
+                st.rerun()
+
+    else:
+        st.warning("⚠️ Vous devez d'abord valider les voyages et générer les codes voyage.")
+        
+        # Navigation vers la page d'optimisation
+        st.markdown("---")
+        if st.button("🚚 Retourner à l'optimisation pour valider les voyages", type="primary"):
+            st.session_state.page = "optimisation"
+            st.rerun()
+
+
+
 
 
 
