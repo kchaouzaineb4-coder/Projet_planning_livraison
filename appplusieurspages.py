@@ -1727,9 +1727,9 @@ def page_optimisation():
                                     df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
 
                                     # DEBUG : Afficher les données brutes pour vérification
-                                    st.write("**DEBUG - Données brutes après transfert:**")
-                                    st.write(f"Source ({source}) BLs: {df_display[df_display['Véhicule N°'] == source]['BL inclus'].values}")
-                                    st.write(f"Cible ({cible}) BLs: {df_display[df_display['Véhicule N°'] == cible]['BL inclus'].values}")
+                                   #st.write("**DEBUG - Données brutes après transfert:**")
+                                   #st.write(f"Source ({source}) BLs: {df_display[df_display['Véhicule N°'] == source]['BL inclus'].values}")
+                                   #st.write(f"Cible ({cible}) BLs: {df_display[df_display['Véhicule N°'] == cible]['BL inclus'].values}")
 
                                     # Transformer les colonnes avec retours à la ligne HTML
                                     if "BL inclus" in df_display.columns:
