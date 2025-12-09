@@ -2247,14 +2247,6 @@ def page_optimisation():
 
         
 
-
-
-
-        
-    
-    
-
-
     # --- Onglet 4: ✅ VALIDATION DES VOYAGES APRÈS TRANSFERT
     with tab4:
         st.subheader("✅ VALIDATION DES VOYAGES APRÈS TRANSFERT")
