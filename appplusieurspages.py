@@ -1734,7 +1734,7 @@ def page_optimisation():
                                     
                                     # --- VÉRIFICATION DÉTAILLÉE ---
                                     st.markdown("---")
-                                    st.subheader("🔍 Vérification du transfert")
+                                   #st.subheader("🔍 Vérification du transfert")
                                     
                                     # Récupérer les données APRÈS transfert
                                     df_source_apres = df_voyages[df_voyages["Véhicule N°"] == source]
@@ -1755,25 +1755,25 @@ def page_optimisation():
                                             bls_cible_apres = [b.strip() for b in bls_str.split(";") if b.strip()]
                                     
                                     # Afficher la vérification
-                                    col_verif1, col_verif2 = st.columns(2)
+                                   #col_verif1, col_verif2 = st.columns(2)
                                     
-                                    with col_verif1:
-                                        st.markdown(f"""
-                                        **✅ Vérification Source ({source}):**
-                                        - BLs avant: {', '.join(bls_source_avant) if bls_source_avant else 'Aucun'}
-                                        - BLs transférés: {', '.join(bls_selectionnes)}
-                                        - BLs après: {', '.join(bls_source_apres) if bls_source_apres else 'Aucun'}
-                                        - BLs retirés avec succès: {'✅ OUI' if all(bl not in bls_source_apres for bl in bls_selectionnes) else '❌ NON'}
-                                        """)
+                                  # with col_verif1:
+                                    #   st.markdown(f"""
+                                     #  **✅ Vérification Source ({source}):**
+                                      # - BLs avant: {', '.join(bls_source_avant) if bls_source_avant else 'Aucun'}
+                                      # - BLs transférés: {', '.join(bls_selectionnes)}
+                                      # - BLs après: {', '.join(bls_source_apres) if bls_source_apres else 'Aucun'}
+                                      # - BLs retirés avec succès: {'✅ OUI' if all(bl not in bls_source_apres for bl in bls_selectionnes) else '❌ NON'}
+                                     #  """)
                                     
-                                    with col_verif2:
-                                        st.markdown(f"""
-                                        **✅ Vérification Cible ({cible}):**
-                                        - BLs avant: {', '.join(bls_cible_avant) if bls_cible_avant else 'Aucun'}
-                                        - BLs ajoutés: {', '.join(bls_selectionnes)}
-                                        - BLs après: {', '.join(bls_cible_apres) if bls_cible_apres else 'Aucun'}
-                                        - BLs ajoutés avec succès: {'✅ OUI' if all(bl in bls_cible_apres for bl in bls_selectionnes) else '❌ NON'}
-                                        """)
+                                   #with col_verif2:
+                                    #   st.markdown(f"""
+                                     #  **✅ Vérification Cible ({cible}):**
+                                     #  - BLs avant: {', '.join(bls_cible_avant) if bls_cible_avant else 'Aucun'}
+                                     #  - BLs ajoutés: {', '.join(bls_selectionnes)}
+                                      # - BLs après: {', '.join(bls_cible_apres) if bls_cible_apres else 'Aucun'}
+                                      # - BLs ajoutés avec succès: {'✅ OUI' if all(bl in bls_cible_apres for bl in bls_selectionnes) else '❌ NON'}
+                                       #""")
                                     
                                     # --- AFFICHAGE DU TABLEAU COMPLET ---
                                     st.markdown("---")
@@ -1831,7 +1831,7 @@ def page_optimisation():
                                     </div>
                                     """, unsafe_allow_html=True)
                                     
-                                    st.info("**Légende :** 🔴 Véhicule source (BLs retirés) | 🟢 Véhicule cible (BLs ajoutés)")
+                                   #st.info("**Légende :** 🔴 Véhicule source (BLs retirés) | 🟢 Véhicule cible (BLs ajoutés)")
                                     
                                     # --- Export Excel avec retours à la ligne \n ---
                                     df_export = df_voyages.copy()
