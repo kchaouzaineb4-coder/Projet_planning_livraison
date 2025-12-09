@@ -325,10 +325,10 @@ def page_import():
                 st.rerun()
 
 # =====================================================
-# PAGE 2: ANALYSE DÉTAILLÉE (VERSION COMPLÈTE)
+# PAGE 2: Analyse détaillée 
 # =====================================================
 def page_analyse():
-    st.markdown("<h1 class='main-header'>2. 🔍 ANALYSE DÉTAILLÉE</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-header'>2. 🔍 Analyse détaillée</h1>", unsafe_allow_html=True)
     
     if not st.session_state.data_processed:
         st.warning("⚠️ Veuillez d'abord importer les données dans la page 1.")
