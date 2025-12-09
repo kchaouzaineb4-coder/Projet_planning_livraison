@@ -1777,7 +1777,7 @@ def page_optimisation():
                                        #""")
                                     
                                     # --- AFFICHAGE DU TABLEAU COMPLET ---
-                                    st.markdown("---")
+                                   #st.markdown("---")
                                     st.subheader("📊 Voyages après transfert (toutes les zones)")
                                     
                                     # Préparer l'affichage
