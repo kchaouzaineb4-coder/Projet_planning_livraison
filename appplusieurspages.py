@@ -2899,40 +2899,7 @@ def page_optimisation():
 
 
         
-        col_exp1, col_exp2 = st.columns(2)
-        with col_exp1:
-            nom_fichier = st.text_input("Nom du fichier", value="Voyages_attribues")
-        with col_exp2:
-            format_export = st.selectbox("Format", ["Excel", "PDF"])
         
-        if st.button("🚀 Générer l'export complet", type="primary", use_container_width=True):
-            if st.session_state.df_voyages_valides is not None:
-                # Créer un DataFrame final avec les attributions
-                df_final = st.session_state.df_voyages_valides.copy()
-                
-                # Ajouter les attributions si disponibles
-                if "attributions" in st.session_state and st.session_state.attributions:
-                    df_final["Véhicule attribué"] = df_final.index.map(
-                        lambda i: st.session_state.attributions.get(i, {}).get("Véhicule", "Non attribué")
-                    )
-                    df_final["Chauffeur attribué"] = df_final.index.map(
-                        lambda i: st.session_state.attributions.get(i, {}).get("Chauffeur", "Non attribué")
-                    )
-                
-                # Export Excel
-                excel_data = to_excel(df_final, "Planning Final")
-                
-                st.download_button(
-                    label="💾 Télécharger le planning final",
-                    data=excel_data,
-                    file_name=f"{nom_fichier}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
-                )
-                st.success("✅ Export prêt au téléchargement !")
-            else:
-                st.warning("⚠️ Validez d'abord les voyages pour pouvoir exporter")
-    
     # Navigation entre pages
     st.markdown("---")
     col_nav1, col_nav2, col_nav3 = st.columns(3)
