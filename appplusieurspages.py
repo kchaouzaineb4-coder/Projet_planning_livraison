@@ -1983,11 +1983,11 @@ def page_optimisation():
         df_voyages = st.session_state.df_voyages.copy()
         
         # DEBUG OPTIONNEL (commentez une fois que ça fonctionne)
-        with st.expander("🔍 État du système", expanded=False):
-            st.write(f"transfer_manager type: {type(st.session_state.transfer_manager)}")
-            st.write(f"add_manual_object disponible: {'add_manual_object' in dir(st.session_state.transfer_manager)}")
-            st.write(f"df_voyages shape: {df_voyages.shape}")
-            st.write(f"Colonnes df_voyages: {list(df_voyages.columns)}")
+      # with st.expander("🔍 État du système", expanded=False):
+      #     st.write(f"transfer_manager type: {type(st.session_state.transfer_manager)}")
+     #      st.write(f"add_manual_object disponible: {'add_manual_object' in dir(st.session_state.transfer_manager)}")
+       #    st.write(f"df_voyages shape: {df_voyages.shape}")
+       #    st.write(f"Colonnes df_voyages: {list(df_voyages.columns)}")
         
         col1, col2, col3 = st.columns(3)
         
