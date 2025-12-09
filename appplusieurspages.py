@@ -2292,6 +2292,8 @@ def page_optimisation():
                 st.success("✅ Attributions enregistrées avec succès !")
         else:
             st.info("ℹ️ Validez d'abord les voyages dans l'onglet 2")
+
+
     
     # --- Onglet 4: ✅ VALIDATION DES VOYAGES APRÈS TRANSFERT
     with tab4:
@@ -2299,7 +2301,8 @@ def page_optimisation():
     # =====================================================
     # 7️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
     # =====================================================
-    st.markdown("## ✅ VALIDATION DES VOYAGES APRÈS TRANSFERT")
+   #st.markdown("## ✅ VALIDATION DES VOYAGES APRÈS TRANSFERT")
+
 
     from io import BytesIO
 
