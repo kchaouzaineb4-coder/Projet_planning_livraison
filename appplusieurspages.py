@@ -2250,51 +2250,7 @@ def page_optimisation():
 
 
 
-        st.subheader("Attribution véhicules/chauffeurs")
-        st.info("Attribuez les ressources aux voyages validés")
         
-     
-        if st.session_state.df_voyages_valides is not None:
-            # Initialiser les attributions si nécessaire
-            if "attributions" not in st.session_state:
-                st.session_state.attributions = {}
-            
-            for idx, row in st.session_state.df_voyages_valides.iterrows():
-                with st.expander(f"Voyage {row.get('Véhicule N°', 'N/A')} | Zone: {row.get('Zone', 'N/A')}"):
-                    col_att1, col_att2 = st.columns(2)
-                    
-                    with col_att1:
-                        # Sélection du véhicule
-                        vehicule_attribue = st.selectbox(
-                            "Véhicule",
-                            VEHICULES_DISPONIBLES,
-                            key=f"veh_{idx}",
-                            index=0
-                        )
-                    
-                    with col_att2:
-                        # Sélection du chauffeur
-                        options_chauffeurs = [f"{matricule} - {nom}" for matricule, nom in CHAUFFEURS_DETAILS.items()]
-                        chauffeur_attribue = st.selectbox(
-                            "Chauffeur",
-                            options_chauffeurs,
-                            key=f"chauff_{idx}",
-                            index=0
-                        )
-                    
-                    # Stocker l'attribution
-                    st.session_state.attributions[idx] = {
-                        "Véhicule": vehicule_attribue,
-                        "Chauffeur": chauffeur_attribue
-                    }
-            
-            # Bouton pour appliquer toutes les attributions
-            if st.button("💾 Enregistrer toutes les attributions", type="primary", use_container_width=True):
-                st.success("✅ Attributions enregistrées avec succès !")
-        else:
-            st.info("ℹ️ Validez d'abord les voyages dans l'onglet 2")
-
-
     
     
 
@@ -2534,7 +2490,6 @@ def page_optimisation():
         else:
             st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
 
-    # --- Onglet 5: 🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS ---
 
     # --- Onglet 5: 🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS ---
     with tab5:
