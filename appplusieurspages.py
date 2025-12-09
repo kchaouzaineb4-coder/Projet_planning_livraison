@@ -966,7 +966,7 @@ def page_optimisation():
         "🔄 Transfert BLs", 
         "📦 Ajout Objets",
         "✅ VALIDATION DES VOYAGES APRÈS TRANSFERT",
-        "🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS"
+        "🚛 Attribution des véhicules et chauffeurs"
     ])
     
     # --- Onglet 1: Propositions de Location ---
