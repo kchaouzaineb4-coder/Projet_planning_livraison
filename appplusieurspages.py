@@ -961,12 +961,12 @@ def page_optimisation():
         update_propositions_view()
     
     # Onglets pour différentes fonctionnalités
-    tab1, tab2, tab3, tab4, tab5 =st.tabs([
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📋 Propositions Location", 
         "🔄 Transfert BLs", 
         "📦 Ajout Objets",
-        "✅ VALIDATION DES VOYAGES APRÈS TRANSFERT"
-        " 🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS"
+        "✅ VALIDATION DES VOYAGES APRÈS TRANSFERT",
+        "🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS"
     ])
     
     # --- Onglet 1: Propositions de Location ---
@@ -2536,6 +2536,7 @@ def page_optimisation():
 
     # --- Onglet 5: 🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS ---
 
+    # --- Onglet 5: 🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS ---
     with tab5:
         st.subheader("🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS")
         # =====================================================
