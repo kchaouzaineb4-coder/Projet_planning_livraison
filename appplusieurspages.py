@@ -1823,14 +1823,10 @@ def page_optimisation():
                                             html_table = html_table.replace(f'<tr>', f'<tr class="highlight-target">', 1)
                                     
                                     st.markdown(f"""
-                                    <div class="table-container-voyages">
-                                        <div style="margin-bottom: 10px;">
-                                            <span style="background-color: #FFE6E6; padding: 5px; border-radius: 3px;">🔴 Source ({source})</span>
-                                            <span style="background-color: #E6FFE6; padding: 5px; border-radius: 3px; margin-left: 10px;">🟢 Cible ({cible})</span>
-                                        </div>
-                                        {html_table}
-                                    </div>
-                                    """, unsafe_allow_html=True)
+                                            <div class="table-container-voyages">
+                                                {html_table}
+                                            </div>
+                                            """, unsafe_allow_html=True)
                                     
                                    #st.info("**Légende :** 🔴 Véhicule source (BLs retirés) | 🟢 Véhicule cible (BLs ajoutés)")
                                     
