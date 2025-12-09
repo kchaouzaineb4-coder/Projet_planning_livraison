@@ -2483,13 +2483,13 @@ def page_optimisation():
             st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
 
 
-    # --- Onglet 5: 🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS ---
+    # --- Onglet 5: 🚛 Attribution des véhicules et chauffeurs ---
     with tab5:
-        st.subheader("🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS")
+        st.subheader("🚛 Attribution des véhicules et chauffeurs")
         # =====================================================
-        # 8️⃣ ATTRIBUTION DES VÉHICULES ET CHAUFFEURS
+        # 8️⃣  Attribution des véhicules et chauffeur
         # =====================================================
-       #st.markdown("## 🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS")
+       #st.markdown("## 🚛 Attribution des véhicules et chauffeurs")
 
         if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_valides.empty:
 
