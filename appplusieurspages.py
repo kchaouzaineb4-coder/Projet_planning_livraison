@@ -961,11 +961,12 @@ def page_optimisation():
         update_propositions_view()
     
     # Onglets pour différentes fonctionnalités
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5 =st.tabs([
         "📋 Propositions Location", 
         "🔄 Transfert BLs", 
         "📦 Ajout Objets",
         "✅ VALIDATION DES VOYAGES APRÈS TRANSFERT"
+        " 🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS"
     ])
     
     # --- Onglet 1: Propositions de Location ---
@@ -2244,7 +2245,7 @@ def page_optimisation():
         else:
             st.info(" Aucun objet manuel ajouté pour le moment.")
 
-
+        
 
 
 
@@ -2533,7 +2534,415 @@ def page_optimisation():
         else:
             st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
 
+    # --- Onglet 5: 🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS ---
 
+    with tab5:
+        st.subheader("🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS")
+        # =====================================================
+        # 8️⃣ ATTRIBUTION DES VÉHICULES ET CHAUFFEURS
+        # =====================================================
+        st.markdown("## 🚛 ATTRIBUTION DES VÉHICULES ET CHAUFFEURS")
+
+        if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_valides.empty:
+
+            df_attribution = st.session_state.df_voyages_valides.copy()
+
+            # Fonction pour formatter les colonnes avec retours à la ligne POUR STREAMLIT
+            def formater_colonnes_listes_streamlit(df):
+                df_formate = df.copy()
+                colonnes_a_formater = ['Client(s) inclus', 'Représentant(s) inclus', 'BL inclus']
+                
+                for col in colonnes_a_formater:
+                    if col in df_formate.columns:
+                        df_formate[col] = df_formate[col].apply(
+                            lambda x: '\n'.join([elem.strip() for elem in str(x).replace(';', ',').split(',') if elem.strip()]) 
+                            if pd.notna(x) else ""
+                        )
+                return df_formate
+
+            if "attributions" not in st.session_state:
+                st.session_state.attributions = {}
+
+            for idx, row in df_attribution.iterrows():
+                with st.expander(f"🚚 Voyage {row['Véhicule N°']} | Zone : {row['Zone']}"):
+                    st.write("**Informations du voyage :**")
+                    
+                    # Créer un affichage personnalisé avec retours à ligne
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.write(f"**Zone:** {row['Zone']}")
+                        st.write(f"**Véhicule N°:** {row['Véhicule N°']}")
+                        if "Poids total chargé" in row:
+                            st.write(f"**Poids total chargé:** {row['Poids total chargé']:.2f} kg")
+                        if "Volume total chargé" in row:
+                            st.write(f"**Volume total chargé:** {row['Volume total chargé']:.3f} m³")
+                        if "Taux d'occupation (%)" in row:
+                            st.write(f"**Taux d'occupation:** {row['Taux d\'occupation (%)']:.1f}%")
+                    
+                    with col2:
+                        # Afficher les clients avec retours à ligne
+                        if 'Client(s) inclus' in row and pd.notna(row['Client(s) inclus']):
+                            st.write("**Clients:**")
+                            clients = str(row['Client(s) inclus']).replace(';', ',').split(',')
+                            for client in clients:
+                                client_clean = client.strip()
+                                if client_clean:
+                                    st.write(f"- {client_clean}")
+                        
+                        # Afficher les représentants avec retours à ligne
+                        if 'Représentant(s) inclus' in row and pd.notna(row['Représentant(s) inclus']):
+                            st.write("**Représentants:**")
+                            representants = str(row['Représentant(s) inclus']).replace(';', ',').split(',')
+                            for rep in representants:
+                                rep_clean = rep.strip()
+                                if rep_clean:
+                                    st.write(f"- {rep_clean}")
+                    
+                    with col3:
+                        # Afficher les BL avec retours à ligne
+                        if 'BL inclus' in row and pd.notna(row['BL inclus']):
+                            st.write("**BL associés:**")
+                            bls = str(row['BL inclus']).replace(';', ',').split(',')
+                            for bl in bls:
+                                bl_clean = bl.strip()
+                                if bl_clean:
+                                    st.write(f"- {bl_clean}")
+
+                    col_veh, col_chauf = st.columns(2)
+                    
+                    with col_veh:
+                        vehicule_selectionne = st.selectbox(
+                            f"Véhicule pour le voyage {row['Véhicule N°']}",
+                            VEHICULES_DISPONIBLES,
+                            index=0 if st.session_state.attributions.get(idx, {}).get("Véhicule") else 0,
+                            key=f"vehicule_{idx}"
+                        )
+                    
+                    with col_chauf:
+                        options_chauffeurs = [f"{matricule} - {nom}" for matricule, nom in CHAUFFEURS_DETAILS.items() if matricule != 'Matricule']
+                        
+                        default_index = 0
+                        chauffeur_actuel = st.session_state.attributions.get(idx, {}).get("Chauffeur_complet")
+                        if chauffeur_actuel and chauffeur_actuel in options_chauffeurs:
+                            default_index = options_chauffeurs.index(chauffeur_actuel)
+                        
+                        chauffeur_selectionne_complet = st.selectbox(
+                            f"Chauffeur pour le voyage {row['Véhicule N°']}",
+                            options_chauffeurs,
+                            index=default_index,
+                            key=f"chauffeur_{idx}"
+                        )
+                        
+                        if chauffeur_selectionne_complet:
+                            matricule_chauffeur = chauffeur_selectionne_complet.split(" - ")[0]
+                            nom_chauffeur = chauffeur_selectionne_complet.split(" - ")[1]
+                        else:
+                            matricule_chauffeur = ""
+                            nom_chauffeur = ""
+
+                    st.session_state.attributions[idx] = {
+                        "Véhicule": vehicule_selectionne,
+                        "Chauffeur_complet": chauffeur_selectionne_complet,
+                        "Matricule_chauffeur": matricule_chauffeur,
+                        "Nom_chauffeur": nom_chauffeur
+                    }
+
+            if st.button("✅ Appliquer les attributions"):
+
+                df_attribution["Véhicule attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Véhicule"])
+                df_attribution["Chauffeur attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Nom_chauffeur"])
+                df_attribution["Matricule chauffeur"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Matricule_chauffeur"])
+
+                
+                st.markdown("### 📦 Voyages avec Véhicule et Chauffeur")
+
+                # --- Affichage Streamlit amélioré avec retours à ligne ---
+                for idx, row in df_attribution.iterrows():
+                    with st.expander(f"📋 Voyage {row['Véhicule N°']} - Zone {row['Zone']} - Véhicule: {row.get('Véhicule attribué', 'N/A')} - Chauffeur: {row.get('Chauffeur attribué', 'N/A')}"):
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            st.write("**Informations de base:**")
+                            st.write(f"**Zone:** {row['Zone']}")
+                            st.write(f"**Véhicule N°:** {row['Véhicule N°']}")
+                            if "Poids total chargé" in row:
+                                st.write(f"**Poids total chargé:** {row['Poids total chargé']:.3f} kg")
+                            if "Volume total chargé" in row:
+                                st.write(f"**Volume total chargé:** {row['Volume total chargé']:.3f} m³")
+                            if "Taux d'occupation (%)" in row:
+                                st.write(f"**Taux d'occupation:** {row['Taux d\'occupation (%)']:.3f}%")
+                            if "Véhicule attribué" in row:
+                                st.write(f"**Véhicule attribué:** {row['Véhicule attribué']}")
+                            if "Chauffeur attribué" in row:
+                                st.write(f"**Chauffeur attribué:** {row['Chauffeur attribué']}")
+                            if "Matricule chauffeur" in row:
+                                st.write(f"**Matricule chauffeur:** {row['Matricule chauffeur']}")
+                        
+                        with col2:
+                            # Afficher les clients avec retours à ligne
+                            if 'Client(s) inclus' in row and pd.notna(row['Client(s) inclus']):
+                                st.write("**📋 Clients inclus:**")
+                                clients = str(row['Client(s) inclus']).replace(';', ',').split(',')
+                                for client in clients:
+                                    client_clean = client.strip()
+                                    if client_clean:
+                                        st.write(f"• {client_clean}")
+                            
+                            # Afficher les représentants avec retours à ligne
+                            if 'Représentant(s) inclus' in row and pd.notna(row['Représentant(s) inclus']):
+                                st.write("**👤 Représentants inclus:**")
+                                representants = str(row['Représentant(s) inclus']).replace(';', ',').split(',')
+                                for rep in representants:
+                                    rep_clean = rep.strip()
+                                    if rep_clean:
+                                        st.write(f"• {rep_clean}")
+                        
+                        with col3:
+                            # Afficher les BL avec retours à ligne
+                            if 'BL inclus' in row and pd.notna(row['BL inclus']):
+                                st.write("**📄 BL associés:**")
+                                bls = str(row['BL inclus']).replace(';', ',').split(',')
+                                # Afficher en colonnes si beaucoup de BL
+                                if len(bls) > 5:
+                                    cols = st.columns(2)
+                                    half = len(bls) // 2
+                                    for i, bl in enumerate(bls):
+                                        bl_clean = bl.strip()
+                                        if bl_clean:
+                                            col_idx = 0 if i < half else 1
+                                            with cols[col_idx]:
+                                                st.write(f"• {bl_clean}")
+                                else:
+                                    for bl in bls:
+                                        bl_clean = bl.strip()
+                                        if bl_clean:
+                                            st.write(f"• {bl_clean}")
+
+                # --- Export Excel avec retours à ligne et CENTRAGE ---
+                from io import BytesIO
+                import openpyxl
+
+                def to_excel(df):
+                    df_export = df.copy()
+                    
+                    # Formater les colonnes avec retours à ligne pour Excel
+                    colonnes_a_formater = ['Client(s) inclus', 'Représentant(s) inclus', 'BL inclus']
+                    for col in colonnes_a_formater:
+                        if col in df_export.columns:
+                            df_export[col] = df_export[col].apply(
+                                lambda x: '\n'.join([elem.strip() for elem in str(x).replace(';', ',').split(',') if elem.strip()]) 
+                                if pd.notna(x) else ""
+                            )
+                    
+                    if "Poids total chargé" in df_export.columns:
+                        df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
+                    if "Volume total chargé" in df_export.columns:
+                        df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
+                    
+                    output = BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        df_export.to_excel(writer, index=False, sheet_name='Voyages_Attribués')
+                        
+                        # Appliquer le formatage des retours à ligne et CENTRAGE dans Excel
+                        workbook = writer.book
+                        worksheet = writer.sheets['Voyages_Attribués']
+                        
+                        # Style de centrage avec retours à ligne
+                        center_alignment = openpyxl.styles.Alignment(
+                            horizontal='center', 
+                            vertical='center', 
+                            wrap_text=True
+                        )
+                        
+                        # Appliquer le centrage à TOUTES les cellules
+                        for row in worksheet.iter_rows(min_row=1, max_row=len(df_export) + 1, min_col=1, max_col=len(df_export.columns)):
+                            for cell in row:
+                                cell.alignment = center_alignment
+                        
+                        # Ajuster automatiquement la largeur des colonnes
+                        for column in worksheet.columns:
+                            max_length = 0
+                            column_letter = column[0].column_letter
+                            for cell in column:
+                                try:
+                                    if cell.value:
+                                        # Calculer la longueur maximale en prenant en compte les retours à ligne
+                                        lines = str(cell.value).split('\n')
+                                        max_line_length = max(len(line) for line in lines)
+                                        max_length = max(max_length, max_line_length)
+                                except:
+                                    pass
+                            adjusted_width = min(50, (max_length + 2))  # Limiter à 50 caractères max
+                            worksheet.column_dimensions[column_letter].width = adjusted_width
+                        
+                        # Ajuster la hauteur des lignes pour les retours à ligne
+                        for row in range(2, len(df_export) + 2):  # Commencer à la ligne 2 (après l'en-tête)
+                            worksheet.row_dimensions[row].height = 60  # Hauteur fixe pour accommoder les retours à ligne
+                    
+                    return output.getvalue()
+
+                # --- Export PDF avec tableau ÉLARGI et ESPACES MINIMISÉS ---
+                from fpdf import FPDF
+
+                def to_pdf_better_centered(df, title="Voyages Attribués"):
+                    pdf = FPDF(orientation='L')  # Paysage pour plus d'espace
+                    pdf.add_page()
+                    
+                    # RÉDUCTION des marges pour utiliser TOUTE la largeur
+                    pdf.set_left_margin(5)   # Marge gauche réduite
+                    pdf.set_right_margin(5)  # Marge droite réduite
+                    pdf.set_top_margin(10)   # Marge haut réduite
+                    
+                    # Titre PLUS PETIT et PLUS HAUT
+                    pdf.set_font("Arial", 'B', 14)  # Taille réduite
+                    pdf.cell(0, 8, title, ln=True, align="C")  # Hauteur réduite
+                    pdf.ln(3)  # Espacement réduit après le titre
+                    
+                    # Créer une copie formatée pour le PDF
+                    df_pdf = df.copy()
+                    
+                    # Formater les nombres avec 3 chiffres après la virgule SAUF le taux avec 2 chiffres
+                    numeric_columns = {
+                        'Poids total chargé': ('kg', 3),
+                        'Volume total chargé': ('m³', 3), 
+                        'Taux d\'occupation (%)': ('%', 2)  # 2 chiffres après la virgule
+                    }
+                    
+                    for col, (unit, decimals) in numeric_columns.items():
+                        if col in df_pdf.columns:
+                            df_pdf[col] = df_pdf[col].apply(
+                                lambda x: f"{float(x):.{decimals}f} {unit}" if x and str(x).strip() and str(x).strip() != 'nan' else ""
+                            )
+                    
+                    # Configuration des colonnes AVEC LARGEURS MAXIMALISÉES
+                    col_config = {
+                        'Zone': {'width': 15, 'header': 'Zone'},
+                        'Véhicule N°': {'width': 18, 'header': 'Véhicule'},
+                        'Poids total chargé': {'width': 22, 'header': 'Poids (kg)'},
+                        'Volume total chargé': {'width': 22, 'header': 'Volume (m³)'},
+                        'Client(s) inclus': {'width': 30, 'header': 'Clients'},
+                        'Représentant(s) inclus': {'width': 30, 'header': 'Représentants'},
+                        'BL inclus': {'width': 35, 'header': 'BL associés'},
+                        'Taux d\'occupation (%)': {'width': 18, 'header': 'Taux %'},
+                        'Véhicule attribué': {'width': 25, 'header': 'Véhicule Attribué'},
+                        'Chauffeur attribué': {'width': 25, 'header': 'Chauffeur'},
+                        'Matricule chauffeur': {'width': 20, 'header': 'Matricule'}
+                    }
+                    
+                    # Sélectionner seulement les colonnes existantes
+                    colonnes_existantes = [col for col in df_pdf.columns if col in col_config]
+                    widths = [col_config[col]['width'] for col in colonnes_existantes]
+                    headers = [col_config[col]['header'] for col in colonnes_existantes]
+                    
+                    # Calculer la position de départ - DÉBUT PLUS À GAUCHE
+                    total_width = sum(widths)
+                    page_width = 297  # Largeur d'une page A4 en paysage (mm)
+                    start_x = 5  # Commencer presque au bord gauche
+                    
+                    # Positionner le tableau AU DÉBUT
+                    pdf.set_x(start_x)
+                    
+                    # En-têtes CENTRÉS avec police PLUS PETITE
+                    pdf.set_font("Arial", 'B', 8)  # Taille réduite
+                    for i, header in enumerate(headers):
+                        pdf.cell(widths[i], 6, header, border=1, align='C')  # Hauteur réduite
+                    pdf.ln()
+                    
+                    # Données avec centrage VERTICAL et HORIZONTAL
+                    pdf.set_font("Arial", '', 7)  # Taille réduite pour les données
+                    
+                    for voyage_idx, (_, row) in enumerate(df_pdf.iterrows()):
+                        # Vérifier si on dépasse la hauteur de page
+                        if pdf.get_y() > 180:  # Si on approche du bas de page
+                            pdf.add_page()  # Nouvelle page
+                            pdf.set_x(start_x)
+                            # Ré-afficher les en-têtes sur la nouvelle page
+                            pdf.set_font("Arial", 'B', 8)
+                            for i, header in enumerate(headers):
+                                pdf.cell(widths[i], 6, header, border=1, align='C')
+                            pdf.ln()
+                            pdf.set_font("Arial", '', 7)
+                        
+                        # Déterminer le nombre de lignes nécessaires pour ce voyage
+                        list_columns = ['Client(s) inclus', 'Représentant(s) inclus', 'BL inclus']
+                        non_list_columns = [col for col in colonnes_existantes if col not in list_columns]
+                        
+                        max_lines = 1
+                        list_contents = {}
+                        
+                        for col in list_columns:
+                            if col in colonnes_existantes:
+                                content = str(row[col]) if pd.notna(row[col]) and str(row[col]) != 'nan' else ""
+                                elements = content.replace(';', ',').split(',')
+                                elements = [elem.strip() for elem in elements if elem.strip()]
+                                list_contents[col] = elements
+                                max_lines = max(max_lines, len(elements))
+                        
+                        # Pour chaque ligne du voyage
+                        for line_idx in range(max_lines):
+                            # Vérifier si on dépasse la hauteur de page pour cette ligne
+                            if pdf.get_y() > 190:  # Si on approche vraiment du bas
+                                pdf.add_page()
+                                pdf.set_x(start_x)
+                                pdf.set_font("Arial", 'B', 8)
+                                for i, header in enumerate(headers):
+                                    pdf.cell(widths[i], 6, header, border=1, align='C')
+                                pdf.ln()
+                                pdf.set_font("Arial", '', 7)
+                            
+                            # Positionner au DÉBUT pour chaque ligne
+                            pdf.set_x(start_x)
+                            
+                            for i, col in enumerate(colonnes_existantes):
+                                if col in list_columns:
+                                    # Colonnes de liste - afficher élément par élément
+                                    elements = list_contents.get(col, [])
+                                    content = elements[line_idx] if line_idx < len(elements) else ""
+                                else:
+                                    # Colonnes non-liste - afficher sur la première ligne seulement
+                                    if line_idx == 0:
+                                        content = str(row[col]) if pd.notna(row[col]) and str(row[col]) != 'nan' else ""
+                                    else:
+                                        content = ""
+                                
+                                # Bordures avec hauteur RÉDUITE
+                                border = 'LR'
+                                if line_idx == 0: border += 'T'
+                                if line_idx == max_lines - 1: border += 'B'
+                                if i == 0: border += 'L'
+                                if i == len(colonnes_existantes) - 1: border += 'R'
+                                
+                                pdf.cell(widths[i], 5, content, border=border, align='C')  # Hauteur réduite à 5
+                            
+                            pdf.ln()
+                    
+                    return pdf.output(dest='S').encode('latin-1')
+                # Afficher les boutons de téléchargement côte à côte
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.download_button(
+                        label="💾 Télécharger le tableau final (XLSX)",
+                        data=to_excel(df_attribution),
+                        file_name="Voyages_attribues.xlsx",
+                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    )
+
+                with col2:
+                    st.download_button(
+                        label="📄 Télécharger le tableau final (PDF)",
+                        data=to_pdf_better_centered(df_attribution),
+                        file_name="Voyages_attribues.pdf",
+                        mime='application/pdf'
+                    )
+                        
+                # Mettre à jour le session state
+                st.session_state.df_voyages_valides = df_attribution
+                st.success("✅ Attributions appliquées avec succès !")
+                
+        else:
+            st.warning("⚠️ Vous devez d'abord valider les voyages dans la section 7.")
 
 
 
