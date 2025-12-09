@@ -961,10 +961,11 @@ def page_optimisation():
         update_propositions_view()
     
     # Onglets pour différentes fonctionnalités
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2, tab3, tab4 = st.tabs([
         "📋 Propositions Location", 
         "🔄 Transfert BLs", 
-        "📦 Ajout Objets"
+        "📦 Ajout Objets",
+        "📤 Export Final"  
     ])
     
     # --- Onglet 1: Propositions de Location ---
