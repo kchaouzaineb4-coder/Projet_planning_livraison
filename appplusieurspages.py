@@ -3269,7 +3269,7 @@ def page_optimisation():
 # PAGE 4: VALIDATION & EXPORT (VERSION OPTIMISÉE)
 # =====================================================
 def page_finalisation():
-    st.markdown("<h1 class='main-header'>4. ✅ VALIDATION & EXPORT</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-header'>Planning et KPIs</h1>", unsafe_allow_html=True)
     
     # =====================================================
     # 📤 EXPORT FINAL ET PLANNING COMPLET - VERSION OPTIMISÉE
@@ -3789,7 +3789,7 @@ def main():
             "import": {"icon": "📥", "label": "Importation Données"},
             "analyse": {"icon": "🔍", "label": "Analyse Détaillée"},
             "optimisation": {"icon": "🚚", "label": "Optimisation"},
-            "finalisation": {"icon": "✅", "label": "Validation & Export"}
+            "finalisation": {"icon": "📊", "label": "Planning et KPIs"}
         }
         
         for page_key, page_info in page_options.items():
