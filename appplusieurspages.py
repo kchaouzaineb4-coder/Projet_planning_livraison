@@ -855,10 +855,10 @@ def refuse_location_callback():
     handle_location_action(False)
 
 # =====================================================
-# PAGE 3: OPTIMISATION ET LOCATION (VERSION COMPLÈTE)
+# PAGE 3: Optimisation & location
 # =====================================================
 def page_optimisation():
-    st.markdown("<h1 class='main-header'>3. 🚚 OPTIMISATION & LOCATION</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-header'>3. 🚚 Optimisation & location</h1>", unsafe_allow_html=True)
     
     if not st.session_state.data_processed:
         st.warning("⚠️ Veuillez d'abord importer les données dans la page 1.")
