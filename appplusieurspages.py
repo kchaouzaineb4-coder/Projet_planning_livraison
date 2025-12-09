@@ -3269,7 +3269,7 @@ def page_optimisation():
 # PAGE 4: VALIDATION & EXPORT (VERSION OPTIMISÉE)
 # =====================================================
 def page_finalisation():
-    st.markdown("<h1 class='main-header'>4. ✅ VALIDATION & EXPORT</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-header'>4. 📊 Planning et KPIs</h1>", unsafe_allow_html=True)
     
     # =====================================================
     # 📤 EXPORT FINAL ET PLANNING COMPLET - VERSION OPTIMISÉE
