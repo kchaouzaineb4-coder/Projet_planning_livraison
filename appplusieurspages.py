@@ -1784,12 +1784,12 @@ def page_optimisation():
                                     df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
                                     
                                     # Mettre en évidence les véhicules modifiés
-                                    def highlight_transferred(row):
-                                        if row["Véhicule N°"] == source:
-                                            return ['background-color: #FFE6E6' if col == "BL inclus" else '' for col in df_display.columns]
-                                        elif row["Véhicule N°"] == cible:
-                                            return ['background-color: #E6FFE6' if col == "BL inclus" else '' for col in df_display.columns]
-                                        return [''] * len(df_display.columns)
+                                   #def highlight_transferred(row):
+                                   #    if row["Véhicule N°"] == source:
+                                    #       return ['background-color: #FFE6E6' if col == "BL inclus" else '' for col in df_display.columns]
+                                    #   elif row["Véhicule N°"] == cible:
+                                     #      return ['background-color: #E6FFE6' if col == "BL inclus" else '' for col in df_display.columns]
+                                     #  return [''] * len(df_display.columns)
                                     
                                     # Formater pour l'affichage HTML
                                     if "BL inclus" in df_display.columns:
