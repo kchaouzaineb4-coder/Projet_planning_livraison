@@ -212,10 +212,10 @@ def refuse_location_callback():
     handle_location_action(False)
 
 # =====================================================
-# PAGE 1: IMPORTATION DES DONNÉES
+# PAGE 1: Importation des données 
 # =====================================================
 def page_import():
-    st.markdown("<h1 class='main-header'>1. 📥 IMPORTATION DES DONNÉES</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-header'>1. 📥 Importation des données</h1>", unsafe_allow_html=True)
     
     st.markdown("""
     <div style='background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
