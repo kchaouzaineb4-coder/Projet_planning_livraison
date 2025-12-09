@@ -1689,18 +1689,24 @@ def page_optimisation():
                                 else:
                                     def transfer_bl(row):
                                         bls = row["BL inclus"].split(";") if pd.notna(row["BL inclus"]) else []
-                                        bls_to_move = [b for b in bls if b in bls_selectionnes]
                                         
                                         if row["Véhicule N°"] == source:
-                                            new_bls = [b for b in bls if b not in bls_to_move]
+                                            # RETIRER les BLs de la source
+                                            new_bls = [b for b in bls if b not in bls_selectionnes]
                                             row["BL inclus"] = ";".join(new_bls)
                                             row["Poids total chargé"] = max(0, row["Poids total chargé"] - poids_bls)
                                             row["Volume total chargé"] = max(0, row["Volume total chargé"] - volume_bls)
+                                        
                                         elif row["Véhicule N°"] == cible:
-                                            new_bls = bls + bls_to_move
+                                            # AJOUTER les BLs à la cible
+                                            # On combine les BLs existants + les BLs sélectionnés pour transfert
+                                            new_bls = bls + bls_selectionnes  # ← CORRECTION ICI !
+                                            # Éviter les doublons au cas où
+                                            new_bls = list(dict.fromkeys(new_bls))
                                             row["BL inclus"] = ";".join(new_bls)
                                             row["Poids total chargé"] += poids_bls
                                             row["Volume total chargé"] += volume_bls
+                                        
                                         return row
                                     
                                     df_voyages = df_voyages.apply(transfer_bl, axis=1)
@@ -1719,16 +1725,21 @@ def page_optimisation():
                                     # --- Affichage Streamlit avec retours à la ligne ---
                                     st.subheader("📊 Voyages après transfert (toutes les zones)")
                                     df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
-                                    
+
+                                    # DEBUG : Afficher les données brutes pour vérification
+                                    st.write("**DEBUG - Données brutes après transfert:**")
+                                    st.write(f"Source ({source}) BLs: {df_display[df_display['Véhicule N°'] == source]['BL inclus'].values}")
+                                    st.write(f"Cible ({cible}) BLs: {df_display[df_display['Véhicule N°'] == cible]['BL inclus'].values}")
+
                                     # Transformer les colonnes avec retours à la ligne HTML
                                     if "BL inclus" in df_display.columns:
                                         df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
                                             lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
                                         )
-                                    
+
                                     df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                                     df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-                                    
+
                                     # Affichage avec HTML amélioré pour les retours à la ligne et centrage
                                     html_content_after = f"""
                                     <div class="centered-table">
@@ -1736,18 +1747,39 @@ def page_optimisation():
                                     </div>
                                     """
                                     st.markdown(html_content_after, unsafe_allow_html=True)
-                                    
-                                    # --- Export Excel avec retours à la ligne \n ---
-                                    df_export = df_voyages.copy()
-                                    
-                                    # Transformer les BL avec retours à la ligne \n pour Excel
-                                    if "BL inclus" in df_export.columns:
-                                        df_export["BL inclus"] = df_export["BL inclus"].astype(str).apply(
-                                            lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
-                                        )
-                                    
-                                    df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
-                                    df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
+
+                                    # Afficher un résumé détaillé
+                                    st.markdown("---")
+                                    st.subheader("📋 Résumé détaillé du transfert")
+
+                                    col_res1, col_res2 = st.columns(2)
+                                    with col_res1:
+                                        st.markdown(f"""
+                                        **Véhicule Source ({source}) :**
+                                        - BLs avant transfert: {len(bls_simples)}
+                                        - BLs transférés: {len(bls_selectionnes)}
+                                        - BLs restants: {len(bls_simples) - len(bls_selectionnes)}
+                                        - Poids retiré: {poids_bls:.1f} kg
+                                        - Volume retiré: {volume_bls:.3f} m³
+                                        """)
+
+                                    with col_res2:
+                                        # Calculer les BLs actuels de la cible après transfert
+                                        df_cible_apres = df_display[df_display["Véhicule N°"] == cible]
+                                        bls_cible_apres = []
+                                        if not df_cible_apres.empty and "BL inclus" in df_cible_apres.columns:
+                                            bls_cible_str = df_cible_apres.iloc[0]["BL inclus"]
+                                            if bls_cible_str:
+                                                bls_cible_apres = [bl.strip() for bl in bls_cible_str.split("<br>") if bl.strip()]
+                                        
+                                        st.markdown(f"""
+                                        **Véhicule Cible ({cible}) :**
+                                        - BLs avant transfert: {len(df_cible['BL inclus'].iloc[0].split(';')) if not df_cible.empty else 0}
+                                        - BLs ajoutés: {len(bls_selectionnes)}
+                                        - BLs totaux après: {len(bls_cible_apres)}
+                                        - Poids ajouté: {poids_bls:.1f} kg
+                                        - Volume ajouté: {volume_bls:.3f} m³
+                                        """)
                                     
                                     from io import BytesIO
                                     import openpyxl
