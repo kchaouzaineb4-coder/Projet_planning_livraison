@@ -2296,7 +2296,7 @@ else:
 # =====================================================
 st.markdown("## 🚛 Attribution des véhicules et chauffeurs ")
 
-if 'df_voyages_valides' in st.session_state and not st.session_state.df_voyages_valides.empty:
+if 'df_voyages_valides' in st.session_state and st.session_state.df_voyages_valides is not None and not st.session_state.df_voyages_valides.empty:
 
     df_attribution = st.session_state.df_voyages_valides.copy()
 
