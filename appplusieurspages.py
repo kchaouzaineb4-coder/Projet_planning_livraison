@@ -3271,6 +3271,14 @@ def page_optimisation():
                 st.warning("⚠️ Vous devez d'abord valider les voyages.")
 
 
+
+
+
+
+
+
+
+
         
         
     # Navigation entre pages
