@@ -2077,7 +2077,7 @@ def page_optimisation():
                 st.rerun()
         else:
             st.info("ℹ️ Aucun objet manuel ajouté pour le moment.")
-            
+
  # --- Onglet 4: ✅ VALIDATION DES VOYAGES APRÈS TRANSFERT
     with tab4:
         st.subheader("✅ VALIDATION DES VOYAGES APRÈS TRANSFERT")
@@ -2723,10 +2723,10 @@ def page_optimisation():
             st.warning("⚠️ Vous devez d'abord valider les voyages dans la section 7.")
         
         # =====================================================
-        # SECTION: 📊 RAPPORTS AVANCÉS ET ANALYTICS
+        # SECTION: 📊 Rapports avancés et analyses avancées
         # =====================================================
         st.markdown("---")
-        st.markdown("## 📊 RAPPORTS AVANCÉS ET ANALYTICS")
+        st.markdown("## 📊 Rapports avancés et analyses avancées")
         
         if "df_voyages" in st.session_state and "df_livraisons_original" in st.session_state:
             
