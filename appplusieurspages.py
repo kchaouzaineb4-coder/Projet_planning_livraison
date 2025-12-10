@@ -873,7 +873,7 @@ def page_optimisation():
             st.rerun()
         return
     
-    # CSS POUR LES TABLEAUX DE LA SECTION 3
+    # CSS POUR LES TABLEAUX ET BOUTONS DE LA SECTION 3
     st.markdown("""
     <style>
         /* Style général du tableau */
@@ -956,6 +956,34 @@ def page_optimisation():
             text-align: left !important;
             padding: 8px !important;
             font-weight: normal;
+        }
+        
+        /* ===================================================== */
+        /* CSS POUR LES BOUTONS ACCEPTER/REFUSER - COULEUR BLEUE */
+        /* ===================================================== */
+        /* Style pour les boutons Accepter et Refuser en bleu #0369A1 */
+        div[data-testid="column"]:nth-of-type(1) button[kind="primary"],
+        div[data-testid="column"]:nth-of-type(2) button[kind="secondary"] {
+            background-color: #0369A1 !important;
+            border-color: #0369A1 !important;
+            color: white !important;
+            font-weight: bold !important;
+        }
+        
+        /* Effet au survol pour les deux boutons */
+        div[data-testid="column"]:nth-of-type(1) button[kind="primary"]:hover,
+        div[data-testid="column"]:nth-of-type(2) button[kind="secondary"]:hover {
+            background-color: #025C8F !important;
+            border-color: #025C8F !important;
+        }
+        
+        /* Style pour l'état désactivé */
+        div[data-testid="column"]:nth-of-type(1) button[kind="primary"]:disabled,
+        div[data-testid="column"]:nth-of-type(2) button[kind="secondary"]:disabled {
+            background-color: #6c757d !important;
+            border-color: #6c757d !important;
+            color: white !important;
+            opacity: 0.65 !important;
         }
     </style>
     """, unsafe_allow_html=True)
