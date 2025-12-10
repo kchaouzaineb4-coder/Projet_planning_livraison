@@ -288,7 +288,11 @@ def page_import():
                     )
                     st.session_state.data_processed = True
                     
-                    st.success("✅ Données importées et traitées avec succès !")
+                    st.markdown("""
+                <div style="text-align: center; padding: 10px; margin-top: 20px;">
+                    <p style="color: green; font-size: 16px; font-weight: bold;">✅ Données importées et traitées avec succès !</p>
+                </div>
+                """, unsafe_allow_html=True)
                 
                     
                 except Exception as e:
