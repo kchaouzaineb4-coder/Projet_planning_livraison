@@ -289,7 +289,7 @@ def page_import():
                     st.session_state.data_processed = True
                     
                     st.success("✅ Données importées et traitées avec succès !")
-                    st.balloons()
+                
                     
                 except Exception as e:
                     st.error(f"❌ Erreur lors du traitement : {str(e)}")
