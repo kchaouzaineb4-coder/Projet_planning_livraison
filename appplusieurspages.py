@@ -2088,7 +2088,6 @@ def page_optimisation():
     with tab4:
         st.subheader("✅ VALIDATION DES VOYAGES APRÈS TRANSFERT")
 
-    
         # =====================================================
         # 7️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
         # =====================================================
