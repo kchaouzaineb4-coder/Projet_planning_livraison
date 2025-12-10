@@ -2723,10 +2723,10 @@ def page_optimisation():
             st.warning("⚠️ Vous devez d'abord valider les voyages dans la section 7.")
         
         # =====================================================
-        # SECTION: 📊 Rapports et analyses avancés
+        # SECTION: 📋Rapports et analyses avancés
         # =====================================================
         st.markdown("---")
-        st.markdown("## 📊 Rapports et analyses avancés")
+        st.markdown("## 📋 Rapports et analyses avancés")
         
         if "df_voyages" in st.session_state and "df_livraisons_original" in st.session_state:
             
