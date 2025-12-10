@@ -3524,7 +3524,7 @@ def page_finalisation():
         col_nav1, col_nav2, col_nav3 = st.columns(3)
         
         with col_nav1:
-            if st.button("← Retour à l'optimisation", use_container_width=True, key="retour_optimisation_finalisation"):
+            if st.button("← Retour à l'optimisation", use_container_width=True, key="btn_retour_optimisation_finalisation"):
                 st.session_state.page = "optimisation"
                 st.rerun()
         
@@ -3574,7 +3574,7 @@ def page_finalisation():
     col_nav1, col_nav2, col_nav3 = st.columns(3)
     
     with col_nav1:
-        if st.button("← Retour à l'optimisation", use_container_width=True, key="retour_optimisation_finalisation"):
+        if st.button("← Retour à l'optimisation", use_container_width=True, key="btn_retour_optimisation_finalisation"):
             st.session_state.page = "optimisation"
             st.rerun()
     
