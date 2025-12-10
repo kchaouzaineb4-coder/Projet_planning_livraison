@@ -3570,34 +3570,34 @@ def page_finalisation():
         
         
     # Navigation entre pages
-    st.markdown("---")
-    col_nav1, col_nav2, col_nav3 = st.columns(3)
+   #st.markdown("---")
+   #col_nav1, col_nav2, col_nav3 = st.columns(3)
     
-    with col_nav1:
-        if st.button("← Retour à l'optimisation", use_container_width=True, key="btn_retour_optimisation_finalisation_2"):
-            st.session_state.page = "optimisation"
-            st.rerun()
+   #with col_nav1:
+     #  if st.button("← Retour à l'optimisation", use_container_width=True, key="btn_retour_optimisation_finalisation_2"):
+       #    st.session_state.page = "optimisation"
+         #  st.rerun()
     
-    with col_nav2:
-        voyages_valides = len(st.session_state.df_voyages_valides) if st.session_state.df_voyages_valides is not None else 0
-        st.metric("📊 Voyages validés", voyages_valides)
+  # with col_nav2:
+   #    voyages_valides = len(st.session_state.df_voyages_valides) if st.session_state.df_voyages_valides is not None else 0
+    #   st.metric("📊 Voyages validés", voyages_valides)
     
-    with col_nav3:
-        if st.button("🔄 Recommencer", type="secondary", use_container_width=True):
-            # Réinitialiser seulement certaines données
-            keys_to_keep = ['page', 'data_processed', 'df_grouped', 'df_city', 'df_grouped_zone', 
-                          'df_zone', 'df_livraisons_original', 'df_livraisons']
+  # with col_nav3:
+    #   if st.button("🔄 Recommencer", type="secondary", use_container_width=True):
+      #     # Réinitialiser seulement certaines données
+       #    keys_to_keep = ['page', 'data_processed', 'df_grouped', 'df_city', 'df_grouped_zone', 
+         #                'df_zone', 'df_livraisons_original', 'df_livraisons']
             
-            for key in list(st.session_state.keys()):
-                if key not in keys_to_keep:
-                    del st.session_state[key]
+         #  for key in list(st.session_state.keys()):
+          #     if key not in keys_to_keep:
+           #        del st.session_state[key]
             
-            st.session_state.rental_processor = TruckRentalProcessor(
-                st.session_state.df_optimized_estafettes, 
-                st.session_state.df_livraisons_original
-            )
-            st.success("✅ Application réinitialisée. Vous pouvez repartir de l'optimisation.")
-            st.rerun()
+          # st.session_state.rental_processor = TruckRentalProcessor(
+           #    st.session_state.df_optimized_estafettes, 
+          #     st.session_state.df_livraisons_original
+          # )
+          # st.success("✅ Application réinitialisée. Vous pouvez repartir de l'optimisation.")
+         #  st.rerun()
 
 # =====================================================
 # NAVIGATION PRINCIPALE
