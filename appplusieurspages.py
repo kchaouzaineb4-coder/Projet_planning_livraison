@@ -1878,135 +1878,66 @@ def page_optimisation():
    # --- Onglet 3: Attribution véhicules/chauffeurs ---
     with tab3:
         # =====================================================
-        # 6️⃣ AJOUT D'OBJETS MANUELS AUX VÉHICULES
+        # 6️⃣ AJOUT D'OBJETS MANUELS AUX VÉHICULES (CORRIGÉ)
         # =====================================================
         st.markdown("## 📦 AJOUT D'OBJETS MANUELS AUX VÉHICULES")
-        
-        # IMPORT LOCAL DE LA CLASSE (POUR MULTI-PAGES)
+
+        # IMPORT SIMPLIFIÉ
         try:
-            # ESSAYEZ DIFFÉRENTS CHEMINS D'IMPORT
-            try:
-                from backend import TruckTransferManager
-                TM_IMPORTED = True
-            except ImportError:
-                try:
-                    # Si votre fichier s'appelle différemment
-                    from vos_fonctions import TruckTransferManager
-                    TM_IMPORTED = True
-                except ImportError:
-                    try:
-                        # Import relatif
-                        from .backend import TruckTransferManager
-                        TM_IMPORTED = True
-                    except ImportError as e:
-                        st.error(f"⚠️ Import impossible: {e}")
-                        TM_IMPORTED = False
-        except Exception as e:
-            st.error(f"❌ Erreur d'import: {e}")
-            TM_IMPORTED = False
-        
+            from backend import TruckTransferManager
+            TM_IMPORTED = True
+        except ImportError as e:
+            st.error(f"⚠️ Import impossible: {e}")
+            st.stop()
+
         # VÉRIFICATION DES DONNÉES REQUISES
-        required_data = ["df_voyages", "df_livraisons"]
-        missing_data = []
-        
-        for data in required_data:
-            if data not in st.session_state:
-                missing_data.append(data)
-            elif st.session_state[data] is None:
-                missing_data.append(f"{data} (None)")
-        
-        if missing_data:
-            st.error(f"❌ Données manquantes: {', '.join(missing_data)}")
-            st.info("Veuillez d'abord exécuter la section d'optimisation pour charger les données.")
+        if "df_voyages" not in st.session_state or st.session_state.df_voyages is None:
+            st.error("❌ df_voyages non disponible")
+            st.info("Veuillez d'abord exécuter la section d'optimisation")
             st.stop()
-        
-        # INITIALISATION ROBUSTE DU TRANSFER MANAGER (CRITIQUE POUR MULTI-PAGES)
-        def initialize_or_get_transfer_manager():
-            """Initialise ou récupère le transfer_manager de façon robuste"""
+
+        if "df_livraisons" not in st.session_state or st.session_state.df_livraisons is None:
+            st.error("❌ df_livraisons non disponible")
+            st.info("Veuillez d'abord exécuter la section d'optimisation")
+            st.stop()
+
+        # INITIALISATION DU TRANSFER MANAGER
+        if "transfer_manager" not in st.session_state or st.session_state.transfer_manager is None:
             try:
-                # Si transfer_manager n'existe pas ou est invalide
-                needs_init = (
-                    "transfer_manager" not in st.session_state or
-                    st.session_state.transfer_manager is None or
-                    not hasattr(st.session_state.transfer_manager, 'add_manual_object') or
-                    not hasattr(st.session_state.transfer_manager, 'df_voyages')
+                st.session_state.transfer_manager = TruckTransferManager(
+                    st.session_state.df_voyages.copy(),
+                    st.session_state.df_livraisons.copy()
                 )
-                
-                if needs_init:
-                    if not TM_IMPORTED:
-                        raise ImportError("TruckTransferManager non disponible")
-                    
-                    # Créer une nouvelle instance
-                    new_manager = TruckTransferManager(
-                        st.session_state.df_voyages.copy(),
-                        st.session_state.df_livraisons.copy()
-                    )
-                    
-                    # Vérifier que l'instance est valide
-                    if new_manager is None:
-                        raise ValueError("TruckTransferManager a retourné None")
-                    
-                    if not hasattr(new_manager, 'add_manual_object'):
-                        raise AttributeError("TruckTransferManager n'a pas la méthode add_manual_object")
-                    
-                    # Sauvegarder dans session_state
-                    st.session_state.transfer_manager = new_manager
-                    return new_manager, "✅ Gestionnaire initialisé"
-                else:
-                    return st.session_state.transfer_manager, "✅ Gestionnaire déjà disponible"
-                    
+                st.success("✅ Gestionnaire de transfert initialisé")
             except Exception as e:
-                return None, f"❌ Erreur d'initialisation: {str(e)}"
-        
-        # Initialiser le transfer_manager
-        transfer_manager, init_message = initialize_or_get_transfer_manager()
-        
-        if transfer_manager is None:
-            st.error(init_message)
-            if st.button("🔄 Réessayer l'initialisation", key="retry_init"):
-                st.rerun()
-            st.stop()
-        else:
-            # Afficher un message de succès uniquement si c'est une nouvelle initialisation
-            if "initialisé" in init_message:
-                st.success(init_message)
-        
-        # VÉRIFICATION FINALE
-        if st.session_state.transfer_manager is None:
-            st.error("❌ transfer_manager est None après initialisation")
-            st.stop()
-        
+                st.error(f"❌ Erreur d'initialisation: {e}")
+                st.stop()
+
+        # VÉRIFICATION QUE LE GESTIONNAIRE EST VALIDE
         if not hasattr(st.session_state.transfer_manager, 'add_manual_object'):
-            st.error("❌ transfer_manager n'a pas la méthode add_manual_object")
+            st.error("❌ Le gestionnaire de transfert n'a pas la méthode add_manual_object")
             st.stop()
-        
+
         # CONTINUER AVEC L'INTERFACE UTILISATEUR
         df_voyages = st.session_state.df_voyages.copy()
-        
-        # DEBUG OPTIONNEL (commentez une fois que ça fonctionne)
-      # with st.expander("🔍 État du système", expanded=False):
-      #     st.write(f"transfer_manager type: {type(st.session_state.transfer_manager)}")
-     #      st.write(f"add_manual_object disponible: {'add_manual_object' in dir(st.session_state.transfer_manager)}")
-       #    st.write(f"df_voyages shape: {df_voyages.shape}")
-       #    st.write(f"Colonnes df_voyages: {list(df_voyages.columns)}")
-        
+
         col1, col2, col3 = st.columns(3)
-        
+
         with col1:
             # Sélection de la zone
             zones_disponibles = sorted(df_voyages["Zone"].dropna().unique().tolist())
-            zone_objet = st.selectbox("🌍 Zone", zones_disponibles, key="zone_objet_onglet3")
-        
+            zone_objet = st.selectbox("🌍 Zone", zones_disponibles, key="select_zone_objet")
+
         with col2:
             # Sélection du véhicule dans la zone choisie
             if zone_objet:
                 vehicules_zone = sorted(
                     df_voyages[df_voyages["Zone"] == zone_objet]["Véhicule N°"].dropna().unique().tolist()
                 )
-                vehicule_objet = st.selectbox("🚚 Véhicule", vehicules_zone, key="vehicule_objet_onglet3")
+                vehicule_objet = st.selectbox("🚚 Véhicule", vehicules_zone, key="select_vehicule_objet")
             else:
-                vehicule_objet = st.selectbox("🚚 Véhicule", [], key="vehicule_objet_onglet3")
-        
+                vehicule_objet = None
+
         with col3:
             # Informations sur le véhicule sélectionné
             if zone_objet and vehicule_objet:
@@ -2016,7 +1947,10 @@ def page_optimisation():
                         (df_voyages["Véhicule N°"] == vehicule_objet)
                     ].iloc[0]
                     
-                    is_camion = vehicule_data.get("Code Véhicule", "") == "CAMION-LOUE"
+                    # Détecter si c'est un camion loué
+                    is_camion = "CAMION" in str(vehicule_data.get("Code Véhicule", "")).upper()
+                    
+                    # Utiliser les capacités par défaut si non spécifiées
                     capacite_poids = 30500 if is_camion else 1550
                     capacite_volume = 77.5 if is_camion else 4.608
                     
@@ -2030,170 +1964,80 @@ def page_optimisation():
                     )
                 except Exception as e:
                     st.error(f"Erreur chargement véhicule: {e}")
-        
+
         # Formulaire d'ajout d'objet
         st.markdown("### 📝 Détails de l'objet à ajouter")
-        
-        # CSS personnalisé pour les couleurs
-        st.markdown("""
-        <style>
-        .custom-border {
-            border: 2px solid #1f77b4;
-            border-radius: 5px;
-            padding: 10px;
-            margin: 5px 0px;
-        }
-        .custom-button {
-            background-color: #1f77b4 !important;
-            color: white !important;
-            border: none !important;
-        }
-        .custom-button:hover {
-            background-color: #1668a5 !important;
-            color: white !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
+
         col4, col5, col6 = st.columns(3)
-        
+
         with col4:
-            st.markdown('<div class="custom-border">', unsafe_allow_html=True)
-            nom_objet = st.text_input("🏷️ Nom de l'objet", placeholder="Ex: Matériel urgent, Colis oublié...", key="nom_objet_onglet3")
-            st.markdown('</div>', unsafe_allow_html=True)
-        
+            nom_objet = st.text_input("🏷️ Nom de l'objet", 
+                                    placeholder="Ex: Matériel urgent, Colis oublié...", 
+                                    key="input_nom_objet")
+
         with col5:
-            st.markdown('<div class="custom-border">', unsafe_allow_html=True)
-            poids_objet = st.number_input("⚖️ Poids (kg)", min_value=0.0, max_value=1000.0, value=10.0, step=0.1, key="poids_objet_onglet3")
-            st.markdown('</div>', unsafe_allow_html=True)
-        
+            poids_objet = st.number_input("⚖️ Poids (kg)", 
+                                        min_value=0.0, 
+                                        max_value=10000.0, 
+                                        value=10.0, 
+                                        step=0.1, 
+                                        key="input_poids_objet")
+
         with col6:
-            st.markdown('<div class="custom-border">', unsafe_allow_html=True)
-            volume_objet = st.number_input("📦 Volume (m³)", min_value=0.0, max_value=10.0, value=0.1, step=0.01, key="volume_objet_onglet3")
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Bouton d'ajout avec couleur de fond personnalisée
-        st.markdown("""
-        <style>
-        div.stButton > button:first-child {
-            background-color: #1f77b4;
-            color: white;
-            border: none;
-        }
-        div.stButton > button:first-child:hover {
-            background-color: #1668a5;
-            color: white;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        if st.button("➕ Ajouter l'objet au véhicule", type="primary", key="btn_ajouter_onglet3"):
-            if not nom_objet:
+            volume_objet = st.number_input("📦 Volume (m³)", 
+                                        min_value=0.0, 
+                                        max_value=100.0, 
+                                        value=0.1, 
+                                        step=0.01, 
+                                        key="input_volume_objet")
+
+        # Bouton d'ajout
+        if st.button("➕ Ajouter l'objet au véhicule", type="primary", key="btn_ajouter_objet"):
+            
+            if not nom_objet.strip():
                 st.error("❌ Veuillez donner un nom à l'objet.")
             elif not zone_objet or not vehicule_objet:
                 st.error("❌ Veuillez sélectionner une zone et un véhicule.")
+            elif poids_objet <= 0 or volume_objet <= 0:
+                st.error("❌ Le poids et le volume doivent être supérieurs à 0.")
             else:
                 try:
-                    # VÉRIFICATION DE DERNIÈRE MINUTE
-                    if st.session_state.transfer_manager is None:
-                        st.error("❌ Gestionnaire de transfert non disponible au moment de l'ajout")
-                        # Réessayer l'initialisation
-                        st.session_state.transfer_manager, msg = initialize_or_get_transfer_manager()
-                        if st.session_state.transfer_manager is None:
-                            st.error(f"❌ Échec: {msg}")
-                            st.stop()
-                    
                     # Appel de la méthode add_manual_object
-                    st.info("🔄 Ajout de l'objet en cours...")
-                    
-                    success, message, df_updated = st.session_state.transfer_manager.add_manual_object(
-                        df_voyages=df_voyages,
-                        vehicle=vehicule_objet,
-                        zone=zone_objet,
-                        name=nom_objet,
-                        weight=poids_objet,
-                        volume=volume_objet
-                    )
+                    with st.spinner("🔄 Ajout de l'objet en cours..."):
+                        success, message, df_updated = st.session_state.transfer_manager.add_manual_object(
+                            df_voyages=df_voyages,
+                            vehicle=vehicule_objet,
+                            zone=zone_objet,
+                            name=nom_objet.strip(),
+                            weight=poids_objet,
+                            volume=volume_objet
+                        )
                     
                     if success:
                         st.success(message)
                         
-                        # =====================================================
-                        # MÉCANISME DE MISE À JOUR FORCÉE DE TOUTES LES DONNÉES
-                        # =====================================================
-                        
-                        # 1. Mettre à jour le DataFrame principal dans session_state
+                        # Mettre à jour le DataFrame principal dans session_state
                         st.session_state.df_voyages = df_updated
-                        
-                        # 2. Synchroniser le gestionnaire de transfert
                         st.session_state.transfer_manager.df_voyages = df_updated.copy()
                         
-                        # 3. Synchroniser le processeur de location si disponible
-                        if st.session_state.rental_processor:
+                        # Synchroniser le processeur de location si disponible
+                        if 'rental_processor' in st.session_state and st.session_state.rental_processor:
                             try:
-                                # Méthode 1 : Mettre à jour directement le df_base
                                 st.session_state.rental_processor.df_base = df_updated.copy()
-                                
-                                # Méthode 2 : Recréer le processeur si nécessaire
-                                st.session_state.rental_processor = TruckRentalProcessor(
-                                    df_updated, 
-                                    st.session_state.df_livraisons_original
-                                )
-                                
-                                st.success("✅ Processeur de location synchronisé")
                             except Exception as e:
                                 st.warning(f"⚠️ Synchronisation partielle du processeur : {str(e)}")
                         
-                        # 4. Mettre à jour les propositions de location si elles existent
-                        if st.session_state.propositions is not None:
-                            try:
-                                st.session_state.propositions = st.session_state.rental_processor.detecter_propositions()
-                            except:
-                                pass  # Ignorer si la mise à jour des propositions échoute
-                        
-                        # 5. Mettre à jour les voyages validés si ils existent
-                        if 'df_voyages_valides' in st.session_state:
-                            try:
-                                # Recréer les voyages validés à partir des nouvelles données
-                                mask_valides = df_updated["Véhicule N°"].isin(
-                                    st.session_state.df_voyages_valides["Véhicule N°"]
-                                )
-                                st.session_state.df_voyages_valides = df_updated[mask_valides].copy()
-                            except:
-                                pass  # Ignorer si la mise à jour des validations échoute
-                        
-                        # Afficher le véhicule mis à jour
-                        vehicule_update = df_updated[
-                            (df_updated["Zone"] == zone_objet) & 
-                            (df_updated["Véhicule N°"] == vehicule_objet)
-                        ].iloc[0]
-                        
-                        st.info(f"""
-                        **Véhicule mis à jour :**
-                        - Poids total : {vehicule_update['Poids total chargé']:.1f} kg
-                        - Volume total : {vehicule_update['Volume total chargé']:.3f} m³
-                        - Taux d'occupation : {vehicule_update['Taux d\'occupation (%)']:.1f}%
-                        - BLs inclus : {vehicule_update['BL inclus']}
-                        """)
-                        
-                        # Afficher un résumé des modifications
-                        st.success("🔄 Toutes les données ont été mises à jour avec succès !")
-                        
-                        # FORCER L'ACTUALISATION COMPLÈTE DE L'APPLICATION
+                        # FORCER L'ACTUALISATION
                         st.rerun()
-                        
                     else:
                         st.error(message)
                         
                 except Exception as e:
                     st.error(f"❌ Erreur lors de l'ajout de l'objet : {str(e)}")
-                    # Debug information
-                    st.error(f"Debug - Zone: {zone_objet}, Véhicule: {vehicule_objet}")
-                    st.error(f"Type transfer_manager: {type(st.session_state.transfer_manager)}")
-        
+
         # Affichage des objets ajoutés récemment
         st.markdown("### 📋 Historique des objets ajoutés")
-        
+
         # Rechercher les objets manuels dans les BLs
         objets_manuels = []
         for idx, row in df_voyages.iterrows():
@@ -2201,56 +2045,38 @@ def page_optimisation():
             if "OBJ-" in bls:
                 for bl in bls.split(";"):
                     if bl.startswith("OBJ-"):
-                        # Trouver le véhicule correspondant dans les données mises à jour
-                        vehicule_info = df_voyages[
-                            (df_voyages["Zone"] == row["Zone"]) & 
-                            (df_voyages["Véhicule N°"] == row["Véhicule N°"])
-                        ]
-                        if not vehicule_info.empty:
-                            poids_vehicule = vehicule_info["Poids total chargé"].iloc[0]
-                            volume_vehicule = vehicule_info["Volume total chargé"].iloc[0]
-                            
-                            objets_manuels.append({
-                                "Véhicule": row["Véhicule N°"],
-                                "Zone": row["Zone"],
-                                "Objet": bl,
-                                "Poids Véhicule": f"{poids_vehicule:.1f} kg",
-                                "Volume Véhicule": f"{volume_vehicule:.3f} m³",
-                                "Type": "Camion" if row.get("Code Véhicule", "") == "CAMION-LOUE" else "Estafette"
-                            })
-        
+                        objets_manuels.append({
+                            "Véhicule": row["Véhicule N°"],
+                            "Zone": row["Zone"],
+                            "Objet": bl,
+                            "Poids total chargé": f"{row.get('Poids total chargé', 0):.1f} kg",
+                            "Volume total chargé": f"{row.get('Volume total chargé', 0):.3f} m³",
+                            "Type Véhicule": row.get("Code Véhicule", "Estafette")
+                        })
+
         if objets_manuels:
             df_objets = pd.DataFrame(objets_manuels)
-            show_df(df_objets, use_container_width=True)
+            st.dataframe(df_objets, use_container_width=True)
             
-            # Bouton pour supprimer tous les objets (optionnel)
-            col_clear1, col_clear2 = st.columns([3, 1])
-            with col_clear2:
-                if st.button("🗑️ Supprimer tous les objets", type="secondary", key="btn_supprimer_onglet3"):
-                    # Réinitialiser les données sans objets manuels
-                    df_sans_objets = st.session_state.df_voyages.copy()
-                    for idx, row in df_sans_objets.iterrows():
-                        bls_originaux = str(row["BL inclus"]).split(";")
-                        bls_filtres = [bl for bl in bls_originaux if not bl.startswith("OBJ-")]
-                        df_sans_objets.at[idx, "BL inclus"] = ";".join(bls_filtres)
-                    
-                    # Réappliquer la mise à jour forcée
-                    st.session_state.df_voyages = df_sans_objets
-                    st.session_state.transfer_manager.df_voyages = df_sans_objets.copy()
-                    if st.session_state.rental_processor:
-                        st.session_state.rental_processor.df_base = df_sans_objets.copy()
-                    
-                    st.success("✅ Tous les objets manuels ont été supprimés")
-                    st.rerun()
+            # Bouton pour supprimer tous les objets
+            if st.button("🗑️ Supprimer tous les objets", type="secondary", key="btn_supprimer_objets"):
+                # Réinitialiser les données sans objets manuels
+                df_sans_objets = st.session_state.df_voyages.copy()
+                for idx, row in df_sans_objets.iterrows():
+                    bls_originaux = str(row["BL inclus"]).split(";")
+                    bls_filtres = [bl for bl in bls_originaux if not bl.startswith("OBJ-")]
+                    df_sans_objets.at[idx, "BL inclus"] = ";".join(bls_filtres)
+                
+                # Réappliquer la mise à jour
+                st.session_state.df_voyages = df_sans_objets
+                st.session_state.transfer_manager.df_voyages = df_sans_objets.copy()
+                if 'rental_processor' in st.session_state and st.session_state.rental_processor:
+                    st.session_state.rental_processor.df_base = df_sans_objets.copy()
+                
+                st.success("✅ Tous les objets manuels ont été supprimés")
+                st.rerun()
         else:
-            st.info(" Aucun objet manuel ajouté pour le moment.")
-
-        
-
-    # --- Onglet 4: ✅ VALIDATION DES VOYAGES APRÈS TRANSFERT
-    with tab4:
-        st.subheader("✅ VALIDATION DES VOYAGES APRÈS TRANSFERT")
-        
+            st.info("ℹ️ Aucun objet manuel ajouté pour le moment.")
         # =====================================================
         # 7️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
         # =====================================================
