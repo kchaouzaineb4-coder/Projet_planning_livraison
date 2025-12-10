@@ -979,35 +979,6 @@ def page_optimisation():
     with tab1:
         st.subheader("Propositions de Location de Camion")
         
-        # AJOUT DU CSS POUR LES BOUTONS
-        st.markdown("""
-        <style>
-        /* Boutons Accepter/Refuser avec couleur #0369A1 */
-        div[data-testid="column"]:nth-of-type(1) button[kind="primary"] {
-            background-color: #0369A1 !important;
-            border-color: #0369A1 !important;
-            color: white !important;
-        }
-
-        div[data-testid="column"]:nth-of-type(2) button[kind="secondary"] {
-            background-color: #0369A1 !important;
-            border-color: #0369A1 !important;
-            color: white !important;
-        }
-
-        /* Effet au survol */
-        div[data-testid="column"]:nth-of-type(1) button[kind="primary"]:hover {
-            background-color: #025C8F !important;
-            border-color: #025C8F !important;
-        }
-
-        div[data-testid="column"]:nth-of-type(2) button[kind="secondary"]:hover {
-            background-color: #025C8F !important;
-            border-color: #025C8F !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
         if st.session_state.propositions is not None and not st.session_state.propositions.empty:
             col_prop, col_details = st.columns([2, 3])
             
