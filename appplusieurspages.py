@@ -2088,26 +2088,7 @@ def page_optimisation():
     with tab4:
         st.subheader("✅ VALIDATION DES VOYAGES APRÈS TRANSFERT")
 
-        # =====================================================
-        # CSS POUR BOUTONS VALIDER/REJETER EN BLEU
-        # =====================================================
-        st.markdown("""
-        <style>
-            /* Style pour les boutons "Valider" et "Rejeter" */
-            div.stButton > button[kind="secondary"] {
-                background-color: #1E3A8A !important;
-                color: white !important;
-                border: 1px solid #1E3A8A !important;
-            }
-            
-            div.stButton > button[kind="secondary"]:hover {
-                background-color: #1E40AF !important;
-                color: white !important;
-                border: 1px solid #1E40AF !important;
-            }
-        </style>
-        """, unsafe_allow_html=True)
-        
+    
         # =====================================================
         # 7️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
         # =====================================================
@@ -2140,7 +2121,7 @@ def page_optimisation():
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         .voyage-header {
-            background: #0369A1;  /* CHANGÉ : bleu royal au lieu du dégradé mauve */
+            background: #0369A1;
             color: white;
             padding: 15px;
             border-radius: 8px;
@@ -2148,7 +2129,7 @@ def page_optimisation():
         }
         .metric-card {
             background: #f8f9fa;
-            border-left: 4px solid #0369A1;  /* CHANGÉ : bleu royal */
+            border-left: 4px solid #0369A1;
             padding: 12px;
             margin: 8px 0;
             border-radius: 5px;
@@ -2166,6 +2147,30 @@ def page_optimisation():
             display: flex;
             gap: 10px;
             margin-top: 15px;
+        }
+
+        /* AJOUT : Boutons personnalisés */
+        .stButton > button[data-testid*="btn_oui"] {
+            background-color: #28a745 !important;  /* Vert pour Valider */
+            color: white !important;
+            border: none !important;
+            font-weight: bold !important;
+        }
+
+        .stButton > button[data-testid*="btn_non"] {
+            background-color: #dc3545 !important;  /* Rouge pour Rejeter */
+            color: white !important;
+            border: none !important;
+            font-weight: bold !important;
+        }
+
+        /* Optionnel : Effet au survol */
+        .stButton > button[data-testid*="btn_oui"]:hover {
+            background-color: #218838 !important;
+        }
+
+        .stButton > button[data-testid*="btn_non"]:hover {
+            background-color: #c82333 !important;
         }
         </style>
         """, unsafe_allow_html=True)
