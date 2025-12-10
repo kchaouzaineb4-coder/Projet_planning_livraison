@@ -219,12 +219,14 @@ def page_import():
     
     st.markdown("""
     <div style='background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%);
-                padding: 1.5rem;
+                padding: 2rem;
                 border-radius: 10px;
                 color: white;
-                margin-bottom: 2rem;'>
-        <h3 style='color: white; margin-bottom: 0.5rem;'>📋 Instructions d'importation</h3>
-        <p style='margin-bottom: 0;'>Téléchargez les 3 fichiers requis pour commencer l'analyse des livraisons.</p>
+                margin-bottom: 2rem;
+                text-align: center;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);'>
+        <h3 style='color: white; margin-bottom: 1rem;'>📋 Instructions d'importation</h3>
+        <p style='margin-bottom: 0; font-size: 16px;'>Téléchargez les 3 fichiers requis pour commencer l'analyse des livraisons.</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -3557,48 +3559,6 @@ def page_finalisation():
         if st.button("🚚 Retourner à l'optimisation pour valider les voyages", type="primary"):
             st.session_state.page = "optimisation"
             st.rerun()
-
-
-
-
-
-
-
-
-
-
-        
-        
-    # Navigation entre pages
-   #st.markdown("---")
-   #col_nav1, col_nav2, col_nav3 = st.columns(3)
-    
-   #with col_nav1:
-     #  if st.button("← Retour à l'optimisation", use_container_width=True, key="btn_retour_optimisation_finalisation_2"):
-       #    st.session_state.page = "optimisation"
-         #  st.rerun()
-    
-  # with col_nav2:
-   #    voyages_valides = len(st.session_state.df_voyages_valides) if st.session_state.df_voyages_valides is not None else 0
-    #   st.metric("📊 Voyages validés", voyages_valides)
-    
-  # with col_nav3:
-    #   if st.button("🔄 Recommencer", type="secondary", use_container_width=True):
-      #     # Réinitialiser seulement certaines données
-       #    keys_to_keep = ['page', 'data_processed', 'df_grouped', 'df_city', 'df_grouped_zone', 
-         #                'df_zone', 'df_livraisons_original', 'df_livraisons']
-            
-         #  for key in list(st.session_state.keys()):
-          #     if key not in keys_to_keep:
-           #        del st.session_state[key]
-            
-          # st.session_state.rental_processor = TruckRentalProcessor(
-           #    st.session_state.df_optimized_estafettes, 
-          #     st.session_state.df_livraisons_original
-          # )
-          # st.success("✅ Application réinitialisée. Vous pouvez repartir de l'optimisation.")
-         #  st.rerun()
-
 # =====================================================
 # NAVIGATION PRINCIPALE
 # =====================================================
