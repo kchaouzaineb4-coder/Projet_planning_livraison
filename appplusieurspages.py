@@ -2089,13 +2089,34 @@ def page_optimisation():
         st.subheader("✅ VALIDATION DES VOYAGES APRÈS TRANSFERT")
 
         # =====================================================
+        # CSS POUR BOUTONS VALIDER/REJETER EN BLEU
+        # =====================================================
+        st.markdown("""
+        <style>
+            /* Style pour les boutons "Valider" et "Rejeter" */
+            div.stButton > button[kind="secondary"] {
+                background-color: #1E3A8A !important;
+                color: white !important;
+                border: 1px solid #1E3A8A !important;
+            }
+            
+            div.stButton > button[kind="secondary"]:hover {
+                background-color: #1E40AF !important;
+                color: white !important;
+                border: 1px solid #1E40AF !important;
+            }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # =====================================================
         # 7️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
         # =====================================================
-
+        
         from io import BytesIO
 
         # --- Fonction pour exporter DataFrame en Excel avec arrondi ---
         def to_excel(df, sheet_name="Voyages Validés"):
+
             df_export = df.copy()
             if "Poids total chargé" in df_export.columns:
                 df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
