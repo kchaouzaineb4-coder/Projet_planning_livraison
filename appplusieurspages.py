@@ -153,6 +153,8 @@ if 'data_processed' not in st.session_state:
     st.session_state.transfer_manager = None
     st.session_state.attributions = {}
     st.session_state.validations = {}
+if 'truck_type' not in st.session_state:
+    st.session_state.truck_type = "5 tonnes" 
 # =====================================================
 # 📌 Constantes pour les véhicules et chauffeurs
 # =====================================================
@@ -193,11 +195,18 @@ def handle_location_action(accepter):
         try:
             # Assurer que le client est une chaîne valide
             client_to_process = str(st.session_state.selected_client)
+            
+            # Récupérer le type de camion sélectionné
+            truck_type = st.session_state.get('truck_type', '5 tonnes')
+            
             ok, msg, _ = st.session_state.rental_processor.appliquer_location(
-                client_to_process, accepter=accepter
+                client_to_process, 
+                accepter=accepter,
+                truck_type=truck_type  # Passer le type de camion
             )
             st.session_state.message = msg
             update_propositions_view()
+            st.rerun()
         except Exception as e:
             st.session_state.message = f"❌ Erreur lors du traitement : {str(e)}"
     elif not st.session_state.selected_client:
@@ -1057,13 +1066,32 @@ def page_optimisation():
                     st.warning("⚠️ Format de données incorrect dans les propositions.")
                     st.session_state.selected_client = None
 
+                # AJOUTER LE CHOIX DU TYPE DE CAMION AVANT LES BOUTONS
+                is_client_selected = st.session_state.selected_client != "" and st.session_state.selected_client is not None
                 
-
-
+                if is_client_selected:
+                    st.markdown("---")
+                    st.markdown("### 🚚 Type de camion à louer")
+                    
+                    # Sélection du type de camion
+                    st.session_state.truck_type = st.selectbox(
+                        "Sélectionnez le type de camion :",
+                        options=["5 tonnes", "10 tonnes"],
+                        index=0 if st.session_state.get('truck_type', '5 tonnes') == '5 tonnes' else 1,
+                        key='truck_type_select',
+                        help="Capacité du camion à louer"
+                    )
+                    
+                    # Afficher les capacités selon le type sélectionné
+                    if st.session_state.truck_type == "5 tonnes":
+                        st.info("**Capacités 5 tonnes** : Poids max 5 000 kg, Volume max 20 m³")
+                    else:
+                        st.info("**Capacités 10 tonnes** : Poids max 10 000 kg, Volume max 40 m³")
+                    
+                    st.markdown("---")
 
                 # Boutons d'action
                 col_btn_acc, col_btn_ref = st.columns(2)
-                is_client_selected = st.session_state.selected_client != "" and st.session_state.selected_client is not None
                 
                 with col_btn_acc:
                     st.button(
@@ -1096,6 +1124,10 @@ def page_optimisation():
                 is_client_selected = st.session_state.selected_client != "" and st.session_state.selected_client is not None
                 
                 if is_client_selected:
+                    # Afficher le type de camion sélectionné s'il y a lieu
+                    if hasattr(st.session_state, 'truck_type'):
+                        st.info(f"**Type de camion sélectionné :** {st.session_state.truck_type}")
+                    
                     try:
                         resume, details_df = st.session_state.rental_processor.get_details_client(
                             st.session_state.selected_client
@@ -1103,6 +1135,8 @@ def page_optimisation():
                         
                         # Afficher le résumé
                         st.markdown(f"**{resume}**")
+                    
+                    
                         
                         # FORMATAGE DU TABLEAU DES DÉTAILS AVEC STYLE CSS
                         if not details_df.empty:

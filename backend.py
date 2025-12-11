@@ -8,9 +8,34 @@ SEUIL_POIDS = 3000.0    # kg
 SEUIL_VOLUME = 9.216    # m³
 CAPACITE_POIDS_ESTAFETTE = 1550  # kg
 CAPACITE_VOLUME_ESTAFETTE = 4.608  # m³
+
+# NOUVELLES CONSTANTES POUR LES TYPES DE CAMIONS
+CAPACITE_POIDS_CAMION_5T = 5000  # kg
+CAPACITE_VOLUME_CAMION_5T = 20.0  # m³
+CAPACITE_POIDS_CAMION_10T = 10000  # kg
+CAPACITE_VOLUME_CAMION_10T = 40.0  # m³
+
 CAMION_CODE = "CAMION-LOUE"
-CAMION_POIDS_MAX = 30500  # kg
-CAMION_VOLUME_MAX = 77.5  # m³
+
+# REMPLACER LES ANCIENNES CONSTANTES PAR DES FONCTIONS
+# Les fonctions suivantes retournent les capacités selon le type de camion
+def get_capacite_poids_camion(truck_type="5 tonnes"):
+    """Retourne la capacité poids selon le type de camion."""
+    if truck_type == "10 tonnes":
+        return CAPACITE_POIDS_CAMION_10T
+    else:  # 5 tonnes par défaut
+        return CAPACITE_POIDS_CAMION_5T
+
+def get_capacite_volume_camion(truck_type="5 tonnes"):
+    """Retourne la capacité volume selon le type de camion."""
+    if truck_type == "10 tonnes":
+        return CAPACITE_VOLUME_CAMION_10T
+    else:  # 5 tonnes par défaut
+        return CAPACITE_VOLUME_CAMION_5T
+
+# Conserver les anciens noms pour compatibilité (mais ils seront fonctionnels)
+CAMION_POIDS_MAX = get_capacite_poids_camion  # C'est maintenant une fonction !
+CAMION_VOLUME_MAX = get_capacite_volume_camion  # C'est maintenant une fonction !
 
 # =====================================================
 # CLASSE PRINCIPALE DE TRAITEMENT DES LIVRAISONS
@@ -258,12 +283,16 @@ class DeliveryProcessor:
 # =====================================================
 class TruckRentalProcessor:
     def __init__(self, df_optimized, df_livraisons_original):
-        """Initialise avec le DataFrame optimisé ET les données originales du tableau 'Livraisons par Client & Ville + Zone'."""
+        """Initialise avec le DataFrame optimisé ET les données originales."""
         self.df_base = self._initialize_rental_columns(df_optimized.copy())
-        # Utiliser directement le tableau "Livraisons par Client & Ville + Zone"
         self.df_livraisons_original = df_livraisons_original.copy()
         self._next_camion_num = self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE].shape[0] + 1
-
+        self.truck_type = "5 tonnes"  # Valeur par défaut
+    
+    def _get_capacites_camion(self, truck_type="5 tonnes"):
+        """Retourne les capacités selon le type de camion."""
+        return get_capacite_poids_camion(truck_type), get_capacite_volume_camion(truck_type)
+    
     def _initialize_rental_columns(self, df):
         """Initialise les colonnes pour la gestion de la location."""
         df.rename(columns={
@@ -410,9 +439,15 @@ class TruckRentalProcessor:
             print(f"❌ Erreur dans get_details_client: {e}")
             return f"Erreur avec le client {client}", pd.DataFrame()
 
-    def appliquer_location(self, client, accepter):
+    def appliquer_location(self, client, accepter, truck_type="5 tonnes"):
         """Applique la décision de location pour un client avec réoptimisation automatique."""
         try:
+            # Stocker le type de camion
+            self.truck_type = truck_type
+            
+            # Récupérer les capacités pour ce type de camion
+            capacite_poids, capacite_volume = self._get_capacites_camion(truck_type)
+            
             # Utiliser les données originales pour trouver tous les BLs du client
             client_data_original = self.df_livraisons_original[
                 self.df_livraisons_original["Client de l'estafette"] == client
@@ -434,10 +469,17 @@ class TruckRentalProcessor:
                 representants = ";".join(sorted(client_data_original["Représentant"].astype(str).unique().tolist()))
                 zones = ";".join(sorted(client_data_original["Zone"].astype(str).unique().tolist()))
                 
-                # Calcul du taux d'occupation du camion
-                TAUX_POIDS_MAX_LOC = 30500
-                TAUX_VOLUME_MAX_LOC = 77.5
-                taux_occu = max(poids_total / TAUX_POIDS_MAX_LOC * 100, volume_total / TAUX_VOLUME_MAX_LOC * 100)
+                # Vérifier que les totaux ne dépassent pas la capacité du camion
+                if poids_total > capacite_poids:
+                    return False, f"❌ Le poids total ({poids_total:.1f} kg) dépasse la capacité du camion {truck_type} ({capacite_poids} kg).", self.df_base
+                
+                if volume_total > capacite_volume:
+                    return False, f"❌ Le volume total ({volume_total:.3f} m³) dépasse la capacité du camion {truck_type} ({capacite_volume} m³).", self.df_base
+                
+                # Calcul du taux d'occupation du camion avec les capacités appropriées
+                taux_poids = (poids_total / capacite_poids) * 100
+                taux_volume = (volume_total / capacite_volume) * 100
+                taux_occu = max(taux_poids, taux_volume)
                 
                 # Créer un nouveau voyage pour le camion loué
                 camion_num_final = f"C{self._next_camion_num}"
@@ -454,6 +496,9 @@ class TruckRentalProcessor:
                     "Code Véhicule": CAMION_CODE,
                     "Camion N°": camion_num_final,
                     "Taux d'occupation (%)": taux_occu,
+                    "Type_Camion": truck_type,  # Ajouter le type de camion
+                    "Capacite_Poids": capacite_poids,
+                    "Capacite_Volume": capacite_volume
                 }])
                 
                 self._next_camion_num += 1
@@ -481,7 +526,7 @@ class TruckRentalProcessor:
                 df_final = pd.concat([df_camions_existants, df_estafettes_optimisees, new_row], ignore_index=True)
                 
                 self.df_base = df_final
-                return True, f"✅ Location ACCEPTÉE pour {client}. Commandes transférées vers {camion_num_final}. Réoptimisation des estafettes effectuée.", self.detecter_propositions()
+                return True, f"✅ Location ACCEPTÉE pour {client} avec camion {truck_type}. Commandes transférées vers {camion_num_final}. Réoptimisation des estafettes effectuée.", self.detecter_propositions()
             else:
                 # Refuser la proposition - pas de changement dans l'optimisation
                 mask_original = df["BL inclus"].apply(
@@ -497,100 +542,100 @@ class TruckRentalProcessor:
             return False, f"❌ Erreur lors de l'application de la décision: {str(e)}", self.df_base
 
     def _reoptimiser_estafettes_par_zone(self, bls_a_garder, zones_affectees):
-            """Réoptimise complètement les estafettes pour les BLs restants après transfert."""
-            try:
-                if not bls_a_garder:
-                    return pd.DataFrame()
-                
-                # Récupérer les données complètes des BLs à garder
-                df_bls_data = self.df_livraisons_original[
-                    self.df_livraisons_original["No livraison"].isin(bls_a_garder)
-                ]
-                
-                if df_bls_data.empty:
-                    return pd.DataFrame()
-                
-                resultats_optimises = []
-                estafette_num = 1  # Recommencer la numérotation
-                
-                # Optimiser par zone
-                for zone in zones_affectees:
-                    df_zone = df_bls_data[df_bls_data["Zone"] == zone]
-                    
-                    if df_zone.empty:
-                        continue
-                        
-                    # Trier par poids décroissant pour l'optimisation
-                    df_zone_sorted = df_zone.sort_values(by="Poids total", ascending=False).reset_index()
-                    estafettes_zone = []
-                    
-                    # Algorithme d'optimisation (bin packing)
-                    for idx, row in df_zone_sorted.iterrows():
-                        bl = str(row["No livraison"])
-                        poids = row["Poids total"]
-                        volume = row["Volume total"]
-                        client = str(row["Client de l'estafette"])
-                        representant = str(row["Représentant"])
-                        placed = False
-                        
-                        # Essayer de placer dans une estafette existante
-                        for e in estafettes_zone:
-                            if (e["poids"] + poids <= CAPACITE_POIDS_ESTAFETTE and 
-                                e["volume"] + volume <= CAPACITE_VOLUME_ESTAFETTE):
-                                e["poids"] += poids
-                                e["volume"] += volume
-                                e["bls"].append(bl)
-                                e["clients"].add(client)
-                                e["representants"].add(representant)
-                                placed = True
-                                break
-                        
-                        # Si pas placé, créer une nouvelle estafette
-                        if not placed:
-                            estafettes_zone.append({
-                                "poids": poids,
-                                "volume": volume,
-                                "bls": [bl],
-                                "clients": {client},
-                                "representants": {representant},
-                                "num_global": estafette_num
-                            })
-                            estafette_num += 1
-
-                    # Formater les résultats pour la zone
-                    for e in estafettes_zone:
-                        clients_list = ", ".join(sorted(list(e["clients"])))
-                        representants_list = ", ".join(sorted(list(e["representants"])))
-                        
-                        # Calcul du taux d'occupation
-                        taux_poids = (e["poids"] / CAPACITE_POIDS_ESTAFETTE) * 100
-                        taux_volume = (e["volume"] / CAPACITE_VOLUME_ESTAFETTE) * 100
-                        taux_occupation = max(taux_poids, taux_volume)
-                        
-                        resultats_optimises.append({
-                            "Zone": zone,
-                            "Estafette N°": e["num_global"],
-                            "Poids total": e["poids"],
-                            "Volume total": e["volume"],
-                            "Client(s) inclus": clients_list,
-                            "Représentant(s) inclus": representants_list,
-                            "BL inclus": ";".join(e["bls"]),
-                            "Taux d'occupation (%)": taux_occupation,
-                            "Location_camion": False,
-                            "Location_proposee": False,
-                            "Code Véhicule": "ESTAFETTE",
-                            "Camion N°": f"E{e['num_global']}"
-                        })
-                
-                # Créer le DataFrame final
-                if resultats_optimises:
-                    return pd.DataFrame(resultats_optimises)
-                else:
-                    return pd.DataFrame()
-                    
-            except Exception as e:
-                print(f"❌ Erreur lors de la réoptimisation: {e}")
+        """Réoptimise complètement les estafettes pour les BLs restants après transfert."""
+        try:
+            if not bls_a_garder:
                 return pd.DataFrame()
+            
+            # Récupérer les données complètes des BLs à garder
+            df_bls_data = self.df_livraisons_original[
+                self.df_livraisons_original["No livraison"].isin(bls_a_garder)
+            ]
+            
+            if df_bls_data.empty:
+                return pd.DataFrame()
+            
+            resultats_optimises = []
+            estafette_num = 1  # Recommencer la numérotation
+            
+            # Optimiser par zone
+            for zone in zones_affectees:
+                df_zone = df_bls_data[df_bls_data["Zone"] == zone]
+                
+                if df_zone.empty:
+                    continue
+                    
+                # Trier par poids décroissant pour l'optimisation
+                df_zone_sorted = df_zone.sort_values(by="Poids total", ascending=False).reset_index()
+                estafettes_zone = []
+                
+                # Algorithme d'optimisation (bin packing)
+                for idx, row in df_zone_sorted.iterrows():
+                    bl = str(row["No livraison"])
+                    poids = row["Poids total"]
+                    volume = row["Volume total"]
+                    client = str(row["Client de l'estafette"])
+                    representant = str(row["Représentant"])
+                    placed = False
+                    
+                    # Essayer de placer dans une estafette existante
+                    for e in estafettes_zone:
+                        if (e["poids"] + poids <= CAPACITE_POIDS_ESTAFETTE and 
+                            e["volume"] + volume <= CAPACITE_VOLUME_ESTAFETTE):
+                            e["poids"] += poids
+                            e["volume"] += volume
+                            e["bls"].append(bl)
+                            e["clients"].add(client)
+                            e["representants"].add(representant)
+                            placed = True
+                            break
+                    
+                    # Si pas placé, créer une nouvelle estafette
+                    if not placed:
+                        estafettes_zone.append({
+                            "poids": poids,
+                            "volume": volume,
+                            "bls": [bl],
+                            "clients": {client},
+                            "representants": {representant},
+                            "num_global": estafette_num
+                        })
+                        estafette_num += 1
+
+                # Formater les résultats pour la zone
+                for e in estafettes_zone:
+                    clients_list = ", ".join(sorted(list(e["clients"])))
+                    representants_list = ", ".join(sorted(list(e["representants"])))
+                    
+                    # Calcul du taux d'occupation
+                    taux_poids = (e["poids"] / CAPACITE_POIDS_ESTAFETTE) * 100
+                    taux_volume = (e["volume"] / CAPACITE_VOLUME_ESTAFETTE) * 100
+                    taux_occupation = max(taux_poids, taux_volume)
+                    
+                    resultats_optimises.append({
+                        "Zone": zone,
+                        "Estafette N°": e["num_global"],
+                        "Poids total": e["poids"],
+                        "Volume total": e["volume"],
+                        "Client(s) inclus": clients_list,
+                        "Représentant(s) inclus": representants_list,
+                        "BL inclus": ";".join(e["bls"]),
+                        "Taux d'occupation (%)": taux_occupation,
+                        "Location_camion": False,
+                        "Location_proposee": False,
+                        "Code Véhicule": "ESTAFETTE",
+                        "Camion N°": f"E{e['num_global']}"
+                    })
+            
+            # Créer le DataFrame final
+            if resultats_optimises:
+                return pd.DataFrame(resultats_optimises)
+            else:
+                return pd.DataFrame()
+                
+        except Exception as e:
+            print(f"❌ Erreur lors de la réoptimisation: {e}")
+            return pd.DataFrame()
 
     def get_df_result(self):
         """Retourne le DataFrame optimisé final."""
@@ -634,11 +679,11 @@ class TruckRentalProcessor:
         # Nettoyer les colonnes temporaires
         df_result = df_result.drop(columns=['Code_Tri'], errors='ignore')
         
-        # Ordre d'affichage final
+        # Ordre d'affichage final (ajouter Type_Camion si existe)
         final_columns = [
             "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé",
             "Client(s) inclus", "Représentant(s) inclus", "BL inclus", "Taux d'occupation (%)",
-            "Location_camion", "Location_proposee", "Code Véhicule"
+            "Location_camion", "Location_proposee", "Code Véhicule", "Type_Camion"
         ]
         
         # Filtrer seulement les colonnes qui existent
@@ -651,11 +696,39 @@ class TruckTransferManager:
     def __init__(self, df_voyages, df_livraisons):
         self.df_voyages = df_voyages.copy()
         self.df_livraisons = df_livraisons.copy()
-        self.MAX_POIDS = CAPACITE_POIDS_ESTAFETTE
-        self.MAX_VOLUME = CAPACITE_VOLUME_ESTAFETTE
+        self.MAX_POIDS_ESTAFETTE = CAPACITE_POIDS_ESTAFETTE
+        self.MAX_VOLUME_ESTAFETTE = CAPACITE_VOLUME_ESTAFETTE
+    
+    def _get_capacites_vehicule(self, vehicule, df_voyages):
+        """Retourne les capacités max selon le type de véhicule."""
+        # Rechercher le véhicule dans le DataFrame
+        if "Véhicule N°" in df_voyages.columns:
+            veh_col = "Véhicule N°"
+        elif "Camion N°" in df_voyages.columns:
+            veh_col = "Camion N°"
+        else:
+            return CAPACITE_POIDS_ESTAFETTE, CAPACITE_VOLUME_ESTAFETTE
+        
+        vehicule_data = df_voyages[df_voyages[veh_col] == vehicule]
+        
+        if vehicule_data.empty:
+            return CAPACITE_POIDS_ESTAFETTE, CAPACITE_VOLUME_ESTAFETTE
+        
+        row = vehicule_data.iloc[0]
+        
+        # Déterminer si c'est un camion loué
+        is_camion = row.get("Code Véhicule", "") == CAMION_CODE or str(vehicule).upper().startswith("C")
+        
+        if is_camion:
+            # Vérifier le type de camion
+            truck_type = row.get("Type_Camion", "5 tonnes")
+            # Utiliser les fonctions pour obtenir les capacités
+            return get_capacite_poids_camion(truck_type), get_capacite_volume_camion(truck_type)
+        else:
+            return CAPACITE_POIDS_ESTAFETTE, CAPACITE_VOLUME_ESTAFETTE
 
     def transferer_bls(self, zone, source, cible, bls_a_transferer):
-        """Transfère des BLs d'une estafette source à une estafette cible."""
+        """Transfère des BLs d'un véhicule source à un véhicule cible."""
         try:
             # Vérifier que les BLs existent dans la source
             df_source = self.df_voyages[
@@ -679,7 +752,7 @@ class TruckTransferManager:
             poids_transfert = df_bls_transfert["Poids total"].sum()
             volume_transfert = df_bls_transfert["Volume total"].sum()
             
-            # Vérifier la capacité du véhicule cible
+            # Vérifier la capacité du véhicule cible avec les capacités dynamiques
             df_cible = self.df_voyages[
                 (self.df_voyages["Zone"] == zone) & 
                 (self.df_voyages["Véhicule N°"] == cible)
@@ -688,12 +761,15 @@ class TruckTransferManager:
             if df_cible.empty:
                 return False, f"❌ Véhicule cible {cible} non trouvé dans la zone {zone}", self.df_voyages
             
+            # Obtenir les capacités max du véhicule cible
+            max_poids_cible, max_volume_cible = self._get_capacites_vehicule(cible, self.df_voyages)
+            
             poids_cible_actuel = df_cible["Poids total chargé"].iloc[0]
             volume_cible_actuel = df_cible["Volume total chargé"].iloc[0]
             
-            if (poids_cible_actuel + poids_transfert > self.MAX_POIDS or 
-                volume_cible_actuel + volume_transfert > self.MAX_VOLUME):
-                return False, "❌ Le transfert dépasse les capacités du véhicule cible", self.df_voyages
+            if (poids_cible_actuel + poids_transfert > max_poids_cible or 
+                volume_cible_actuel + volume_transfert > max_volume_cible):
+                return False, f"❌ Le transfert dépasse les capacités du véhicule cible {cible} (Max: {max_poids_cible}kg, {max_volume_cible}m³)", self.df_voyages
             
             # Appliquer le transfert
             for idx, row in self.df_voyages.iterrows():
@@ -702,13 +778,28 @@ class TruckTransferManager:
                     self.df_voyages.at[idx, "BL inclus"] = ';'.join(bls_restants)
                     self.df_voyages.at[idx, "Poids total chargé"] -= poids_transfert
                     self.df_voyages.at[idx, "Volume total chargé"] -= volume_transfert
+                    
+                    # Recalculer le taux d'occupation pour la source
+                    max_poids_source, max_volume_source = self._get_capacites_vehicule(source, self.df_voyages)
+                    new_poids_source = max(0, self.df_voyages.at[idx, "Poids total chargé"])
+                    new_volume_source = max(0, self.df_voyages.at[idx, "Volume total chargé"])
+                    taux_source = max((new_poids_source / max_poids_source) * 100, (new_volume_source / max_volume_source) * 100)
+                    self.df_voyages.at[idx, "Taux d'occupation (%)"] = taux_source
                 
                 elif row["Zone"] == zone and row["Véhicule N°"] == cible:
                     bls_actuels = row["BL inclus"].split(';')
-                    bls_nouveaux = bls_actuels + bls_existants
+                    # Combiner et éliminer les doublons
+                    bls_nouveaux = list(dict.fromkeys(bls_actuels + bls_existants))
                     self.df_voyages.at[idx, "BL inclus"] = ';'.join(bls_nouveaux)
                     self.df_voyages.at[idx, "Poids total chargé"] += poids_transfert
                     self.df_voyages.at[idx, "Volume total chargé"] += volume_transfert
+                    
+                    # Recalculer le taux d'occupation pour la cible
+                    max_poids_cible, max_volume_cible = self._get_capacites_vehicule(cible, self.df_voyages)
+                    new_poids_cible = self.df_voyages.at[idx, "Poids total chargé"]
+                    new_volume_cible = self.df_voyages.at[idx, "Volume total chargé"]
+                    taux_cible = max((new_poids_cible / max_poids_cible) * 100, (new_volume_cible / max_volume_cible) * 100)
+                    self.df_voyages.at[idx, "Taux d'occupation (%)"] = taux_cible
             
             message = f"✅ Transfert réussi : {len(bls_existants)} BL(s) déplacé(s) de {source} vers {cible}"
             return True, message, self.df_voyages
@@ -719,19 +810,9 @@ class TruckTransferManager:
     def get_voyages_actuels(self):
         return self.df_voyages
 
-    # -------------------------
-    # MÉTHODE POUR AJOUTER UN OBJET MANUEL
-    # -------------------------
     def add_manual_object(self, df_voyages, vehicle, zone, name, weight, volume):
         """
-        Ajoute un objet manuel (objet virtuel) dans le véhicule sélectionné (estafette ou camion).
-        - df_voyages : DataFrame des voyages (format attendu : celui retourné par get_df_result / df_optimized_estafettes)
-        - vehicle : string e.g. "E1" ou "C1"
-        - zone : string, même valeur que colonne Zone
-        - name : désignation
-        - weight : kg (float)
-        - volume : m3 (float)
-        Retour : (success: bool, message: str, df_updated: DataFrame)
+        Ajoute un objet manuel (objet virtuel) dans le véhicule sélectionné.
         """
         try:
             # Validation inputs
@@ -742,13 +823,13 @@ class TruckTransferManager:
 
             df = df_voyages.copy()
 
-            # Rechercher la ligne du véhicule dans df (col peut être 'Véhicule N°' ou 'Camion N°')
+            # Rechercher la ligne du véhicule dans df
             if "Véhicule N°" in df.columns:
                 veh_col = "Véhicule N°"
             elif "Camion N°" in df.columns:
                 veh_col = "Camion N°"
             else:
-                return False, "Structure du DataFrame inattendue (pas de colonne Véhicule N° ni Camion N°).", df
+                return False, "Structure du DataFrame inattendue.", df
 
             mask = (df[veh_col] == vehicle) & (df["Zone"] == zone)
             if not mask.any():
@@ -757,10 +838,8 @@ class TruckTransferManager:
             idx = df[mask].index[0]
             row = df.loc[idx].copy()
 
-            is_camion = (row.get("Code Véhicule", "") == CAMION_CODE) or str(vehicle).upper().startswith("C")
-
-            max_poids = CAMION_POIDS_MAX if is_camion else CAPACITE_POIDS_ESTAFETTE
-            max_volume = CAMION_VOLUME_MAX if is_camion else CAPACITE_VOLUME_ESTAFETTE
+            # Obtenir les capacités max selon le type de véhicule
+            max_poids, max_volume = self._get_capacites_vehicule(vehicle, df)
 
             current_poids = float(row.get("Poids total chargé", row.get("Poids total", 0)) or 0)
             current_volume = float(row.get("Volume total chargé", row.get("Volume total", 0)) or 0)
@@ -768,14 +847,20 @@ class TruckTransferManager:
             new_poids = current_poids + weight
             new_volume = current_volume + volume
 
-            # Refuser si dépasse (contrainte demandée)
+            # Vérifier les capacités
             if new_poids > max_poids or new_volume > max_volume:
-                return False, "❌ Capacité dépassée : objet non ajouté.", df
+                # Récupérer le type de véhicule pour le message d'erreur
+                is_camion = row.get("Code Véhicule", "") == CAMION_CODE or str(vehicle).upper().startswith("C")
+                vehicle_type = "camion" if is_camion else "estafette"
+                truck_type = row.get("Type_Camion", "") if is_camion else ""
+                type_info = f" ({truck_type})" if truck_type else ""
+                
+                return False, f"❌ Capacité dépassée pour {vehicle_type}{type_info} {vehicle} : {new_poids:.1f}kg/{max_poids}kg, {new_volume:.3f}m³/{max_volume}m³", df
 
             # Générer code unique pour l'objet
             obj_code = f"OBJ-{name}"
 
-            # Mettre à jour BL inclus (s'assurer que ce soit une string)
+            # Mettre à jour BL inclus
             bls_current = str(row.get("BL inclus", "")).strip()
             if bls_current == "nan" or bls_current == "":
                 new_bls = obj_code
@@ -784,7 +869,6 @@ class TruckTransferManager:
 
             # Appliquer modifications
             df.at[idx, "BL inclus"] = new_bls
-            # Mettre à jour colonnes poids/volume selon structure
             if "Poids total chargé" in df.columns:
                 df.at[idx, "Poids total chargé"] = new_poids
             else:
@@ -795,15 +879,14 @@ class TruckTransferManager:
             else:
                 df.at[idx, "Volume total"] = new_volume
 
-            # Recalculer taux d'occupation
+            # Recalculer taux d'occupation avec les bonnes capacités
             taux = max((new_poids / max_poids) * 100, (new_volume / max_volume) * 100)
             df.at[idx, "Taux d'occupation (%)"] = taux
 
-            return True, f"✅ Objet '{name}' ajouté à {vehicle} en zone {zone} (code {obj_code})", df
+            return True, f"✅ Objet '{name}' ajouté à {vehicle} en zone {zone}", df
 
         except Exception as e:
             return False, f"❌ Erreur lors de l'ajout de l'objet : {str(e)}", df_voyages
-
 
 # =====================================================
 # CLASSE DE VALIDATION DES VOYAGES
@@ -813,7 +896,7 @@ class VoyageValidator:
         self.df_voyages = df_voyages.copy()
     
     def validate_voyages(self):
-        """Valide les voyages et retourne un rapport de validation."""
+        """Valide les voyages en tenant compte des types de camions."""
         try:
             df = self.df_voyages.copy()
             rapports = []
@@ -828,9 +911,12 @@ class VoyageValidator:
                 
                 # Déterminer les capacités max selon le type de véhicule
                 if code_vehicule == CAMION_CODE:
-                    poids_max = CAMION_POIDS_MAX
-                    volume_max = CAMION_VOLUME_MAX
-                    type_veh = "Camion"
+                    # Vérifier le type de camion
+                    truck_type = row.get("Type_Camion", "5 tonnes")
+                    # Utiliser les fonctions pour obtenir les capacités
+                    poids_max = get_capacite_poids_camion(truck_type)
+                    volume_max = get_capacite_volume_camion(truck_type)
+                    type_veh = f"Camion {truck_type}"
                 else:
                     poids_max = CAPACITE_POIDS_ESTAFETTE
                     volume_max = CAPACITE_VOLUME_ESTAFETTE
@@ -867,7 +953,7 @@ class VoyageValidator:
             for idx, row in df.iterrows():
                 bls = str(row.get("BL inclus", "")).split(';')
                 for bl in bls:
-                    if bl.strip() and bl != 'nan':
+                    if bl.strip() and bl != 'nan' and not bl.startswith('OBJ-'):
                         tous_bls.append((bl.strip(), row["Véhicule N°"], row["Zone"]))
             
             bls_counts = {}
@@ -877,7 +963,7 @@ class VoyageValidator:
                 bls_counts[bl].append((vehicule, zone))
             
             for bl, occurrences in bls_counts.items():
-                if len(occurrences) > 1 and not bl.startswith('OBJ-'):
+                if len(occurrences) > 1:
                     vehicules = ", ".join([f"{veh} (Zone {zone})" for veh, zone in occurrences])
                     rapports.append({
                         'Type': '❌ ERREUR',
@@ -892,28 +978,46 @@ class VoyageValidator:
                 representants = str(row.get("Représentant(s) inclus", ""))
                 bls = str(row.get("BL inclus", ""))
                 
+                # Filtrer les objets manuels pour vérifier les BLs réels
+                bls_list = [bl for bl in str(bls).split(';') if bl.strip() and not bl.startswith('OBJ-')]
+                
                 if not clients.strip() or clients == 'nan':
                     rapports.append({
                         'Type': '⚠️ ALERTE',
                         'Message': f"Véhicule {vehicule} (Zone {zone}) n'a pas de client associé"
                     })
                 
-                if not bls.strip() or bls == 'nan':
-                    rapports.append({
-                        'Type': '❌ ERREUR', 
-                        'Message': f"Véhicule {vehicule} (Zone {zone}) n'a pas de BL associé"
-                    })
+                if not bls_list:  # Pas de BLs réels (seulement objets manuels ou vide)
+                    if not any(bl.startswith('OBJ-') for bl in str(bls).split(';') if bl.strip()):
+                        rapports.append({
+                            'Type': '❌ ERREUR', 
+                            'Message': f"Véhicule {vehicule} (Zone {zone}) n'a pas de BL associé"
+                        })
             
             # Résumé global
             nb_estafettes = len(df[df["Code Véhicule"] == "ESTAFETTE"])
             nb_camions = len(df[df["Code Véhicule"] == CAMION_CODE])
+            
+            # Compter les types de camions
+            camions_5t = 0
+            camions_10t = 0
+            if nb_camions > 0 and "Type_Camion" in df.columns:
+                camions_5t = len(df[(df["Code Véhicule"] == CAMION_CODE) & (df["Type_Camion"] == "5 tonnes")])
+                camions_10t = len(df[(df["Code Véhicule"] == CAMION_CODE) & (df["Type_Camion"] == "10 tonnes")])
+            
             poids_total = df["Poids total chargé"].sum()
             volume_total = df["Volume total chargé"].sum()
             taux_moyen = df["Taux d'occupation (%)"].mean()
             
+            # Résumé détaillé
+            message_resume = f"Total : {nb_estafettes} estafettes"
+            if nb_camions > 0:
+                message_resume += f", {nb_camions} camions ({camions_5t}×5t, {camions_10t}×10t)"
+            message_resume += f" | Poids total : {poids_total:.1f}kg | Volume total : {volume_total:.3f}m³ | Taux moyen : {taux_moyen:.1f}%"
+            
             rapports.append({
                 'Type': '📊 RÉSUMÉ',
-                'Message': f"Total : {nb_estafettes} estafettes, {nb_camions} camions | Poids total : {poids_total:.1f}kg | Volume total : {volume_total:.3f}m³ | Taux moyen : {taux_moyen:.1f}%"
+                'Message': message_resume
             })
             
             return pd.DataFrame(rapports)
@@ -952,19 +1056,49 @@ class VoyageValidator:
                 
                 # Feuille de détails par véhicule
                 details_vehicules = self.df_voyages[[
-                    'Zone', 'Véhicule N°', 'Code Véhicule', 'Poids total chargé', 
-                    'Volume total chargé', 'Taux d\'occupation (%)', 'Client(s) inclus',
-                    'Représentant(s) inclus', 'BL inclus'
+                    'Zone', 'Véhicule N°', 'Code Véhicule', 'Type_Camion', 
+                    'Poids total chargé', 'Volume total chargé', 'Taux d\'occupation (%)', 
+                    'Client(s) inclus', 'Représentant(s) inclus', 'BL inclus'
                 ]].copy()
                 
-                details_vehicules['Capacité Max Poids'] = details_vehicules['Code Véhicule'].apply(
-                    lambda x: CAMION_POIDS_MAX if x == CAMION_CODE else CAPACITE_POIDS_ESTAFETTE
-                )
-                details_vehicules['Capacité Max Volume'] = details_vehicules['Code Véhicule'].apply(
-                    lambda x: CAMION_VOLUME_MAX if x == CAMION_CODE else CAPACITE_VOLUME_ESTAFETTE
-                )
+                # Déterminer les capacités max selon le type de véhicule
+                def get_capacites(row):
+                    if row['Code Véhicule'] == CAMION_CODE:
+                        truck_type = row.get('Type_Camion', '5 tonnes')
+                        poids_max = get_capacite_poids_camion(truck_type)
+                        volume_max = get_capacite_volume_camion(truck_type)
+                        return pd.Series([poids_max, volume_max, f"Camion {truck_type}"])
+                    else:
+                        return pd.Series([CAPACITE_POIDS_ESTAFETTE, CAPACITE_VOLUME_ESTAFETTE, "Estafette"])
+                
+                # Appliquer la fonction pour obtenir les capacités
+                capacites = details_vehicules.apply(get_capacites, axis=1)
+                details_vehicules['Capacité Max Poids'] = capacites[0]
+                details_vehicules['Capacité Max Volume'] = capacites[1]
+                details_vehicules['Type Véhicule'] = capacites[2]
+                
                 details_vehicules['Marge Poids'] = details_vehicules['Capacité Max Poids'] - details_vehicules['Poids total chargé']
                 details_vehicules['Marge Volume'] = details_vehicules['Capacité Max Volume'] - details_vehicules['Volume total chargé']
+                details_vehicules['Taux Utilisation Poids (%)'] = (details_vehicules['Poids total chargé'] / details_vehicules['Capacité Max Poids']) * 100
+                details_vehicules['Taux Utilisation Volume (%)'] = (details_vehicules['Volume total chargé'] / details_vehicules['Capacité Max Volume']) * 100
+                
+                # Arrondir les valeurs
+                details_vehicules['Taux Utilisation Poids (%)'] = details_vehicules['Taux Utilisation Poids (%)'].round(1)
+                details_vehicules['Taux Utilisation Volume (%)'] = details_vehicules['Taux Utilisation Volume (%)'].round(1)
+                details_vehicules['Marge Poids'] = details_vehicules['Marge Poids'].round(1)
+                details_vehicules['Marge Volume'] = details_vehicules['Marge Volume'].round(3)
+                
+                # Réorganiser les colonnes
+                colonnes_ordre = [
+                    'Zone', 'Véhicule N°', 'Type Véhicule', 'Type_Camion', 
+                    'Poids total chargé', 'Capacité Max Poids', 'Marge Poids', 'Taux Utilisation Poids (%)',
+                    'Volume total chargé', 'Capacité Max Volume', 'Marge Volume', 'Taux Utilisation Volume (%)',
+                    'Taux d\'occupation (%)', 'Client(s) inclus', 'Représentant(s) inclus', 'BL inclus'
+                ]
+                
+                # Filtrer les colonnes qui existent
+                colonnes_existantes = [col for col in colonnes_ordre if col in details_vehicules.columns]
+                details_vehicules = details_vehicules[colonnes_existantes]
                 
                 details_vehicules.to_excel(writer, sheet_name='Détails Véhicules', index=False)
             
@@ -976,7 +1110,6 @@ class VoyageValidator:
     def get_voyages_valides(self):
         """Retourne les voyages après validation."""
         return self.df_voyages
-
 # =====================================================
 # CLASSE DE GESTION DES RAPPORTS AVANCÉS
 # =====================================================
@@ -1126,7 +1259,7 @@ def calculer_couts_estimation(df_voyages, cout_estafette=150, cout_camion=800):
         return {'erreur': f"❌ Erreur dans le calcul des coûts : {str(e)}"}
 
 def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None, df_livraisons_original=None):
-    """Exporte le planning complet vers Excel avec formatage personnalisé et retours à ligne."""
+    """Exporte le planning complet vers Excel avec prise en compte des types de camions."""
     try:
         import openpyxl
         from openpyxl.styles import Alignment
@@ -1165,7 +1298,22 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
                 else:
                     df_voyages_working["Chauffeur"] = "À attribuer"
             
-            # 2. AJOUT DE LA COLONNE "VILLE" - NOUVELLE FONCTIONNALITÉ
+            # 2. AJOUT DE LA COLONNE "TYPE VÉHICULE" - NOUVELLE FONCTIONNALITÉ
+            if 'Code Véhicule' in df_voyages_working.columns:
+                def get_info_capacite(row):
+                    if row['Code Véhicule'] == CAMION_CODE:
+                        truck_type = row.get('Type_Camion', '5 tonnes')
+                        poids_max = get_capacite_poids_camion(truck_type)
+                        volume_max = get_capacite_volume_camion(truck_type)
+                        return f"Camion {truck_type} ({poids_max} kg, {volume_max} m³)"
+                    else:
+                        return f"Estafette ({CAPACITE_POIDS_ESTAFETTE} kg, {CAPACITE_VOLUME_ESTAFETTE} m³)"
+                
+                df_voyages_working['Type_Véhicule'] = df_voyages_working.apply(get_info_capacite, axis=1)
+                # Ajouter cette colonne à la liste des colonnes demandées
+                colonnes_demandees.insert(4, "Type_Véhicule")  # Après "Véhicule N°"
+            
+            # 3. AJOUT DE LA COLONNE "VILLE" - NOUVELLE FONCTIONNALITÉ
             if "Ville" not in df_voyages_working.columns and df_livraisons_original is not None:
                 print("🔄 Ajout de la colonne Ville depuis les données originales...")
                 
@@ -1205,7 +1353,7 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
                 df_voyages_working["Ville"] = df_voyages_working["BL inclus"].apply(get_villes_from_bls)
                 print("✅ Colonne 'Ville' ajoutée avec succès")
             
-            # 3. FORMATER LES COLONNES AVEC RETOURS À LIGNE
+            # 4. FORMATER LES COLONNES AVEC RETOURS À LIGNE
             colonnes_retours_ligne = ['BL inclus', 'Client(s) inclus', 'Représentant(s) inclus']
             for col in colonnes_retours_ligne:
                 if col in df_voyages_working.columns:
@@ -1214,10 +1362,10 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
                         if pd.notna(x) else ""
                     )
             
-            # 4. Filtrer seulement les colonnes qui existent
+            # 5. Filtrer seulement les colonnes qui existent
             colonnes_finales = [col for col in colonnes_demandees if col in df_voyages_working.columns]
             
-            # 5. Vérifier qu'on a au moins les colonnes de base et que le DataFrame n'est pas vide
+            # 6. Vérifier qu'on a au moins les colonnes de base et que le DataFrame n'est pas vide
             if df_voyages_working.empty:
                 # Créer une feuille vide avec les colonnes demandées pour éviter l'erreur
                 df_voyages_ordered = pd.DataFrame(columns=colonnes_finales)
@@ -1231,7 +1379,7 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
                     # Créer quand même l'export avec les colonnes disponibles
                     df_voyages_ordered = df_voyages_working[colonnes_finales].copy()
                 else:
-                    # 6. Réorganiser le DataFrame avec l'ordre exact demandé
+                    # Réorganiser le DataFrame avec l'ordre exact demandé
                     df_voyages_ordered = df_voyages_working[colonnes_finales].copy()
             
             # =====================================================
@@ -1246,11 +1394,9 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
             # =====================================================
             # FEUILLE PRINCIPALE - PLANNING LIVRAISONS
             # =====================================================
-            # CORRECTION : Vérifier que le DataFrame n'est pas vide avant d'exporter
             if not df_voyages_ordered.empty:
                 df_voyages_ordered.to_excel(writer, sheet_name='Planning Livraisons', index=False)
             else:
-                # Créer une feuille vide avec les colonnes pour éviter l'erreur
                 pd.DataFrame(columns=colonnes_finales).to_excel(writer, sheet_name='Planning Livraisons', index=False)
             
             # =====================================================
@@ -1294,21 +1440,40 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
                 worksheet.column_dimensions[column_letter].width = adjusted_width
             
             # =====================================================
-            # FEUILLE DE SYNTHÈSE (optionnelle)
+            # FEUILLE DE SYNTHÈSE DÉTAILLÉE
             # =====================================================
             try:
                 nb_estafettes = len(df_voyages_working[df_voyages_working["Code Véhicule"] == "ESTAFETTE"]) if "Code Véhicule" in df_voyages_working.columns else 0
-                nb_camions = len(df_voyages_working[df_voyages_working["Code Véhicule"] == "CAMION-LOUE"]) if "Code Véhicule" in df_voyages_working.columns else 0
+                nb_camions = len(df_voyages_working[df_voyages_working["Code Véhicule"] == CAMION_CODE]) if "Code Véhicule" in df_voyages_working.columns else 0
+                
+                # Compter les types de camions
+                camions_5t = 0
+                camions_10t = 0
+                if nb_camions > 0 and "Type_Camion" in df_voyages_working.columns:
+                    camions_5t = len(df_voyages_working[(df_voyages_working["Code Véhicule"] == CAMION_CODE) & (df_voyages_working["Type_Camion"] == "5 tonnes")])
+                    camions_10t = len(df_voyages_working[(df_voyages_working["Code Véhicule"] == CAMION_CODE) & (df_voyages_working["Type_Camion"] == "10 tonnes")])
+                
                 poids_total = df_voyages_working['Poids total chargé'].sum() if 'Poids total chargé' in df_voyages_working.columns else 0
                 volume_total = df_voyages_working['Volume total chargé'].sum() if 'Volume total chargé' in df_voyages_working.columns else 0
                 taux_moyen = df_voyages_working['Taux d\'occupation (%)'].mean() if 'Taux d\'occupation (%)' in df_voyages_working.columns else 0
                 
                 synthèse_data = {
-                    'Metric': ['Total Véhicules', 'Estafettes', 'Camions', 'Poids Total', 'Volume Total', 'Taux Occupation Moyen'],
+                    'Métrique': [
+                        'Total Véhicules', 
+                        'Estafettes', 
+                        'Camions (Total)',
+                        'Camions 5 tonnes',
+                        'Camions 10 tonnes',
+                        'Poids Total', 
+                        'Volume Total', 
+                        'Taux Occupation Moyen'
+                    ],
                     'Valeur': [
                         len(df_voyages_working),
                         nb_estafettes,
                         nb_camions,
+                        camions_5t,
+                        camions_10t,
                         f"{poids_total:.1f} kg",
                         f"{volume_total:.3f} m³",
                         f"{taux_moyen:.1f}%" if taux_moyen > 0 else "N/A"
@@ -1317,35 +1482,83 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
                 pd.DataFrame(synthèse_data).to_excel(writer, sheet_name='Synthèse', index=False)
             except Exception as e:
                 print(f"⚠️ Erreur lors de la création de la synthèse : {e}")
-                # Créer une synthèse basique pour éviter l'erreur
-                pd.DataFrame({'Metric': ['Erreur'], 'Valeur': ['Données non disponibles']}).to_excel(writer, sheet_name='Synthèse', index=False)
+                pd.DataFrame({'Métrique': ['Erreur'], 'Valeur': ['Données non disponibles']}).to_excel(writer, sheet_name='Synthèse', index=False)
             
             # =====================================================
-            # FEUILLE STATS PAR ZONE (optionnelle)
+            # FEUILLE STATS PAR ZONE DÉTAILLÉE
             # =====================================================
             try:
                 if 'Zone' in df_voyages_working.columns and not df_voyages_working.empty:
-                    agg_dict = {'Véhicule N°': 'count'}
+                    # Ajouter une colonne Type pour les statistiques
+                    df_stats = df_voyages_working.copy()
+                    df_stats['Type_Véhicule_Simple'] = df_stats['Code Véhicule'].apply(
+                        lambda x: 'CAMION' if x == CAMION_CODE else 'ESTAFETTE'
+                    )
                     
-                    if 'Poids total chargé' in df_voyages_working.columns:
-                        agg_dict['Poids total chargé'] = ['sum', 'mean']
-                    if 'Volume total chargé' in df_voyages_working.columns:
-                        agg_dict['Volume total chargé'] = ['sum', 'mean']
-                    if 'Taux d\'occupation (%)' in df_voyages_working.columns:
-                        agg_dict['Taux d\'occupation (%)'] = 'mean'
+                    # Statistiques par zone
+                    stats_zone = df_stats.groupby('Zone').agg({
+                        'Véhicule N°': 'count',
+                        'Type_Véhicule_Simple': lambda x: (x == 'CAMION').sum(),
+                        'Poids total chargé': ['sum', 'mean'],
+                        'Volume total chargé': ['sum', 'mean'],
+                        'Taux d\'occupation (%)': 'mean'
+                    }).round(2)
                     
-                    stats_zone = df_voyages_working.groupby('Zone').agg(agg_dict).round(2)
+                    # Renommer les colonnes
+                    stats_zone.columns = [
+                        'Nombre Véhicules',
+                        'Nombre Camions',
+                        'Poids Total (kg)',
+                        'Poids Moyen (kg)',
+                        'Volume Total (m³)',
+                        'Volume Moyen (m³)',
+                        'Taux Occupation Moyen (%)'
+                    ]
                     
-                    if isinstance(stats_zone.columns, pd.MultiIndex):
-                        stats_zone.columns = ['_'.join(col).strip() for col in stats_zone.columns.values]
+                    # Ajouter le nombre d'estafettes
+                    stats_zone['Nombre Estafettes'] = stats_zone['Nombre Véhicules'] - stats_zone['Nombre Camions']
                     
                     stats_zone.to_excel(writer, sheet_name='Stats par Zone')
                 else:
-                    # Créer une feuille stats vide
                     pd.DataFrame(columns=['Zone', 'Nombre_Véhicules']).to_excel(writer, sheet_name='Stats par Zone', index=False)
             except Exception as e:
                 print(f"⚠️ Erreur lors de la création des stats par zone : {e}")
                 pd.DataFrame(columns=['Zone', 'Nombre_Véhicules']).to_excel(writer, sheet_name='Stats par Zone', index=False)
+            
+            # =====================================================
+            # FEUILLE CAPACITÉS VÉHICULES
+            # =====================================================
+            try:
+                if not df_voyages_working.empty:
+                    capacites_data = []
+                    
+                    for idx, row in df_voyages_working.iterrows():
+                        if row.get('Code Véhicule') == CAMION_CODE:
+                            truck_type = row.get('Type_Camion', '5 tonnes')
+                            poids_max = get_capacite_poids_camion(truck_type)
+                            volume_max = get_capacite_volume_camion(truck_type)
+                            type_veh = f"Camion {truck_type}"
+                        else:
+                            poids_max = CAPACITE_POIDS_ESTAFETTE
+                            volume_max = CAPACITE_VOLUME_ESTAFETTE
+                            type_veh = "Estafette"
+                        
+                        capacites_data.append({
+                            'Véhicule': row.get('Véhicule N°', ''),
+                            'Type': type_veh,
+                            'Zone': row.get('Zone', ''),
+                            'Poids Chargé (kg)': row.get('Poids total chargé', 0),
+                            'Capacité Max Poids (kg)': poids_max,
+                            'Utilisation Poids (%)': round((row.get('Poids total chargé', 0) / poids_max) * 100, 1),
+                            'Volume Chargé (m³)': row.get('Volume total chargé', 0),
+                            'Capacité Max Volume (m³)': volume_max,
+                            'Utilisation Volume (%)': round((row.get('Volume total chargé', 0) / volume_max) * 100, 1)
+                        })
+                    
+                    df_capacites = pd.DataFrame(capacites_data)
+                    df_capacites.to_excel(writer, sheet_name='Capacités Véhicules', index=False)
+            except Exception as e:
+                print(f"⚠️ Erreur lors de la création des capacités véhicules : {e}")
             
             # =====================================================
             # DONNÉES SUPPLÉMENTAIRES
@@ -1356,7 +1569,6 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
                         nom_feuille = nom_feuille[:31]
                         data.to_excel(writer, sheet_name=nom_feuille, index=False)
                     else:
-                        # Créer une feuille vide pour cette donnée supplémentaire
                         pd.DataFrame({f'Info': [f'Données non disponibles pour {nom_feuille}']}).to_excel(writer, sheet_name=nom_feuille[:31], index=False)
             
             # =====================================================
@@ -1365,7 +1577,7 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
             try:
                 if not df_voyages_working.empty:
                     df_voyages_complet = df_voyages_working.copy()
-                    # Formater les valeurs numériques pour l'export complet
+                    # Formater les valeurs numériques
                     if "Poids total chargé" in df_voyages_complet.columns:
                         df_voyages_complet["Poids total chargé"] = df_voyages_complet["Poids total chargé"].round(3)
                     if "Volume total chargé" in df_voyages_complet.columns:
