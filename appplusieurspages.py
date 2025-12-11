@@ -1177,7 +1177,7 @@ def page_optimisation():
                             
                             with col_det1:
                                 total_camions = len(details_display)
-                                st.metric("🚚 Nombre de estafettes", total_camions)
+                                st.metric("🚚 Nombre des estafettes", total_camions)
                             
                             with col_det2:
                                 # Calculer le poids total à partir des données brutes
