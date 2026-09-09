@@ -2318,7 +2318,7 @@ def page_optimisation():
                                         key="input_volume_objet")
 
         # Affichage des messages d'erreur/succès
-        if "message_objet" in st.session_state:
+        if "message_objet" in st.session_state and st.session_state.message_objet is not None:
             if st.session_state.message_objet.startswith("✅"):
                 st.success(st.session_state.message_objet)
             elif st.session_state.message_objet.startswith("❌"):
