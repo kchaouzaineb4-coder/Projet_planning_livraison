@@ -763,15 +763,40 @@ def page_analyse():
         # RENOMMER LA COLONNE "Nombre livraisons" en "Nombre de BLs"
         df_zone_display = df_zone_display.rename(columns={"Nombre livraisons": "Nombre de BLs"})
         
-        # Formater les nombres
+        # Formater les nombres - Poids et Volume
         if "Poids total" in df_zone_display.columns:
             df_zone_display["Poids total"] = df_zone_display["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
         if "Volume total" in df_zone_display.columns:
             df_zone_display["Volume total"] = df_zone_display["Volume total"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "")
-        if "Besoin estafette réel" in df_zone_display.columns:
-            df_zone_display["Besoin estafette réel"] = df_zone_display["Besoin estafette réel"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
         if "Nombre de BLs" in df_zone_display.columns:
             df_zone_display["Nombre de BLs"] = df_zone_display["Nombre de BLs"].map(lambda x: f"{int(x)}" if pd.notna(x) else "")
+        
+        # --- FORMATAGE SPÉCIAL POUR BESOIN ESTAFETTE (RÈGLE ZONE 7) ---
+        if "Besoin estafette réel" in df_zone_display.columns:
+            def format_besoin_zone(row):
+                zone = str(row["Zone"]).strip()
+                val = row["Besoin estafette réel"]
+                
+                if pd.isna(val):
+                    return ""
+                
+                try:
+                    val = float(val)
+                except:
+                    return str(val)
+                
+                # Règle spéciale pour Zone 7
+                if zone in ["7", "Zone 7", "ZONE 7"]:
+                    if val <= 3:
+                        return f"{int(val)} voyage(s) par estafette"
+                    else:
+                        nb_est = int((val + 2) // 3)  # ceil division
+                        return f"{int(val)} voyages → {nb_est} estafette(s)"
+                else:
+                    # Pour les autres zones, format standard avec 1 décimale
+                    return f"{val:.1f}"
+            
+            df_zone_display["Besoin estafette réel"] = df_zone_display.apply(format_besoin_zone, axis=1)
         
         # Afficher le tableau avec le style CSS
         html_table_zone = df_zone_display.to_html(
@@ -804,8 +829,35 @@ def page_analyse():
             st.metric("📦 Total BLs", int(total_bls_zone))
         
         with col3:
-            # Calculer le total des estafettes nécessaires
-            total_estafettes_zone = st.session_state.df_zone["Besoin estafette réel"].sum() if "Besoin estafette réel" in st.session_state.df_zone.columns else 0
+            # --- CALCUL DU TOTAL DES ESTAFETTES AVEC LA RÈGLE ZONE 7 ---
+            df_zone_for_calc = st.session_state.df_zone.copy()
+            total_estafettes_zone = 0
+            
+            if "Besoin estafette réel" in df_zone_for_calc.columns:
+                for index, row in df_zone_for_calc.iterrows():
+                    val = row["Besoin estafette réel"]
+                    
+                    if pd.isna(val):
+                        continue
+                    
+                    try:
+                        val = float(val)
+                    except:
+                        continue
+                    
+                    # Déterminer si c'est la Zone 7
+                    zone = str(row["Zone"]).strip()
+                    est_zone_7 = zone in ["7", "Zone 7", "ZONE 7"]
+                    
+                    # Appliquer la règle Zone 7 pour le calcul
+                    if est_zone_7:
+                        # Calculer le nombre d'estafettes nécessaires (max 3 voyages par estafette)
+                        nb_estafettes = int((val + 2) // 3)  # ceil division
+                        total_estafettes_zone += nb_estafettes
+                    else:
+                        # Pour les autres zones, ajouter la valeur telle quelle
+                        total_estafettes_zone += val
+            
             st.metric("🚐 Besoin Estafettes", f"{total_estafettes_zone:.1f}")
         
         # Bouton de téléchargement
