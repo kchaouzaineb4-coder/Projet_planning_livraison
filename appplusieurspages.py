@@ -1702,7 +1702,10 @@ def page_optimisation():
                 st.metric("🚚 Camions loués", int(camions_loues))
             
             with col4:
-                estafettes = total_voyages - camions_loues
+                if st.session_state.rental_processor:
+                    estafettes = st.session_state.rental_processor.get_estafette_unique_count()
+                else:
+                    estafettes = total_voyages - camions_loues
                 st.metric("📦 Estafettes", estafettes)
             
             # Préparer l'export Excel avec retours à la ligne \n

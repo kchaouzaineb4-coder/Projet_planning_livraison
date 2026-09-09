@@ -925,6 +925,43 @@ class TruckRentalProcessor:
         # Filtrer seulement les colonnes qui existent
         available_columns = [col for col in final_columns if col in df_result.columns]
         return df_result[available_columns]
+    # =====================================================
+    # NOUVELLES MÉTHODES POUR LE COMPTAGE CORRECT
+    # =====================================================
+    def get_estafette_unique_count(self):
+        """
+        Retourne le nombre unique d'estafettes en tenant compte que Zone 7
+        peut avoir plusieurs voyages pour une même estafette.
+        """
+        if self.df_base.empty:
+            return 0
+        
+        # Filtrer les camions loués
+        df_estafettes = self.df_base[self.df_base["Code Véhicule"] != CAMION_CODE].copy()
+        
+        if df_estafettes.empty:
+            return 0
+        
+        # Pour Zone 7, compter les estafettes uniques (sans les numéros de voyage)
+        df_zone7 = df_estafettes[df_estafettes["Zone"] == "Zone 7"]
+        df_autres = df_estafettes[df_estafettes["Zone"] != "Zone 7"]
+        
+        # Compter les estafettes uniques pour Zone 7
+        zone7_estafettes = 0
+        if not df_zone7.empty:
+            # Extraire le numéro de base (ex: "E10" de "E10-Voyage 1")
+            zone7_estafettes = df_zone7["Camion N°"].apply(
+                lambda x: str(x).split("-")[0] if "-Voyage" in str(x) else str(x)
+            ).nunique()
+        
+        # Pour les autres zones, compter chaque ligne
+        autres_estafettes = len(df_autres)
+        
+        return zone7_estafettes + autres_estafettes
+
+    def get_camions_count(self):
+        """Retourne le nombre de camions loués."""
+        return len(self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE])
 # =====================================================
 # CLASSE DE GESTION DES TRANSFERTS DE BL
 # =====================================================
