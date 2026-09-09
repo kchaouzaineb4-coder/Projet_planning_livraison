@@ -1702,6 +1702,7 @@ def page_optimisation():
                 st.metric("🚚 Camions loués", int(camions_loues))
             
             with col4:
+                # Récupérer les estafettes depuis le rental_processor (avec règle Zone 7)
                 if st.session_state.rental_processor:
                     estafettes = st.session_state.rental_processor.get_estafette_unique_count()
                 else:
