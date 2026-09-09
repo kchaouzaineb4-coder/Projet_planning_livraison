@@ -950,7 +950,7 @@ class TruckRentalProcessor:
         zone7_estafettes = 0
         if not df_zone7.empty:
             # Extraire le numéro de base (ex: "E10" de "E10-Voyage 1")
-            zone7_estafettes = df_zone7["Camion N°"].apply(
+            zone7_estafettes = df_zone7["Véhicule N°"].apply(
                 lambda x: str(x).split("-")[0] if "-Voyage" in str(x) else str(x)
             ).nunique()
         
