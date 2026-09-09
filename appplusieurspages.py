@@ -635,8 +635,46 @@ def page_analyse():
             st.metric("📦 Total BLs", int(total_bls)) 
         
         with col3: 
-            # Calculer le total des estafettes nécessaires (basé sur les données originales)
-            total_estafettes = df_city_original_filtered["Besoin estafette réel"].sum() if "Besoin estafette réel" in df_city_original_filtered.columns else 0 
+            # --- CALCUL DU TOTAL DES ESTAFETTES AVEC LA RÈGLE ZONE 7 ---
+            df_city_for_calc = st.session_state.df_city[st.session_state.df_city["Ville"] != "TRIPOLI"].copy()
+            total_estafettes = 0
+            
+            if "Besoin estafette réel" in df_city_for_calc.columns:
+                for index, row in df_city_for_calc.iterrows():
+                    val = row["Besoin estafette réel"]
+                    
+                    if pd.isna(val):
+                        continue
+                    
+                    try:
+                        val = float(val)
+                    except:
+                        continue
+                    
+                    # Déterminer si on doit appliquer la règle Zone 7
+                    appliquer_regle_zone7 = False
+                    
+                    # Cas 1: Colonne "Ville" existe et la ville est "SFAX"
+                    if "Ville" in df_city_for_calc.columns:
+                        ville = str(row["Ville"]).strip().upper()
+                        if ville == "SFAX":
+                            appliquer_regle_zone7 = True
+                    
+                    # Cas 2: Colonne "Zone" existe et la zone est "7" ou "Zone 7"
+                    if "Zone" in df_city_for_calc.columns:
+                        zone = str(row["Zone"]).strip()
+                        if zone in ["7", "Zone 7", "ZONE 7"]:
+                            appliquer_regle_zone7 = True
+                    
+                    # Appliquer la règle Zone 7 pour le calcul
+                    if appliquer_regle_zone7:
+                        # Calculer le nombre d'estafettes nécessaires (max 3 voyages par estafette)
+                        nb_estafettes = int((val + 2) // 3)  # ceil division
+                        total_estafettes += nb_estafettes
+                    else:
+                        # Pour les autres, ajouter la valeur telle quelle
+                        total_estafettes += val
+            
             st.metric("🚐 Besoin Estafettes", f"{total_estafettes:.1f}") 
 
         # Bouton de téléchargement 
