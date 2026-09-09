@@ -585,7 +585,7 @@ class TruckRentalProcessor:
                     "Code Véhicule": CAMION_CODE,
                     "Camion N°": camion_num_final,
                     "Taux d'occupation (%)": taux_occu,
-                    "Type_Camion": truck_type,  # Ajouter le type de camion
+                    "Type_Camion": truck_type,
                     "Capacite_Poids": capacite_poids,
                     "Capacite_Volume": capacite_volume
                 }])
@@ -925,6 +925,7 @@ class TruckRentalProcessor:
         # Filtrer seulement les colonnes qui existent
         available_columns = [col for col in final_columns if col in df_result.columns]
         return df_result[available_columns]
+
     # =====================================================
     # NOUVELLES MÉTHODES POUR LE COMPTAGE CORRECT
     # =====================================================
@@ -949,8 +950,15 @@ class TruckRentalProcessor:
         # Compter les estafettes uniques pour Zone 7
         zone7_estafettes = 0
         if not df_zone7.empty:
-            # Extraire le numéro de base (ex: "E10" de "E10-Voyage 1")
-            zone7_estafettes = df_zone7["Véhicule N°"].apply(
+            # ✅ Vérifier les deux noms possibles
+            if "Camion N°" in df_zone7.columns:
+                col_vehicule = "Camion N°"
+            elif "Véhicule N°" in df_zone7.columns:
+                col_vehicule = "Véhicule N°"
+            else:
+                return 0
+            
+            zone7_estafettes = df_zone7[col_vehicule].apply(
                 lambda x: str(x).split("-")[0] if "-Voyage" in str(x) else str(x)
             ).nunique()
         
