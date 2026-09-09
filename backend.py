@@ -209,58 +209,135 @@ class DeliveryProcessor:
         return df_zone
 
     def _calculate_optimized_estafette(self, df_grouped_zone):
+        """Calcule les voyages optimisés avec règle spéciale pour Zone 7 (max 3 voyages par estafette)."""
         resultats = []
         estafette_num = 1
+        CAPACITE_POIDS_ESTAFETTE = 1550  # kg
+        CAPACITE_VOLUME_ESTAFETTE = 4.608  # m³
+        MAX_VOYAGES_ZONE7 = 3  # Max 3 voyages par estafette pour Zone 7
 
         for zone, group in df_grouped_zone.groupby("Zone"):
-            group_sorted = group.sort_values(by="Poids total", ascending=False).reset_index()
-            estafettes = []
+            group_sorted = group.sort_values(by="Poids total", ascending=False).reset_index(drop=True)
             
-            for idx, row in group_sorted.iterrows():
-                bl = str(row["No livraison"])
-                poids = row["Poids total"]
-                volume = row["Volume total"]
-                client = str(row["Client de l'estafette"]) 
-                representant = str(row["Représentant"])
-                placed = False
+            # Règle spéciale pour Zone 7 : regrouper en une seule estafette avec plusieurs voyages
+            if zone == "Zone 7" and len(group_sorted) > 0:
+                # Grouper les BLs en voyages de max capacité
+                voyages = []
+                voyage_actuel = {"poids": 0, "volume": 0, "bls": [], "clients": set(), "representants": set()}
+                num_estafette = estafette_num
                 
-                for e in estafettes:
-                    if e["poids"] + poids <= CAPACITE_POIDS_ESTAFETTE and e["volume"] + volume <= CAPACITE_VOLUME_ESTAFETTE:
-                        e["poids"] += poids
-                        e["volume"] += volume
-                        e["bls"].append(bl)
-                        for c in client.split(','): e["clients"].add(c.strip())
-                        for r in representant.split(','): e["representants"].add(r.strip())
-                        placed = True
-                        break
+                for idx, row in group_sorted.iterrows():
+                    bl = str(row["No livraison"])
+                    poids = row["Poids total"]
+                    volume = row["Volume total"]
+                    client = str(row["Client de l'estafette"])
+                    representant = str(row["Représentant"])
+                    
+                    # Vérifier si le BL peut entrer dans le voyage actuel
+                    if (voyage_actuel["poids"] + poids <= CAPACITE_POIDS_ESTAFETTE and 
+                        voyage_actuel["volume"] + volume <= CAPACITE_VOLUME_ESTAFETTE):
+                        # Ajouter au voyage actuel
+                        voyage_actuel["poids"] += poids
+                        voyage_actuel["volume"] += volume
+                        voyage_actuel["bls"].append(bl)
+                        voyage_actuel["clients"].add(client)
+                        voyage_actuel["representants"].add(representant)
+                    else:
+                        # Sauvegarder le voyage actuel s'il n'est pas vide
+                        if voyage_actuel["bls"]:
+                            voyages.append(voyage_actuel)
+                            voyage_actuel = {"poids": 0, "volume": 0, "bls": [], "clients": set(), "representants": set()}
+                        
+                        # Si on a atteint le max de voyages, forcer l'ajout dans le dernier voyage
+                        if len(voyages) >= MAX_VOYAGES_ZONE7:
+                            # Ajouter au dernier voyage même si ça dépasse
+                            dernier_voyage = voyages[-1]
+                            dernier_voyage["poids"] += poids
+                            dernier_voyage["volume"] += volume
+                            dernier_voyage["bls"].append(bl)
+                            dernier_voyage["clients"].add(client)
+                            dernier_voyage["representants"].add(representant)
+                        else:
+                            # Créer un nouveau voyage
+                            voyage_actuel = {"poids": poids, "volume": volume, "bls": [bl], 
+                                        "clients": {client}, "representants": {representant}}
                 
-                if not placed:
-                    estafettes.append({
-                        "poids": poids,
-                        "volume": volume,
-                        "bls": [bl],
-                        "clients": {c.strip() for c in client.split(',')},
-                        "representants": {r.strip() for r in representant.split(',')},
-                        "num_global": estafette_num
-                    })
-                    estafette_num += 1
+                # Ajouter le dernier voyage s'il n'est pas vide
+                if voyage_actuel["bls"]:
+                    voyages.append(voyage_actuel)
+                
+                # Créer les entrées pour chaque voyage avec le même numéro d'estafette
+                for i, voyage in enumerate(voyages, 1):
+                    if i > MAX_VOYAGES_ZONE7:
+                        break  # Limiter à 3 voyages
+                        
+                    clients_list = ", ".join(sorted(list(voyage["clients"])))
+                    representants_list = ", ".join(sorted(list(voyage["representants"])))
+                    
+                    resultats.append([
+                        zone,
+                        num_estafette,  # Même numéro pour tous les voyages
+                        voyage["poids"],
+                        voyage["volume"],
+                        clients_list,
+                        representants_list,
+                        ";".join(voyage["bls"]),
+                        i  # Numéro du voyage
+                    ])
+                
+                estafette_num += 1
+                
+            else:
+                # Algorithme standard pour les autres zones
+                estafettes = []
+                for idx, row in group_sorted.iterrows():
+                    bl = str(row["No livraison"])
+                    poids = row["Poids total"]
+                    volume = row["Volume total"]
+                    client = str(row["Client de l'estafette"])
+                    representant = str(row["Représentant"])
+                    placed = False
+                    
+                    for e in estafettes:
+                        if e["poids"] + poids <= CAPACITE_POIDS_ESTAFETTE and e["volume"] + volume <= CAPACITE_VOLUME_ESTAFETTE:
+                            e["poids"] += poids
+                            e["volume"] += volume
+                            e["bls"].append(bl)
+                            for c in client.split(','): e["clients"].add(c.strip())
+                            for r in representant.split(','): e["representants"].add(r.strip())
+                            placed = True
+                            break
+                    
+                    if not placed:
+                        estafettes.append({
+                            "poids": poids,
+                            "volume": volume,
+                            "bls": [bl],
+                            "clients": {c.strip() for c in client.split(',')},
+                            "representants": {r.strip() for r in representant.split(',')},
+                            "num_global": estafette_num
+                        })
+                        estafette_num += 1
 
-            for e in estafettes:
-                clients_list = ", ".join(sorted(list(e["clients"])))
-                representants_list = ", ".join(sorted(list(e["representants"])))
-                resultats.append([
-                    zone,
-                    e["num_global"],
-                    e["poids"],
-                    e["volume"],
-                    clients_list,   
-                    representants_list,
-                    ";".join(e["bls"])
-                ])
-                
+                # Formater les résultats pour les autres zones
+                for e in estafettes:
+                    clients_list = ", ".join(sorted(list(e["clients"])))
+                    representants_list = ", ".join(sorted(list(e["representants"])))
+                    resultats.append([
+                        zone,
+                        e["num_global"],
+                        e["poids"],
+                        e["volume"],
+                        clients_list,
+                        representants_list,
+                        ";".join(e["bls"]),
+                        1  # Un seul voyage
+                    ])
+                    
+        # Créer le DataFrame
         df_estafettes = pd.DataFrame(resultats, columns=[
             "Zone", "Estafette N°", "Poids total chargé", "Volume total chargé", 
-            "Client(s) inclus", "Représentant(s) inclus", "BL inclus"
+            "Client(s) inclus", "Représentant(s) inclus", "BL inclus", "Numéro Voyage"
         ])
         
         # Calcul du taux d'occupation
@@ -272,9 +349,20 @@ class DeliveryProcessor:
         df_estafettes["Location_camion"] = False
         df_estafettes["Location_proposee"] = False
         df_estafettes["Code Véhicule"] = "ESTAFETTE"
-        df_estafettes["Camion N°"] = df_estafettes["Estafette N°"].apply(lambda x: f"E{int(x)}")
         
-        df_estafettes = df_estafettes.drop(columns=["Taux Poids (%)", "Taux Volume (%)"]) 
+        # Créer le nom du véhicule avec le numéro de voyage pour Zone 7
+        def get_vehicle_name(row):
+            estafette_num = row["Estafette N°"]
+            voyage_num = row["Numéro Voyage"]
+            zone = row["Zone"]
+            
+            if zone == "Zone 7" and voyage_num > 1:
+                return f"E{estafette_num}-Voyage {voyage_num}"
+            else:
+                return f"E{estafette_num}"
+        
+        df_estafettes["Camion N°"] = df_estafettes.apply(get_vehicle_name, axis=1)
+        df_estafettes = df_estafettes.drop(columns=["Taux Poids (%)", "Taux Volume (%)", "Numéro Voyage"]) 
         
         return df_estafettes
 
