@@ -878,9 +878,35 @@ def page_analyse():
         st.subheader("Statistiques par Ville")
         
         # FILTRER LES DONNÉES POUR EXCLURE TRIPOLI
-        df_filtered = st.session_state.df_city[st.session_state.df_city["Ville"] != "TRIPOLI"]
+        df_filtered = st.session_state.df_city[st.session_state.df_city["Ville"] != "TRIPOLI"].copy()
         
         if not df_filtered.empty:
+            # --- APPLIQUER LA RÈGLE ZONE 7 POUR LE GRAPHIQUE ---
+            # Créer une colonne pour le nombre d'estafettes corrigé
+            def calculer_estafettes_corrigees(row):
+                val = row["Besoin estafette réel"]
+                
+                if pd.isna(val):
+                    return 0
+                
+                try:
+                    val = float(val)
+                except:
+                    return 0
+                
+                # Règle pour SFAX (Zone 7)
+                if "Ville" in df_filtered.columns:
+                    ville = str(row["Ville"]).strip().upper()
+                    if ville == "SFAX":
+                        # Calcul du nombre d'estafettes (max 3 voyages par estafette)
+                        return int((val + 2) // 3)  # ceil division
+                
+                # Pour les autres villes, retourner la valeur telle quelle
+                return val
+            
+            # Ajouter la colonne corrigée
+            df_filtered["Besoin estafette corrigé"] = df_filtered.apply(calculer_estafettes_corrigees, axis=1)
+            
             # Configuration commune pour tous les graphiques
             chart_config = {
                 'color_discrete_sequence': ['#0369A1'],  # BLEU ROYAL
@@ -907,12 +933,28 @@ def page_analyse():
                 st.plotly_chart(fig3, use_container_width=True)
                 
             with col4:
-                fig4 = px.bar(df_filtered, x="Ville", y="Besoin estafette réel", **chart_config)
-                fig4.update_layout(title_text="Besoin en Estafettes par ville", title_x=0.5)
+                # --- GRAPHIQUE BESOIN ESTAFETTES CORRIGÉ AVEC RÈGLE SFAX ---
+                fig4 = px.bar(
+                    df_filtered, 
+                    x="Ville", 
+                    y="Besoin estafette corrigé", 
+                    **chart_config,
+                    text="Besoin estafette corrigé"  # Afficher les valeurs sur les barres
+                )
+                fig4.update_layout(
+                    title_text="Besoin en Estafettes par ville", 
+                    title_x=0.5,
+                    yaxis_title="Nombre d'estafettes"
+                )
+                # Afficher les valeurs sur les barres
+                fig4.update_traces(textposition='outside')
                 st.plotly_chart(fig4, use_container_width=True)
+                
+            # --- AJOUTER UNE NOTE EXPLICATIVE POUR SFAX ---
+            st.caption("ℹ️ Note : Pour SFAX (Zone 7), le nombre d'estafettes est calculé avec un maximum de 3 voyages par estafette.")
+            
         else:
             st.info("ℹ️ Aucune donnée disponible pour les graphiques (TRIPOLI exclue)")
-    
     # Navigation entre pages
     st.markdown("---")
     col_nav1, col_nav2, col_nav3 = st.columns(3)
