@@ -1021,8 +1021,18 @@ def handle_location_action(accepter):
         try:
             # Assurer que le client est une chaîne valide
             client_to_process = str(st.session_state.selected_client)
+            
+            # Récupérer le type de camion sélectionné (défaut: 5 tonnes)
+            truck_type = st.session_state.get('truck_type', '5 tonnes')
+            
+            # Afficher un message de débogage
+            st.session_state.debug_message = f"🔍 Traitement de {client_to_process} avec camion {truck_type}"
+            
+            # Passer le type de camion à la méthode
             ok, msg, _ = st.session_state.rental_processor.appliquer_location(
-                client_to_process, accepter=accepter
+                client_to_process, 
+                accepter=accepter,
+                truck_type=truck_type
             )
             st.session_state.message = msg
             update_propositions_view()
@@ -1052,6 +1062,11 @@ def page_optimisation():
             st.session_state.page = "import"
             st.rerun()
         return
+    
+    # Afficher le message de débogage si présent
+    if hasattr(st.session_state, 'debug_message'):
+        st.info(st.session_state.debug_message)
+        st.session_state.debug_message = None
     
     # CSS POUR LES TABLEAUX DE LA SECTION 3
     st.markdown("""
@@ -1259,19 +1274,95 @@ def page_optimisation():
                     else:
                         st.info("**Capacités 10 tonnes** : Poids max 10 000 kg, Volume max 40 m³")
                     
+                    # --- VÉRIFICATION DE COMPATIBILITÉ AVEC AFFICHAGE CLAIR ---
+                    try:
+                        resume, details_df = st.session_state.rental_processor.get_details_client(
+                            st.session_state.selected_client
+                        )
+                        # Extraire le poids total du résumé
+                        if resume and "Poids total RÉEL" in resume:
+                            import re
+                            poids_match = re.search(r'Poids total RÉEL : ([\d.]+) kg', resume)
+                            if poids_match:
+                                poids_reel = float(poids_match.group(1))
+                                
+                                # Récupérer les capacités selon le type sélectionné
+                                if st.session_state.truck_type == "5 tonnes":
+                                    poids_max = 5000
+                                    volume_max = 20
+                                else:
+                                    poids_max = 10000
+                                    volume_max = 40
+                                
+                                # Vérifications
+                                poids_ok = poids_reel <= poids_max
+                                volume_ok = True  # On vérifie le volume aussi
+                                
+                                if volume_ok and "Volume total RÉEL" in resume:
+                                    volume_match = re.search(r'Volume total RÉEL : ([\d.]+) m³', resume)
+                                    if volume_match:
+                                        volume_reel = float(volume_match.group(1))
+                                        volume_ok = volume_reel <= volume_max
+                                
+                                # Afficher le statut de compatibilité
+                                if poids_ok and volume_ok:
+                                    st.success(f"✅ Le camion {st.session_state.truck_type} est adapté pour ce client (Poids: {poids_reel:.1f}kg / Max: {poids_max}kg)")
+                                else:
+                                    if not poids_ok:
+                                        st.error(f"❌ **Le poids total ({poids_reel:.1f} kg) dépasse la capacité du camion {st.session_state.truck_type} ({poids_max} kg).** Veuillez sélectionner un camion de plus grande capacité.")
+                                    if not volume_ok:
+                                        st.error(f"❌ **Le volume total ({volume_reel:.3f} m³) dépasse la capacité du camion {st.session_state.truck_type} ({volume_max} m³).** Veuillez sélectionner un camion de plus grande capacité.")
+                                    
+                                    # Suggérer le type de camion approprié
+                                    if poids_reel > 5000:
+                                        st.info("💡 Suggestion : Sélectionnez **10 tonnes** pour ce client.")
+                    except Exception as e:
+                        # Ignorer les erreurs de récupération des détails
+                        pass
+                    
                     st.markdown("---")
 
                 # Boutons d'action
                 col_btn_acc, col_btn_ref = st.columns(2)
                 
                 with col_btn_acc:
+                    # Vérifier si le camion est compatible avant d'activer le bouton
+                    is_compatible = True
+                    compatibility_message = ""
+                    
+                    if is_client_selected:
+                        try:
+                            resume, details_df = st.session_state.rental_processor.get_details_client(
+                                st.session_state.selected_client
+                            )
+                            if resume and "Poids total RÉEL" in resume:
+                                import re
+                                poids_match = re.search(r'Poids total RÉEL : ([\d.]+) kg', resume)
+                                if poids_match:
+                                    poids_reel = float(poids_match.group(1))
+                                    truck_type = st.session_state.get('truck_type', '5 tonnes')
+                                    
+                                    if truck_type == "5 tonnes" and poids_reel > 5000:
+                                        is_compatible = False
+                                        compatibility_message = "❌ Poids > 5000kg - Sélectionnez 10 tonnes"
+                                    elif truck_type == "10 tonnes" and poids_reel > 10000:
+                                        is_compatible = False
+                                        compatibility_message = "❌ Poids > 10000kg"
+                        except:
+                            pass
+                    
                     st.button(
                         "✅ Accepter la location", 
                         on_click=accept_location_callback, 
-                        disabled=not is_client_selected,
+                        disabled=not is_client_selected or not is_compatible,
                         use_container_width=True,
-                        type="primary"
+                        type="primary",
+                        help=compatibility_message if not is_compatible else "Accepter la proposition de location"
                     )
+                    
+                    if not is_compatible and is_client_selected:
+                        st.caption(f"⚠️ {compatibility_message}")
+                    
                 with col_btn_ref:
                     st.button(
                         "❌ Refuser la proposition", 
@@ -1296,8 +1387,8 @@ def page_optimisation():
                 
                 if is_client_selected:
                     # Afficher le type de camion sélectionné s'il y a lieu
-                    if hasattr(st.session_state, 'truck_type'):
-                        st.info(f"**Type de camion sélectionné :** {st.session_state.truck_type}")
+                    truck_type_display = st.session_state.get('truck_type', '5 tonnes')
+                    st.info(f"**Type de camion sélectionné :** {truck_type_display}")
                     
                     try:
                         resume, details_df = st.session_state.rental_processor.get_details_client(
@@ -1307,8 +1398,6 @@ def page_optimisation():
                         # Afficher le résumé
                         st.markdown(f"**{resume}**")
                     
-                    
-                        
                         # FORMATAGE DU TABLEAU DES DÉTAILS AVEC STYLE CSS
                         if not details_df.empty:
                             details_display = details_df.copy()
