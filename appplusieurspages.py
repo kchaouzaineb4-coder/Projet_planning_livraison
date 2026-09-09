@@ -761,7 +761,7 @@ def page_analyse():
             col1, col2 = st.columns(2)
             with col1:
                 fig1 = px.bar(df_filtered, x="Ville", y="Poids total", **chart_config)
-                fig1.update_layout(title_text="Poids total livré par ville", title_x=0.5)
+                fig1.update_layout(title_text="Poids total livré par ville (Kg)", title_x=0.5)
                 st.plotly_chart(fig1, use_container_width=True)
                 
             with col2:
