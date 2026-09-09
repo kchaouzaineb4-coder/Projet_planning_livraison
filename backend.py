@@ -356,7 +356,8 @@ class DeliveryProcessor:
             voyage_num = row["Numéro Voyage"]
             zone = row["Zone"]
             
-            if zone == "Zone 7" and voyage_num > 1:
+            # Pour Zone 7, afficher "Voyage X" pour tous les voyages (1, 2, 3...)
+            if zone == "Zone 7":
                 return f"E{estafette_num}-Voyage {voyage_num}"
             else:
                 return f"E{estafette_num}"
