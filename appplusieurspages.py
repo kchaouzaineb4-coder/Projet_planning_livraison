@@ -561,10 +561,9 @@ def page_analyse():
         if "Volume total" in df_city_display.columns: 
             df_city_display["Volume total"] = df_city_display["Volume total"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "") 
         
-        # --- FORMATAGE SPÉCIAL POUR BESOIN ESTAFETTE (AVEC RÈGLE ZONE 7) ---
+        # --- FORMATAGE SPÉCIAL POUR BESOIN ESTAFETTE (RÈGLE ZONE 7 / SFAX) ---
         if "Besoin estafette réel" in df_city_display.columns:
             def format_besoin(row):
-                ville = row["Ville"]
                 val = row["Besoin estafette réel"]
                 
                 if pd.isna(val):
@@ -575,13 +574,30 @@ def page_analyse():
                 except:
                     return str(val)
                 
-                if ville == "ZONE 7":
+                # Déterminer si on doit appliquer la règle Zone 7
+                appliquer_regle_zone7 = False
+                
+                # Cas 1: Colonne "Ville" existe et la ville est "SFAX"
+                if "Ville" in df_city_display.columns:
+                    ville = str(row["Ville"]).strip().upper()
+                    if ville == "SFAX":
+                        appliquer_regle_zone7 = True
+                
+                # Cas 2: Colonne "Zone" existe et la zone est "7" ou "Zone 7"
+                if "Zone" in df_city_display.columns:
+                    zone = str(row["Zone"]).strip()
+                    if zone in ["7", "Zone 7", "ZONE 7"]:
+                        appliquer_regle_zone7 = True
+                
+                # Appliquer la règle Zone 7 si nécessaire
+                if appliquer_regle_zone7:
                     if val <= 3:
                         return f"{int(val)} voyage(s) par estafette"
                     else:
-                        nb_est = int((val + 2) // 3)
+                        nb_est = int((val + 2) // 3)  # ceil division pour arrondir supérieur
                         return f"{int(val)} voyages → {nb_est} estafette(s)"
                 else:
+                    # Pour les autres villes, format standard avec 1 décimale
                     return f"{val:.1f}"
             
             df_city_display["Besoin estafette réel"] = df_city_display.apply(format_besoin, axis=1)
@@ -635,7 +651,7 @@ def page_analyse():
             file_name="Besoin_Estafette_Ville.xlsx", 
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
         )
-        
+    
     # --- Onglet Livraisons Client & Ville + Zone ---
     with tab_zone_group:
         st.subheader("Livraisons par Client & Ville + Zone")
