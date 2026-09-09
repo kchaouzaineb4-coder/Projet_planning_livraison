@@ -555,24 +555,6 @@ def page_analyse():
         df_city_display = st.session_state.df_city.copy() 
         df_city_display = df_city_display[df_city_display["Ville"] != "TRIPOLI"] 
         
-        # --- FONCTION DE FORMATAGE PERSONNALISÉ ---
-        def format_besoin_estafette(row):
-            ville = row.get("Ville", "")
-            besoin_reel = row.get("Besoin estafette réel", 0)
-            
-            if pd.isna(besoin_reel):
-                return ""
-            
-            # Règle spéciale pour ZONE 7 : max 3 voyages par estafette
-            if ville == "ZONE 7":
-                if besoin_reel <= 3:
-                    return f"{int(besoin_reel)} voyage(s) par estafette"
-                else:
-                    nb_estafettes = (besoin_reel + 2) // 3
-                    return f"{int(besoin_reel)} voyages → {nb_estafettes} estafette(s)"
-            else:
-                return f"{besoin_reel:.1f}"
-        
         # Formater les nombres - 3 chiffres après la virgule 
         if "Poids total" in df_city_display.columns: 
             df_city_display["Poids total"] = df_city_display["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "") 
@@ -581,7 +563,28 @@ def page_analyse():
         
         # --- FORMATAGE SPÉCIAL POUR BESOIN ESTAFETTE (AVEC RÈGLE ZONE 7) ---
         if "Besoin estafette réel" in df_city_display.columns:
-            df_city_display["Besoin estafette réel"] = df_city_display.apply(format_besoin_estafette, axis=1)
+            def format_besoin(row):
+                ville = row["Ville"]
+                val = row["Besoin estafette réel"]
+                
+                if pd.isna(val):
+                    return ""
+                
+                try:
+                    val = float(val)
+                except:
+                    return str(val)
+                
+                if ville == "ZONE 7":
+                    if val <= 3:
+                        return f"{int(val)} voyage(s) par estafette"
+                    else:
+                        nb_est = int((val + 2) // 3)
+                        return f"{int(val)} voyages → {nb_est} estafette(s)"
+                else:
+                    return f"{val:.1f}"
+            
+            df_city_display["Besoin estafette réel"] = df_city_display.apply(format_besoin, axis=1)
         
         # Vérifier si le DataFrame n'est pas vide 
         if df_city_display.empty: 
@@ -610,11 +613,13 @@ def page_analyse():
             st.metric("🏙️ Total Villes", total_villes) 
         
         with col2: 
+            # Calculer le total des BLs 
             df_city_original_filtered = st.session_state.df_city[st.session_state.df_city["Ville"] != "TRIPOLI"] 
             total_bls = df_city_original_filtered["Nombre de BLs"].sum() if "Nombre de BLs" in df_city_original_filtered.columns else 0 
             st.metric("📦 Total BLs", int(total_bls)) 
         
         with col3: 
+            # Calculer le total des estafettes nécessaires (basé sur les données originales)
             total_estafettes = df_city_original_filtered["Besoin estafette réel"].sum() if "Besoin estafette réel" in df_city_original_filtered.columns else 0 
             st.metric("🚐 Besoin Estafettes", f"{total_estafettes:.1f}") 
 
@@ -630,7 +635,7 @@ def page_analyse():
             file_name="Besoin_Estafette_Ville.xlsx", 
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
         )
-    
+        
     # --- Onglet Livraisons Client & Ville + Zone ---
     with tab_zone_group:
         st.subheader("Livraisons par Client & Ville + Zone")
