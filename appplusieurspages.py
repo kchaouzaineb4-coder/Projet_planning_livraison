@@ -2318,11 +2318,9 @@ def page_optimisation():
                                         key="input_volume_objet")
 
         # Affichage des messages d'erreur/succès
-        if "message_objet" in st.session_state:
-            if st.session_state.message_objet.startswith("✅"):
-                st.success(st.session_state.message_objet)
-            elif st.session_state.message_objet.startswith("❌"):
-                st.error(st.session_state.message_objet)
+    if "message_objet" in st.session_state:
+        if st.session_state.message_objet:
+            st.info(st.session_state.message_objet)
             st.session_state.message_objet = None
 
         # Bouton d'ajout
