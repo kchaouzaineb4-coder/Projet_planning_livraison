@@ -645,15 +645,39 @@ class TruckRentalProcessor:
                 return pd.DataFrame()
             
             resultats_optimises = []
-            estafette_num = 1  # Recommencer la numérotation
             
-            # Optimiser par zone
+            # Pour chaque zone affectée, récupérer les numéros d'estafette existants
             for zone in zones_affectees:
                 df_zone = df_bls_data[df_bls_data["Zone"] == zone]
                 
                 if df_zone.empty:
                     continue
+                
+                # Récupérer les estafettes existantes pour cette zone (avant réoptimisation)
+                estafettes_existantes = self.df_base[
+                    (self.df_base["Zone"] == zone) & 
+                    (self.df_base["Code Véhicule"] != CAMION_CODE)
+                ].copy()
+                
+                # Récupérer les numéros d'estafette existants dans l'ordre
+                numeros_existants = []
+                numeros_assignes = []
+                
+                if not estafettes_existantes.empty:
+                    # Extraire les numéros des estafettes existantes
+                    for _, row in estafettes_existantes.iterrows():
+                        camion_nom = row.get("Camion N°", "")
+                        if "E" in str(camion_nom):
+                            try:
+                                num = int(str(camion_nom).replace("E", "").split("-")[0])
+                                numeros_existants.append(num)
+                            except:
+                                pass
                     
+                    # Trier les numéros existants
+                    numeros_existants = sorted(numeros_existants)
+                    numeros_assignes = numeros_existants.copy()
+                
                 # Trier par poids décroissant pour l'optimisation
                 df_zone_sorted = df_zone.sort_values(by="Poids total", ascending=False).reset_index()
                 estafettes_zone = []
@@ -681,15 +705,32 @@ class TruckRentalProcessor:
                     
                     # Si pas placé, créer une nouvelle estafette
                     if not placed:
+                        # Utiliser le prochain numéro disponible dans la liste des numéros existants
+                        if numeros_existants:
+                            # Prendre le premier numéro disponible
+                            num = numeros_existants.pop(0)
+                        else:
+                            # Si plus de numéros existants, prendre le prochain disponible
+                            all_nums = []
+                            for _, r in self.df_base.iterrows():
+                                camion_nom = r.get("Camion N°", "")
+                                if "E" in str(camion_nom):
+                                    try:
+                                        n = int(str(camion_nom).replace("E", "").split("-")[0])
+                                        all_nums.append(n)
+                                    except:
+                                        pass
+                            # Trouver le prochain numéro disponible
+                            num = max(all_nums + [0]) + 1
+                        
                         estafettes_zone.append({
                             "poids": poids,
                             "volume": volume,
                             "bls": [bl],
                             "clients": {client},
                             "representants": {representant},
-                            "num_global": estafette_num
+                            "num_global": num
                         })
-                        estafette_num += 1
 
                 # Formater les résultats pour la zone
                 for e in estafettes_zone:
@@ -700,6 +741,18 @@ class TruckRentalProcessor:
                     taux_poids = (e["poids"] / CAPACITE_POIDS_ESTAFETTE) * 100
                     taux_volume = (e["volume"] / CAPACITE_VOLUME_ESTAFETTE) * 100
                     taux_occupation = max(taux_poids, taux_volume)
+                    
+                    # Vérifier si c'est la Zone 7 pour le formatage spécial
+                    if zone == "Zone 7":
+                        # Pour Zone 7, compter combien de voyages existent déjà
+                        voyage_count = len([r for r in resultats_optimises 
+                                        if r.get("Zone") == zone and r.get("Estafette N°") == e["num_global"]]) + 1
+                        if voyage_count == 1:
+                            camion_nom = f"E{e['num_global']}"
+                        else:
+                            camion_nom = f"E{e['num_global']}-Voyage {voyage_count}"
+                    else:
+                        camion_nom = f"E{e['num_global']}"
                     
                     resultats_optimises.append({
                         "Zone": zone,
@@ -713,7 +766,7 @@ class TruckRentalProcessor:
                         "Location_camion": False,
                         "Location_proposee": False,
                         "Code Véhicule": "ESTAFETTE",
-                        "Camion N°": f"E{e['num_global']}"
+                        "Camion N°": camion_nom
                     })
             
             # Créer le DataFrame final
