@@ -2183,10 +2183,10 @@ def page_optimisation():
                             else:
                                 st.info("ℹ️ Générez d'abord les voyages optimisés dans l'onglet 1")
     
-   # --- Onglet 3: Attribution véhicules/chauffeurs ---
+# --- Onglet 3: Attribution véhicules/chauffeurs ---
     with tab3:
         # =====================================================
-        # 6️⃣ AJOUT D'OBJETS MANUELS AUX VÉHICULES (CORRIGÉ)
+        # 6️⃣ AJOUT D'OBJETS MANUELS AUX VÉHICULES (CORRIGÉ AVEC HISTORIQUE)
         # =====================================================
         st.markdown("## 📦 AJOUT D'OBJETS MANUELS AUX VÉHICULES")
 
@@ -2208,6 +2208,10 @@ def page_optimisation():
             st.error("❌ df_livraisons non disponible")
             st.info("Veuillez d'abord exécuter la section d'optimisation")
             st.stop()
+
+        # INITIALISATION DE L'HISTORIQUE DES OBJETS
+        if "objets_historique" not in st.session_state:
+            st.session_state.objets_historique = []
 
         # INITIALISATION DU TRANSFER MANAGER
         if "transfer_manager" not in st.session_state or st.session_state.transfer_manager is None:
@@ -2328,6 +2332,18 @@ def page_optimisation():
                         st.session_state.df_voyages = df_updated
                         st.session_state.transfer_manager.df_voyages = df_updated.copy()
                         
+                        # AJOUTER À L'HISTORIQUE
+                        from datetime import datetime
+                        historique_entry = {
+                            "Zone": zone_objet,
+                            "Véhicule": vehicule_objet,
+                            "Objet": nom_objet.strip(),
+                            "Poids (kg)": poids_objet,
+                            "Volume (m³)": volume_objet,
+                            "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        }
+                        st.session_state.objets_historique.append(historique_entry)
+                        
                         # Synchroniser le processeur de location si disponible
                         if 'rental_processor' in st.session_state and st.session_state.rental_processor:
                             try:
@@ -2343,48 +2359,65 @@ def page_optimisation():
                 except Exception as e:
                     st.error(f"❌ Erreur lors de l'ajout de l'objet : {str(e)}")
 
-        # Affichage des objets ajoutés récemment
+        # Affichage de l'historique des objets ajoutés
         st.markdown("### 📋 Historique des objets ajoutés")
 
-        # Rechercher les objets manuels dans les BLs
-        objets_manuels = []
-        for idx, row in df_voyages.iterrows():
-            bls = str(row.get("BL inclus", ""))
-            if "OBJ-" in bls:
-                for bl in bls.split(";"):
-                    if bl.startswith("OBJ-"):
-                        objets_manuels.append({
-                            "Véhicule": row["Véhicule N°"],
-                            "Zone": row["Zone"],
-                            "Objet": bl,
-                            "Poids total chargé": f"{row.get('Poids total chargé', 0):.1f} kg",
-                            "Volume total chargé": f"{row.get('Volume total chargé', 0):.3f} m³",
-                            "Type Véhicule": row.get("Code Véhicule", "Estafette")
-                        })
-
-        if objets_manuels:
-            df_objets = pd.DataFrame(objets_manuels)
-            st.dataframe(df_objets, use_container_width=True)
+        # AFFICHER L'HISTORIQUE STOCKÉ
+        if st.session_state.objets_historique:
+            df_historique = pd.DataFrame(st.session_state.objets_historique)
             
-            # Bouton pour supprimer tous les objets
-            if st.button("🗑️ Supprimer tous les objets", type="secondary", key="btn_supprimer_objets"):
-                # Réinitialiser les données sans objets manuels
-                df_sans_objets = st.session_state.df_voyages.copy()
-                for idx, row in df_sans_objets.iterrows():
-                    bls_originaux = str(row["BL inclus"]).split(";")
-                    bls_filtres = [bl for bl in bls_originaux if not bl.startswith("OBJ-")]
-                    df_sans_objets.at[idx, "BL inclus"] = ";".join(bls_filtres)
-                
-                # Réappliquer la mise à jour
-                st.session_state.df_voyages = df_sans_objets
-                st.session_state.transfer_manager.df_voyages = df_sans_objets.copy()
-                if 'rental_processor' in st.session_state and st.session_state.rental_processor:
-                    st.session_state.rental_processor.df_base = df_sans_objets.copy()
-                
-                st.success("✅ Tous les objets manuels ont été supprimés")
+            # Afficher le tableau d'historique
+            st.dataframe(
+                df_historique,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Date": st.column_config.TextColumn("Date", width="medium"),
+                    "Zone": st.column_config.TextColumn("Zone", width="small"),
+                    "Véhicule": st.column_config.TextColumn("Véhicule", width="small"),
+                    "Objet": st.column_config.TextColumn("Objet", width="medium"),
+                    "Poids (kg)": st.column_config.NumberColumn("Poids (kg)", format="%.2f", width="small"),
+                    "Volume (m³)": st.column_config.NumberColumn("Volume (m³)", format="%.3f", width="small")
+                }
+            )
+            
+            # Métriques de l'historique
+            col_hist1, col_hist2, col_hist3 = st.columns(3)
+            with col_hist1:
+                st.metric("📦 Total objets ajoutés", len(st.session_state.objets_historique))
+            with col_hist2:
+                poids_total_objets = df_historique["Poids (kg)"].sum()
+                st.metric("⚖️ Poids total ajouté", f"{poids_total_objets:.2f} kg")
+            with col_hist3:
+                volume_total_objets = df_historique["Volume (m³)"].sum()
+                st.metric("📐 Volume total ajouté", f"{volume_total_objets:.3f} m³")
+            
+            # Bouton pour vider l'historique
+            if st.button("🗑️ Vider l'historique", type="secondary", key="btn_vider_historique"):
+                st.session_state.objets_historique = []
                 st.rerun()
+                
         else:
             st.info("ℹ️ Aucun objet manuel ajouté pour le moment.")
+            
+            # Afficher les objets existants dans les BLs (pour information)
+            objets_dans_bls = []
+            for idx, row in df_voyages.iterrows():
+                bls = str(row.get("BL inclus", ""))
+                if "OBJ-" in bls:
+                    for bl in bls.split(";"):
+                        if bl.startswith("OBJ-"):
+                            objets_dans_bls.append({
+                                "Véhicule": row["Véhicule N°"],
+                                "Zone": row["Zone"],
+                                "Objet": bl,
+                                "Poids": f"{row.get('Poids total chargé', 0):.1f} kg",
+                                "Volume": f"{row.get('Volume total chargé', 0):.3f} m³"
+                            })
+            
+            if objets_dans_bls:
+                with st.expander("🔍 Voir les objets déjà présents dans les véhicules"):
+                    st.dataframe(pd.DataFrame(objets_dans_bls), use_container_width=True)
 
  # --- Onglet 4: ✅ VALIDATION DES VOYAGES APRÈS TRANSFERT
     with tab4:
