@@ -1386,127 +1386,146 @@ def page_optimisation():
                 is_client_selected = st.session_state.selected_client != "" and st.session_state.selected_client is not None
                 
                 if is_client_selected:
-                    # Afficher le type de camion sélectionné
+                    # Afficher le type de camion sélectionné s'il y a lieu
                     truck_type_display = st.session_state.get('truck_type', '5 tonnes')
                     st.info(f"**Type de camion sélectionné :** {truck_type_display}")
                     
                     try:
-                        # Récupérer les détails du client avec gestion d'erreur
-                        if not hasattr(st.session_state, 'rental_processor') or st.session_state.rental_processor is None:
-                            st.error("❌ Le processeur de location n'est pas initialisé.")
-                        else:
-                            result = st.session_state.rental_processor.get_details_client(
-                                st.session_state.selected_client
+                        resume, details_df = st.session_state.rental_processor.get_details_client(
+                            st.session_state.selected_client
+                        )
+                        
+                        # Afficher le résumé
+                        st.markdown(f"**{resume}**")
+                    
+                        # FORMATAGE DU TABLEAU DES DÉTAILS AVEC STYLE CSS
+                        if not details_df.empty:
+                            details_display = details_df.copy()
+                            
+                            # Formatage simple et sécurisé des colonnes
+                            def format_numeric_column(series, decimals, unit=""):
+                                """Formate une colonne numérique avec le nombre de décimales et unité spécifiés"""
+                                formatted_series = series.copy()
+                                for i, value in enumerate(series):
+                                    if pd.notna(value) and value != "":
+                                        try:
+                                            # Essayer de convertir en float
+                                            if isinstance(value, str):
+                                                # Nettoyer la valeur si c'est une string
+                                                clean_value = value.replace(' kg', '').replace(' m³', '').replace('%', '').strip()
+                                                num_value = float(clean_value)
+                                            else:
+                                                num_value = float(value)
+                                            
+                                            # Formater selon le nombre de décimales
+                                            if decimals == 3:
+                                                formatted_value = f"{num_value:.3f}"
+                                            elif decimals == 2:
+                                                formatted_value = f"{num_value:.2f}"
+                                            elif decimals == 1:
+                                                formatted_value = f"{num_value:.1f}"
+                                            else:
+                                                formatted_value = f"{num_value:.0f}"
+                                            
+                                            formatted_series.iloc[i] = f"{formatted_value}{unit}"
+                                        except (ValueError, TypeError):
+                                            # Si conversion échoue, garder la valeur originale
+                                            formatted_series.iloc[i] = str(value)
+                                    else:
+                                        formatted_series.iloc[i] = ""
+                                return formatted_series
+                            
+                            # Formater les colonnes numériques
+                            if "Poids total" in details_display.columns:
+                                details_display["Poids total"] = format_numeric_column(details_display["Poids total"], 3, " kg")
+                            
+                            if "Volume total" in details_display.columns:
+                                details_display["Volume total"] = format_numeric_column(details_display["Volume total"], 3, " m³")
+                            
+                            if "Taux d'occupation (%)" in details_display.columns:
+                                details_display["Taux d'occupation (%)"] = format_numeric_column(details_display["Taux d'occupation (%)"], 2, "%")
+                            
+                            # Gestion spéciale pour "BL inclus" - format multiligne
+                            if "BL inclus" in details_display.columns:
+                                details_display["BL inclus"] = details_display["BL inclus"].astype(str).apply(
+                                    lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if ";" in x else x
+                                )
+                            
+                            # Afficher le tableau avec le style CSS
+                            html_table_details = details_display.to_html(
+                                escape=False, 
+                                index=False, 
+                                classes="custom-table-rental",
+                                border=0
                             )
                             
-                            # Vérifier le résultat
-                            if result is None:
-                                st.warning(f"⚠️ Aucune donnée trouvée pour le client {st.session_state.selected_client}")
-                            elif isinstance(result, tuple) and len(result) == 2:
-                                resume, details_df = result
-                                
-                                # Afficher le résumé avec vérification
-                                if resume is not None and isinstance(resume, str) and resume.strip() and resume != "None":
-                                    st.markdown(f"**{resume}**")
-                                else:
-                                    st.warning(f"⚠️ Résumé non disponible pour {st.session_state.selected_client}")
-                                    # Afficher les infos disponibles
-                                    if details_df is not None and not details_df.empty:
-                                        st.write("Données disponibles (sans résumé) :")
-                                
-                                # Afficher le tableau des détails
-                                if details_df is not None and not details_df.empty:
-                                    details_display = details_df.copy()
-                                    
-                                    # Fonction de formatage
-                                    def format_numeric_column(series, decimals, unit=""):
-                                        formatted_series = series.copy()
-                                        for i, value in enumerate(series):
-                                            if pd.notna(value) and value != "":
+                            st.markdown(f"""
+                            <div class="table-container-rental">
+                                {html_table_details}
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # MÉTRIQUES POUR LES DÉTAILS
+                            st.markdown("---")
+                            col_det1, col_det2, col_det3 = st.columns(3)
+                            
+                            with col_det1:
+                                total_camions = len(details_display)
+                                st.metric("🚚 Nombre des estafettes", total_camions)
+                            
+                            with col_det2:
+                                # Calculer le poids total à partir des données brutes
+                                try:
+                                    if "Poids total" in details_df.columns:
+                                        poids_total = 0
+                                        for value in details_df["Poids total"]:
+                                            if pd.notna(value):
                                                 try:
+                                                    # Nettoyer la valeur si elle contient des unités
                                                     if isinstance(value, str):
-                                                        clean_value = value.replace(' kg', '').replace(' m³', '').replace('%', '').strip()
-                                                        num_value = float(clean_value)
+                                                        clean_value = value.replace(' kg', '').replace('m³', '').strip()
                                                     else:
-                                                        num_value = float(value)
-                                                    
-                                                    if decimals == 3:
-                                                        formatted_value = f"{num_value:.3f}"
-                                                    elif decimals == 2:
-                                                        formatted_value = f"{num_value:.2f}"
-                                                    elif decimals == 1:
-                                                        formatted_value = f"{num_value:.1f}"
-                                                    else:
-                                                        formatted_value = f"{num_value:.0f}"
-                                                    
-                                                    formatted_series.iloc[i] = f"{formatted_value}{unit}"
+                                                        clean_value = str(value)
+                                                    poids_total += float(clean_value)
                                                 except (ValueError, TypeError):
-                                                    formatted_series.iloc[i] = str(value)
-                                            else:
-                                                formatted_series.iloc[i] = ""
-                                        return formatted_series
-                                    
-                                    # Formater les colonnes
-                                    if "Poids total" in details_display.columns:
-                                        details_display["Poids total"] = format_numeric_column(details_display["Poids total"], 3, " kg")
-                                    
-                                    if "Volume total" in details_display.columns:
-                                        details_display["Volume total"] = format_numeric_column(details_display["Volume total"], 3, " m³")
-                                    
-                                    if "Taux d'occupation (%)" in details_display.columns:
-                                        details_display["Taux d'occupation (%)"] = format_numeric_column(details_display["Taux d'occupation (%)"], 2, "%")
-                                    
-                                    if "BL inclus" in details_display.columns:
-                                        details_display["BL inclus"] = details_display["BL inclus"].astype(str).apply(
-                                            lambda x: "<br>".join(bl.strip() for bl in str(x).split(";")) if ";" in str(x) else str(x)
-                                        )
-                                    
-                                    # Afficher le tableau
-                                    html_table_details = details_display.to_html(
-                                        escape=False, 
-                                        index=False, 
-                                        classes="custom-table-rental",
-                                        border=0
-                                    )
-                                    
-                                    st.markdown(f"""
-                                    <div class="table-container-rental">
-                                        {html_table_details}
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                                    
-                                    # Métriques
-                                    st.markdown("---")
-                                    col_det1, col_det2, col_det3 = st.columns(3)
-                                    
-                                    with col_det1:
-                                        total_camions = len(details_display)
-                                        st.metric("🚚 Nombre des estafettes", total_camions)
-                                    
-                                    with col_det2:
-                                        if "Poids total" in details_df.columns:
-                                            poids_total = details_df["Poids total"].sum()
-                                            st.metric("📦 Poids total", f"{poids_total:.1f} kg")
-                                    
-                                    with col_det3:
-                                        if "Volume total" in details_df.columns:
-                                            volume_total = details_df["Volume total"].sum()
-                                            st.metric("📏 Volume total", f"{volume_total:.3f} m³")
-                                else:
-                                    st.info("ℹ️ Aucun détail de commande disponible pour ce client.")
-                            else:
-                                st.error(f"❌ Format de retour inattendu : {type(result)}")
+                                                    continue
+                                        st.metric("📦 Poids total", f"{poids_total:.1f} kg")
+                                    else:
+                                        st.metric("📦 Poids total", "N/A")
+                                except Exception as e:
+                                    st.metric("📦 Poids total", "Erreur")
+                            
+                            with col_det3:
+                                # Calculer le volume total à partir des données brutes
+                                try:
+                                    if "Volume total" in details_df.columns:
+                                        volume_total = 0
+                                        for value in details_df["Volume total"]:
+                                            if pd.notna(value):
+                                                try:
+                                                    # Nettoyer la valeur si elle contient des unités
+                                                    if isinstance(value, str):
+                                                        clean_value = value.replace(' kg', '').replace('m³', '').strip()
+                                                    else:
+                                                        clean_value = str(value)
+                                                    volume_total += float(clean_value)
+                                                except (ValueError, TypeError):
+                                                    continue
+                                        st.metric("📏 Volume total", f"{volume_total:.3f} m³")
+                                    else:
+                                        st.metric("📏 Volume total", "N/A")
+                                except Exception as e:
+                                    st.metric("📏 Volume total", "Erreur")
                                 
                     except Exception as e:
-                        st.error(f"❌ Erreur : {str(e)}")
-                        # Afficher des infos de débogage
-                        with st.expander("🔍 Informations de débogage"):
-                            st.write("**État :**")
-                            st.write(f"- Client : {st.session_state.selected_client}")
-                            st.write(f"- RentalProcessor : {st.session_state.rental_processor is not None}")
-                            if st.session_state.rental_processor:
-                                st.write(f"- df_base : {len(st.session_state.rental_processor.df_base) if hasattr(st.session_state.rental_processor, 'df_base') else 'N/A'}")
-                                st.write(f"- df_livraisons_original : {len(st.session_state.rental_processor.df_livraisons_original) if hasattr(st.session_state.rental_processor, 'df_livraisons_original') else 'N/A'}")
+                        st.error(f"❌ Erreur lors de la récupération des détails : {str(e)}")
+                        # Debug information
+                        st.write("Détails de l'erreur :")
+                        if 'details_df' in locals():
+                            st.write("Colonnes disponibles :", details_df.columns.tolist())
+                            if not details_df.empty:
+                                st.write("Aperçu des données :")
+                                st.dataframe(details_df.head())
                 else:
                     st.info("Sélectionnez un client pour afficher les détails de la commande/estafettes.")
         else:
