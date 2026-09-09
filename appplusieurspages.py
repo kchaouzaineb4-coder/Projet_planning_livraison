@@ -1704,9 +1704,45 @@ def page_optimisation():
             with col4:
                 # Récupérer les estafettes depuis le rental_processor (avec règle Zone 7)
                 if st.session_state.rental_processor:
-                    estafettes = st.session_state.rental_processor.get_estafette_unique_count()
+                    try:
+                        estafettes = st.session_state.rental_processor.get_estafette_unique_count()
+                    except Exception as e:
+                        st.warning(f"⚠️ Erreur get_estafette_unique_count: {e}")
+                        # Fallback : calcul direct
+                        df_estafettes = df_clean[df_clean["Code Véhicule"] != "CAMION-LOUE"].copy()
+                        if "Zone" in df_estafettes.columns:
+                            # Pour Zone 7, compter les estafettes uniques
+                            df_zone7 = df_estafettes[df_estafettes["Zone"] == "Zone 7"]
+                            df_autres = df_estafettes[df_estafettes["Zone"] != "Zone 7"]
+                            
+                            if not df_zone7.empty:
+                                zone7_count = df_zone7["Véhicule N°"].apply(
+                                    lambda x: str(x).split("-")[0] if "-Voyage" in str(x) else str(x)
+                                ).nunique()
+                            else:
+                                zone7_count = 0
+                            
+                            estafettes = zone7_count + len(df_autres)
+                        else:
+                            estafettes = len(df_estafettes)
                 else:
-                    estafettes = total_voyages - camions_loues
+                    # Calcul direct si rental_processor n'existe pas
+                    df_estafettes = df_clean[df_clean["Code Véhicule"] != "CAMION-LOUE"].copy()
+                    if "Zone" in df_estafettes.columns:
+                        df_zone7 = df_estafettes[df_estafettes["Zone"] == "Zone 7"]
+                        df_autres = df_estafettes[df_estafettes["Zone"] != "Zone 7"]
+                        
+                        if not df_zone7.empty:
+                            zone7_count = df_zone7["Véhicule N°"].apply(
+                                lambda x: str(x).split("-")[0] if "-Voyage" in str(x) else str(x)
+                            ).nunique()
+                        else:
+                            zone7_count = 0
+                        
+                        estafettes = zone7_count + len(df_autres)
+                    else:
+                        estafettes = len(df_estafettes)
+                
                 st.metric("📦 Estafettes", estafettes)
             
             # Préparer l'export Excel avec retours à la ligne \n
