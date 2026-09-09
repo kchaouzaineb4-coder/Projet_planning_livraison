@@ -2233,6 +2233,20 @@ def page_optimisation():
         # CONTINUER AVEC L'INTERFACE UTILISATEUR
         df_voyages = st.session_state.df_voyages.copy()
 
+        # =====================================================
+        # 🐞 DEBUG - AFFICHER LES COLONNES DISPONIBLES (À SUPPRIMER APRÈS TEST)
+        # =====================================================
+        with st.expander("🔍 DEBUG - Colonnes disponibles", expanded=False):
+            st.write("**Colonnes de df_voyages:**", df_voyages.columns.tolist())
+            st.write("**Aperçu des données:**")
+            st.dataframe(df_voyages.head())
+            st.write("**Nombre de lignes:**", len(df_voyages))
+            
+            # Afficher aussi les colonnes du transfer_manager
+            if st.session_state.transfer_manager:
+                st.write("**Colonnes de transfer_manager.df_voyages:**", 
+                        st.session_state.transfer_manager.df_voyages.columns.tolist())
+
         col1, col2, col3 = st.columns(3)
 
         with col1:
@@ -2303,6 +2317,14 @@ def page_optimisation():
                                         step=0.01, 
                                         key="input_volume_objet")
 
+        # Affichage des messages d'erreur/succès
+        if "message_objet" in st.session_state:
+            if st.session_state.message_objet.startswith("✅"):
+                st.success(st.session_state.message_objet)
+            elif st.session_state.message_objet.startswith("❌"):
+                st.error(st.session_state.message_objet)
+            st.session_state.message_objet = None
+
         # Bouton d'ajout
         if st.button("➕ Ajouter l'objet au véhicule", type="primary", key="btn_ajouter_objet"):
             
@@ -2326,7 +2348,7 @@ def page_optimisation():
                         )
                     
                     if success:
-                        st.success(message)
+                        st.session_state.message_objet = message
                         
                         # Mettre à jour le DataFrame principal dans session_state
                         st.session_state.df_voyages = df_updated
@@ -2354,10 +2376,12 @@ def page_optimisation():
                         # FORCER L'ACTUALISATION
                         st.rerun()
                     else:
-                        st.error(message)
+                        st.session_state.message_objet = message
+                        st.rerun()
                         
                 except Exception as e:
-                    st.error(f"❌ Erreur lors de l'ajout de l'objet : {str(e)}")
+                    st.session_state.message_objet = f"❌ Erreur lors de l'ajout de l'objet : {str(e)}"
+                    st.rerun()
 
         # Affichage de l'historique des objets ajoutés
         st.markdown("### 📋 Historique des objets ajoutés")

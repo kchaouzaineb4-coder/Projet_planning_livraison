@@ -1114,6 +1114,7 @@ class TruckTransferManager:
             # Obtenir les capacités max selon le type de véhicule
             max_poids, max_volume = self._get_capacites_vehicule(vehicle, df)
 
+            # Récupérer les valeurs actuelles
             current_poids = float(row.get("Poids total chargé", row.get("Poids total", 0)) or 0)
             current_volume = float(row.get("Volume total chargé", row.get("Volume total", 0)) or 0)
 
@@ -1122,7 +1123,6 @@ class TruckTransferManager:
 
             # Vérifier les capacités
             if new_poids > max_poids or new_volume > max_volume:
-                # Récupérer le type de véhicule pour le message d'erreur
                 is_camion = row.get("Code Véhicule", "") == CAMION_CODE or str(vehicle).upper().startswith("C")
                 vehicle_type = "camion" if is_camion else "estafette"
                 truck_type = row.get("Type_Camion", "") if is_camion else ""
@@ -1140,21 +1140,20 @@ class TruckTransferManager:
             else:
                 new_bls = bls_current + ";" + obj_code
 
-            # Appliquer modifications
+            # MAPPING DES COLONNES POUR GARANTIR LA COMPATIBILITÉ
+            # Définir les noms de colonnes à utiliser
+            col_poids = "Poids total chargé" if "Poids total chargé" in df.columns else "Poids total"
+            col_volume = "Volume total chargé" if "Volume total chargé" in df.columns else "Volume total"
+            col_taux = "Taux d'occupation (%)" if "Taux d'occupation (%)" in df.columns else "Taux d'occupation"
+
+            # Appliquer les modifications
             df.at[idx, "BL inclus"] = new_bls
-            if "Poids total chargé" in df.columns:
-                df.at[idx, "Poids total chargé"] = new_poids
-            else:
-                df.at[idx, "Poids total"] = new_poids
+            df.at[idx, col_poids] = new_poids
+            df.at[idx, col_volume] = new_volume
 
-            if "Volume total chargé" in df.columns:
-                df.at[idx, "Volume total chargé"] = new_volume
-            else:
-                df.at[idx, "Volume total"] = new_volume
-
-            # Recalculer taux d'occupation avec les bonnes capacités
+            # Recalculer taux d'occupation
             taux = max((new_poids / max_poids) * 100, (new_volume / max_volume) * 100)
-            df.at[idx, "Taux d'occupation (%)"] = taux
+            df.at[idx, col_taux] = taux
 
             return True, f"✅ Objet '{name}' ajouté à {vehicle} en zone {zone}", df
 
