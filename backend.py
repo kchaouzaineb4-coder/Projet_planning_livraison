@@ -225,6 +225,7 @@ class DeliveryProcessor:
                 voyages = []
                 voyage_actuel = {"poids": 0, "volume": 0, "bls": [], "clients": set(), "representants": set()}
                 num_estafette = estafette_num
+                voyage_count = 1  # Compteur de voyages pour cette estafette
                 
                 for idx, row in group_sorted.iterrows():
                     bl = str(row["No livraison"])
@@ -247,6 +248,7 @@ class DeliveryProcessor:
                         if voyage_actuel["bls"]:
                             voyages.append(voyage_actuel)
                             voyage_actuel = {"poids": 0, "volume": 0, "bls": [], "clients": set(), "representants": set()}
+                            voyage_count += 1
                         
                         # Si on a atteint le max de voyages, forcer l'ajout dans le dernier voyage
                         if len(voyages) >= MAX_VOYAGES_ZONE7:
@@ -261,6 +263,7 @@ class DeliveryProcessor:
                             # Créer un nouveau voyage
                             voyage_actuel = {"poids": poids, "volume": volume, "bls": [bl], 
                                         "clients": {client}, "representants": {representant}}
+                            voyage_count += 1
                 
                 # Ajouter le dernier voyage s'il n'est pas vide
                 if voyage_actuel["bls"]:
@@ -282,7 +285,7 @@ class DeliveryProcessor:
                         clients_list,
                         representants_list,
                         ";".join(voyage["bls"]),
-                        i  # Numéro du voyage
+                        i  # Numéro du voyage (1, 2, 3...)
                     ])
                 
                 estafette_num += 1
@@ -350,13 +353,13 @@ class DeliveryProcessor:
         df_estafettes["Location_proposee"] = False
         df_estafettes["Code Véhicule"] = "ESTAFETTE"
         
-        # Créer le nom du véhicule avec le numéro de voyage pour Zone 7
+        # Créer le nom du véhicule - pour Zone 7, TOUS les voyages ont "Voyage X"
         def get_vehicle_name(row):
             estafette_num = row["Estafette N°"]
             voyage_num = row["Numéro Voyage"]
             zone = row["Zone"]
             
-            # Pour Zone 7, afficher "Voyage X" pour tous les voyages (1, 2, 3...)
+            # Pour Zone 7, afficher "Voyage X" pour TOUS les voyages (1, 2, 3...)
             if zone == "Zone 7":
                 return f"E{estafette_num}-Voyage {voyage_num}"
             else:
