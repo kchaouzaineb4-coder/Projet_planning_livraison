@@ -547,70 +547,88 @@ def page_analyse():
         if "df_livraisons" not in st.session_state:
             st.session_state.df_livraisons = df_liv.copy()
     
-    # --- Onglet Besoin Estafette par Ville ---
-    with tab_city:
-        st.subheader("Besoin Estafette par Ville")
+    # --- Onglet Besoin Estafette par Ville --- 
+    with tab_city: 
+        st.subheader("Besoin Estafette par Ville") 
         
-        # Créer une copie du DataFrame et FILTRER TRIPOLI
-        df_city_display = st.session_state.df_city.copy()
-        df_city_display = df_city_display[df_city_display["Ville"] != "TRIPOLI"]
+        # Créer une copie du DataFrame et FILTRER TRIPOLI 
+        df_city_display = st.session_state.df_city.copy() 
+        df_city_display = df_city_display[df_city_display["Ville"] != "TRIPOLI"] 
         
-        # Formater les nombres - 3 chiffres après la virgule
-        if "Poids total" in df_city_display.columns:
-            df_city_display["Poids total"] = df_city_display["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
-        if "Volume total" in df_city_display.columns:
-            df_city_display["Volume total"] = df_city_display["Volume total"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "")
-        if "Besoin estafette réel" in df_city_display.columns:
-            df_city_display["Besoin estafette réel"] = df_city_display["Besoin estafette réel"].map(lambda x: f"{x:.1f}" if pd.notna(x) else "")
-        
-        # Vérifier si le DataFrame n'est pas vide
-        if df_city_display.empty:
-            st.info("ℹ️ Aucune ville à afficher (TRIPOLI exclue)")
-        else:
-            # Afficher le tableau avec le style CSS
-            html_table_city = df_city_display.to_html(
-                escape=False, 
-                index=False, 
-                classes="custom-table",
-                border=0
-            )
+        # --- FONCTION DE FORMATAGE PERSONNALISÉ ---
+        def format_besoin_estafette(row):
+            ville = row.get("Ville", "")
+            besoin_reel = row.get("Besoin estafette réel", 0)
             
-            st.markdown(f"""
-            <div class="table-container">
-                {html_table_city}
-            </div>
-            """, unsafe_allow_html=True)
+            if pd.isna(besoin_reel):
+                return ""
+            
+            # Règle spéciale pour ZONE 7 : max 3 voyages par estafette
+            if ville == "ZONE 7":
+                if besoin_reel <= 3:
+                    return f"{int(besoin_reel)} voyage(s) par estafette"
+                else:
+                    nb_estafettes = (besoin_reel + 2) // 3
+                    return f"{int(besoin_reel)} voyages → {nb_estafettes} estafette(s)"
+            else:
+                return f"{besoin_reel:.1f}"
         
-        # Métriques résumées
-        st.markdown("---")
-        col1, col2, col3 = st.columns(3)
+        # Formater les nombres - 3 chiffres après la virgule 
+        if "Poids total" in df_city_display.columns: 
+            df_city_display["Poids total"] = df_city_display["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "") 
+        if "Volume total" in df_city_display.columns: 
+            df_city_display["Volume total"] = df_city_display["Volume total"].map(lambda x: f"{x:.3f} m³" if pd.notna(x) else "") 
         
-        with col1:
-            total_villes = len(df_city_display)
-            st.metric("🏙️ Total Villes", total_villes)
+        # --- FORMATAGE SPÉCIAL POUR BESOIN ESTAFETTE (AVEC RÈGLE ZONE 7) ---
+        if "Besoin estafette réel" in df_city_display.columns:
+            df_city_display["Besoin estafette réel"] = df_city_display.apply(format_besoin_estafette, axis=1)
         
-        with col2:
-            # Calculer le total des BLs
-            df_city_original_filtered = st.session_state.df_city[st.session_state.df_city["Ville"] != "TRIPOLI"]
-            total_bls = df_city_original_filtered["Nombre de BLs"].sum() if "Nombre de BLs" in df_city_original_filtered.columns else 0
-            st.metric("📦 Total BLs", int(total_bls))
+        # Vérifier si le DataFrame n'est pas vide 
+        if df_city_display.empty: 
+            st.info("ℹ️ Aucune ville à afficher (TRIPOLI exclue)") 
+        else: 
+            # Afficher le tableau avec le style CSS 
+            html_table_city = df_city_display.to_html( 
+                escape=False,  
+                index=False,  
+                classes="custom-table", 
+                border=0 
+            ) 
+            
+            st.markdown(f""" 
+            <div class="table-container"> 
+                {html_table_city} 
+            </div> 
+            """, unsafe_allow_html=True) 
         
-        with col3:
-            # Calculer le total des estafettes nécessaires
-            total_estafettes = df_city_original_filtered["Besoin estafette réel"].sum() if "Besoin estafette réel" in df_city_original_filtered.columns else 0
-            st.metric("🚐 Besoin Estafettes", f"{total_estafettes:.1f}")
+        # Métriques résumées 
+        st.markdown("---") 
+        col1, col2, col3 = st.columns(3) 
+        
+        with col1: 
+            total_villes = len(df_city_display) 
+            st.metric("🏙️ Total Villes", total_villes) 
+        
+        with col2: 
+            df_city_original_filtered = st.session_state.df_city[st.session_state.df_city["Ville"] != "TRIPOLI"] 
+            total_bls = df_city_original_filtered["Nombre de BLs"].sum() if "Nombre de BLs" in df_city_original_filtered.columns else 0 
+            st.metric("📦 Total BLs", int(total_bls)) 
+        
+        with col3: 
+            total_estafettes = df_city_original_filtered["Besoin estafette réel"].sum() if "Besoin estafette réel" in df_city_original_filtered.columns else 0 
+            st.metric("🚐 Besoin Estafettes", f"{total_estafettes:.1f}") 
 
-        # Bouton de téléchargement
-        excel_buffer_city = BytesIO()
-        with pd.ExcelWriter(excel_buffer_city, engine='openpyxl') as writer:
-            st.session_state.df_city.to_excel(writer, index=False, sheet_name="Besoin Estafette Ville")
-        excel_buffer_city.seek(0)
+        # Bouton de téléchargement 
+        excel_buffer_city = BytesIO() 
+        with pd.ExcelWriter(excel_buffer_city, engine='openpyxl') as writer: 
+            st.session_state.df_city.to_excel(writer, index=False, sheet_name="Besoin Estafette Ville") 
+        excel_buffer_city.seek(0) 
         
-        st.download_button(
-            label="💾 Télécharger Besoin par Ville",
-            data=excel_buffer_city,
-            file_name="Besoin_Estafette_Ville.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        st.download_button( 
+            label="💾 Télécharger Besoin par Ville", 
+            data=excel_buffer_city, 
+            file_name="Besoin_Estafette_Ville.xlsx", 
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
         )
     
     # --- Onglet Livraisons Client & Ville + Zone ---
