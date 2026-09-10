@@ -949,8 +949,16 @@ class TruckRentalProcessor:
         # Compter les estafettes uniques pour Zone 7
         zone7_estafettes = 0
         if not df_zone7.empty:
-            # Extraire le numéro de base (ex: "E10" de "E10-Voyage 1")
-            zone7_estafettes = df_zone7["Véhicule N°"].apply(
+            # ✅ Vérifier les deux noms possibles
+            if "Camion N°" in df_zone7.columns:
+                col_vehicule = "Camion N°"
+            elif "Véhicule N°" in df_zone7.columns:
+                col_vehicule = "Véhicule N°"
+            else:
+                # Si aucune colonne n'existe, utiliser l'index comme fallback
+                return len(df_autres)
+            
+            zone7_estafettes = df_zone7[col_vehicule].apply(
                 lambda x: str(x).split("-")[0] if "-Voyage" in str(x) else str(x)
             ).nunique()
         
