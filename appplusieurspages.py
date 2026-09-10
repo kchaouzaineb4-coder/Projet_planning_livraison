@@ -3811,9 +3811,57 @@ def page_finalisation():
             df_final = st.session_state.df_voyages.copy()
             
             # Calcul des métriques principales
+            # Calcul des métriques principales
             total_vehicules = len(df_final)
-            estafettes = len(df_final[df_final["Code Véhicule"] == "ESTAFETTE"])
             camions = len(df_final[df_final["Code Véhicule"] == "CAMION-LOUE"])
+
+            # ✅ CORRECTION : Utiliser le comptage avec règle Zone 7
+            if st.session_state.rental_processor:
+                try:
+                    estafettes = st.session_state.rental_processor.get_estafette_unique_count()
+                except Exception:
+                    # Fallback : calcul direct avec règle Zone 7
+                    df_estafettes = df_final[df_final["Code Véhicule"] != "CAMION-LOUE"].copy()
+                    df_zone7 = df_estafettes[df_estafettes["Zone"] == "Zone 7"] if "Zone" in df_estafettes.columns else pd.DataFrame()
+                    df_autres = df_estafettes[df_estafettes["Zone"] != "Zone 7"] if "Zone" in df_estafettes.columns else df_estafettes
+                    
+                    zone7_count = 0
+                    if not df_zone7.empty:
+                        if "Camion N°" in df_zone7.columns:
+                            col_vehicule = "Camion N°"
+                        elif "Véhicule N°" in df_zone7.columns:
+                            col_vehicule = "Véhicule N°"
+                        else:
+                            col_vehicule = None
+                        
+                        if col_vehicule:
+                            zone7_count = df_zone7[col_vehicule].apply(
+                                lambda x: str(x).split("-")[0] if "-Voyage" in str(x) else str(x)
+                            ).nunique()
+                    
+                    estafettes = zone7_count + len(df_autres)
+            else:
+                # Fallback : calcul direct avec règle Zone 7
+                df_estafettes = df_final[df_final["Code Véhicule"] != "CAMION-LOUE"].copy()
+                df_zone7 = df_estafettes[df_estafettes["Zone"] == "Zone 7"] if "Zone" in df_estafettes.columns else pd.DataFrame()
+                df_autres = df_estafettes[df_estafettes["Zone"] != "Zone 7"] if "Zone" in df_estafettes.columns else df_estafettes
+                
+                zone7_count = 0
+                if not df_zone7.empty:
+                    if "Camion N°" in df_zone7.columns:
+                        col_vehicule = "Camion N°"
+                    elif "Véhicule N°" in df_zone7.columns:
+                        col_vehicule = "Véhicule N°"
+                    else:
+                        col_vehicule = None
+                    
+                    if col_vehicule:
+                        zone7_count = df_zone7[col_vehicule].apply(
+                            lambda x: str(x).split("-")[0] if "-Voyage" in str(x) else str(x)
+                        ).nunique()
+                
+                estafettes = zone7_count + len(df_autres)
+
             poids_total = df_final["Poids total chargé"].sum()
             volume_total = df_final["Volume total chargé"].sum()
             taux_moyen = df_final["Taux d'occupation (%)"].mean() if "Taux d'occupation (%)" in df_final.columns else 0
