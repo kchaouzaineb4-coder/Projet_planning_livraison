@@ -1408,9 +1408,34 @@ class AdvancedReportGenerator:
             estafettes = self.df_voyages[self.df_voyages["Code Véhicule"] == "ESTAFETTE"]
             camions = self.df_voyages[self.df_voyages["Code Véhicule"] == CAMION_CODE]
             
+            # ✅ CORRECTION : Compter les estafettes uniques (avec règle Zone 7)
+            df_estafettes = self.df_voyages[self.df_voyages["Code Véhicule"] != CAMION_CODE].copy()
+            
+            # Pour Zone 7, compter les estafettes uniques (sans les numéros de voyage)
+            df_zone7 = df_estafettes[df_estafettes["Zone"] == "Zone 7"]
+            df_autres = df_estafettes[df_estafettes["Zone"] != "Zone 7"]
+            
+            zone7_estafettes = 0
+            if not df_zone7.empty:
+                # Vérifier les deux noms possibles
+                if "Véhicule N°" in df_zone7.columns:
+                    col_vehicule = "Véhicule N°"
+                elif "Camion N°" in df_zone7.columns:
+                    col_vehicule = "Camion N°"
+                else:
+                    col_vehicule = None
+                
+                if col_vehicule:
+                    zone7_estafettes = df_zone7[col_vehicule].apply(
+                        lambda x: str(x).split("-")[0] if "-Voyage" in str(x) else str(x)
+                    ).nunique()
+            
+            nb_estafettes_uniques = zone7_estafettes + len(df_autres)
+            nb_camions = len(camions)
+            
             analyses.append("📊 ANALYSE PAR TYPE DE VÉHICULE")
-            analyses.append(f"• Nombre total d'estafettes : {len(estafettes)}")
-            analyses.append(f"• Nombre total de camions : {len(camions)}")
+            analyses.append(f"• Nombre total d'estafettes : {nb_estafettes_uniques}")
+            analyses.append(f"• Nombre total de camions : {nb_camions}")
             analyses.append(f"• Poids total transporté par estafettes : {estafettes['Poids total chargé'].sum():.1f} kg")
             analyses.append(f"• Volume total transporté par estafettes : {estafettes['Volume total chargé'].sum():.3f} m³")
             analyses.append(f"• Poids total transporté par camions : {camions['Poids total chargé'].sum():.1f} kg")
@@ -1424,7 +1449,7 @@ class AdvancedReportGenerator:
             
             # 3. Analyse d'efficacité
             analyses.append("\n⚡ ANALYSE D'EFFICACITÉ")
-            taux_moyen_estafettes = estafettes["Taux d'occupation (%)"].mean()
+            taux_moyen_estafettes = estafettes["Taux d'occupation (%)"].mean() if len(estafettes) > 0 else 0
             taux_moyen_camions = camions["Taux d'occupation (%)"].mean() if len(camions) > 0 else 0
             
             analyses.append(f"• Taux d'occupation moyen des estafettes : {taux_moyen_estafettes:.1f}%")
@@ -1446,15 +1471,15 @@ class AdvancedReportGenerator:
             
             # 4. Analyse économique
             analyses.append("\n💰 ANALYSE ÉCONOMIQUE")
-            analyses.append(f"• Coût estimé des estafettes : {len(estafettes)} x [coût unitaire]")
-            analyses.append(f"• Coût estimé des camions : {len(camions)} x [coût unitaire camion]")
+            analyses.append(f"• Coût estimé des estafettes : {nb_estafettes_uniques} x [coût unitaire]")
+            analyses.append(f"• Coût estimé des camions : {nb_camions} x [coût unitaire camion]")
             
             # 5. Recommandations
             analyses.append("\n🎯 RECOMMANDATIONS")
             if len(vehicules_sous_utilises) > len(vehicules_sur_utilises):
                 analyses.append("• Optimisation possible : regrouper certains voyages sous-utilisés")
             
-            if camions["Taux d'occupation (%)"].mean() < 70 and len(camions) > 0:
+            if len(camions) > 0 and camions["Taux d'occupation (%)"].mean() < 70:
                 analyses.append("• Attention : les camions sont sous-utilisés, envisager plus d'estafettes")
             
             if len(vehicules_sur_utilises) > 0:
