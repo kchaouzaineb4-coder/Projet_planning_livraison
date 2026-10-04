@@ -711,7 +711,13 @@ class TruckRentalProcessor:
             return False, f"❌ Erreur lors de l'application de la décision: {str(e)}", self.df_base
 
     def _reoptimiser_estafettes_par_zone(self, bls_a_garder, zones_affectees):
-        """Réoptimise complètement les estafettes pour les BLs restants après transfert."""
+        """
+        Réoptimise complètement les estafettes pour les BLs restants après transfert.
+        
+        MODIFICATION : Regroupement STRICT par client.
+        Un client ne peut JAMAIS être réparti sur plusieurs estafettes de la même zone,
+        SAUF si son poids/volume total dépasse la capacité d'une estafette.
+        """
         try:
             if not bls_a_garder:
                 return pd.DataFrame()
@@ -727,7 +733,7 @@ class TruckRentalProcessor:
             resultats_optimises = []
             CAPACITE_POIDS_ESTAFETTE = 1550  # kg
             CAPACITE_VOLUME_ESTAFETTE = 4.608  # m³
-            MAX_VOYAGES_ZONE7 = 3  # Max 3 voyages par estafette pour Zone 7
+            MAX_VOYAGES_ZONE7 = 3
             
             # Pour chaque zone affectée
             for zone in zones_affectees:
@@ -736,33 +742,70 @@ class TruckRentalProcessor:
                 if df_zone.empty:
                     continue
                 
-                # Règle spéciale pour Zone 7 : regrouper en une seule estafette avec plusieurs voyages
+                # =====================================================
+                # ÉTAPE 1 : REGROUPER LES BLS PAR CLIENT
+                # =====================================================
+                clients_data = {}
+                for idx, row in df_zone.iterrows():
+                    client = str(row["Client de l'estafette"])
+                    if client not in clients_data:
+                        clients_data[client] = {
+                            "bls": [],
+                            "poids_total": 0.0,
+                            "volume_total": 0.0,
+                            "representants": set()
+                        }
+                    
+                    clients_data[client]["bls"].append({
+                        "bl": str(row["No livraison"]),
+                        "poids": float(row["Poids total"]),
+                        "volume": float(row["Volume total"])
+                    })
+                    clients_data[client]["poids_total"] += float(row["Poids total"])
+                    clients_data[client]["volume_total"] += float(row["Volume total"])
+                    clients_data[client]["representants"].add(str(row["Représentant"]))
+                
+                clients_list = [
+                    {
+                        "client": client,
+                        "bls": data["bls"],
+                        "poids_total": data["poids_total"],
+                        "volume_total": data["volume_total"],
+                        "representants": data["representants"]
+                    }
+                    for client, data in clients_data.items()
+                ]
+                
+                # Trier par poids décroissant
+                clients_list.sort(key=lambda x: x["poids_total"], reverse=True)
+                
+                # =====================================================
+                # DÉTERMINER LE NUMÉRO D'ESTAFETTE DE DÉPART
+                # =====================================================
+                estafettes_existantes = self.df_base[
+                    (self.df_base["Zone"] == zone) & 
+                    (self.df_base["Code Véhicule"] != CAMION_CODE)
+                ].copy()
+                
+                numeros_existants = []
+                if not estafettes_existantes.empty:
+                    for _, row in estafettes_existantes.iterrows():
+                        camion_nom = row.get("Camion N°", "")
+                        if "E" in str(camion_nom):
+                            try:
+                                num = int(str(camion_nom).replace("E", "").split("-")[0])
+                                numeros_existants.append(num)
+                            except:
+                                pass
+                    numeros_existants = sorted(set(numeros_existants))
+                
+                # =====================================================
+                # RÈGLE SPÉCIALE POUR ZONE 7
+                # =====================================================
                 if zone == "Zone 7":
-                    # Grouper les BLs en voyages de max capacité
-                    voyages = []
-                    voyage_actuel = {"poids": 0, "volume": 0, "bls": [], "clients": set(), "representants": set()}
-                    
-                    # Récupérer les numéros d'estafette existants pour cette zone
-                    estafettes_existantes = self.df_base[
-                        (self.df_base["Zone"] == zone) & 
-                        (self.df_base["Code Véhicule"] != CAMION_CODE)
-                    ].copy()
-                    
-                    # Déterminer le numéro d'estafette à utiliser
-                    if not estafettes_existantes.empty:
-                        # Prendre le premier numéro existant
-                        for _, row in estafettes_existantes.iterrows():
-                            camion_nom = row.get("Camion N°", "")
-                            if "E" in str(camion_nom):
-                                try:
-                                    num_estafette = int(str(camion_nom).replace("E", "").split("-")[0])
-                                    break
-                                except:
-                                    pass
-                        else:
-                            num_estafette = 1
+                    if numeros_existants:
+                        num_estafette = numeros_existants[0]
                     else:
-                        # Trouver le prochain numéro disponible
                         all_nums = []
                         for _, r in self.df_base.iterrows():
                             camion_nom = r.get("Camion N°", "")
@@ -774,174 +817,175 @@ class TruckRentalProcessor:
                                     pass
                         num_estafette = max(all_nums + [0]) + 1
                     
-                    # Trier par poids décroissant
-                    df_zone_sorted = df_zone.sort_values(by="Poids total", ascending=False).reset_index()
+                    voyages = []
+                    voyage_actuel = {
+                        "poids": 0.0, "volume": 0.0, "bls": [],
+                        "clients": set(), "representants": set()
+                    }
                     
-                    for idx, row in df_zone_sorted.iterrows():
-                        bl = str(row["No livraison"])
-                        poids = row["Poids total"]
-                        volume = row["Volume total"]
-                        client = str(row["Client de l'estafette"])
-                        representant = str(row["Représentant"])
+                    for client_data in clients_list:
+                        client = client_data["client"]
                         
-                        # Vérifier si le BL peut entrer dans le voyage actuel
-                        if (voyage_actuel["poids"] + poids <= CAPACITE_POIDS_ESTAFETTE and 
-                            voyage_actuel["volume"] + volume <= CAPACITE_VOLUME_ESTAFETTE):
-                            # Ajouter au voyage actuel
-                            voyage_actuel["poids"] += poids
-                            voyage_actuel["volume"] += volume
-                            voyage_actuel["bls"].append(bl)
+                        # Le client ENTIER rentre dans le voyage actuel
+                        if (voyage_actuel["poids"] + client_data["poids_total"] <= CAPACITE_POIDS_ESTAFETTE and 
+                            voyage_actuel["volume"] + client_data["volume_total"] <= CAPACITE_VOLUME_ESTAFETTE):
+                            voyage_actuel["poids"] += client_data["poids_total"]
+                            voyage_actuel["volume"] += client_data["volume_total"]
                             voyage_actuel["clients"].add(client)
-                            voyage_actuel["representants"].add(representant)
+                            voyage_actuel["representants"].update(client_data["representants"])
+                            for bl_info in client_data["bls"]:
+                                voyage_actuel["bls"].append(bl_info["bl"])
                         else:
-                            # Sauvegarder le voyage actuel s'il n'est pas vide
+                            # Sauvegarder le voyage actuel
                             if voyage_actuel["bls"]:
                                 voyages.append(voyage_actuel)
-                                voyage_actuel = {"poids": 0, "volume": 0, "bls": [], "clients": set(), "representants": set()}
                             
-                            # Si on a atteint le max de voyages, forcer l'ajout dans le dernier voyage
+                            # Si on a atteint MAX_VOYAGES, forcer dans le dernier
                             if len(voyages) >= MAX_VOYAGES_ZONE7:
-                                # Ajouter au dernier voyage même si ça dépasse
-                                dernier_voyage = voyages[-1]
-                                dernier_voyage["poids"] += poids
-                                dernier_voyage["volume"] += volume
-                                dernier_voyage["bls"].append(bl)
-                                dernier_voyage["clients"].add(client)
-                                dernier_voyage["representants"].add(representant)
+                                dernier = voyages[-1]
+                                dernier["poids"] += client_data["poids_total"]
+                                dernier["volume"] += client_data["volume_total"]
+                                dernier["clients"].add(client)
+                                dernier["representants"].update(client_data["representants"])
+                                for bl_info in client_data["bls"]:
+                                    dernier["bls"].append(bl_info["bl"])
+                                voyage_actuel = {"poids": 0, "volume": 0, "bls": [], "clients": set(), "representants": set()}
                             else:
-                                # Créer un nouveau voyage
-                                voyage_actuel = {"poids": poids, "volume": volume, "bls": [bl], 
-                                            "clients": {client}, "representants": {representant}}
+                                # Nouveau voyage avec le client ENTIER
+                                voyage_actuel = {
+                                    "poids": client_data["poids_total"],
+                                    "volume": client_data["volume_total"],
+                                    "bls": [bl_info["bl"] for bl_info in client_data["bls"]],
+                                    "clients": {client},
+                                    "representants": set(client_data["representants"])
+                                }
                     
-                    # Ajouter le dernier voyage s'il n'est pas vide
                     if voyage_actuel["bls"]:
                         voyages.append(voyage_actuel)
                     
-                    # Créer les entrées pour chaque voyage avec le même numéro d'estafette
                     for i, voyage in enumerate(voyages, 1):
                         if i > MAX_VOYAGES_ZONE7:
-                            break  # Limiter à 3 voyages
-                            
-                        clients_list = ", ".join(sorted(list(voyage["clients"])))
-                        representants_list = ", ".join(sorted(list(voyage["representants"])))
+                            break
                         
-                        # Calcul du taux d'occupation
+                        clients_str = ", ".join(sorted(list(voyage["clients"])))
+                        representants_str = ", ".join(sorted(list(voyage["representants"])))
                         taux_poids = (voyage["poids"] / CAPACITE_POIDS_ESTAFETTE) * 100
                         taux_volume = (voyage["volume"] / CAPACITE_VOLUME_ESTAFETTE) * 100
-                        taux_occupation = max(taux_poids, taux_volume)
-                        
-                        # Créer le nom du véhicule avec "Voyage X"
-                        camion_nom = f"E{num_estafette}-Voyage {i}"
                         
                         resultats_optimises.append({
                             "Zone": zone,
                             "Estafette N°": num_estafette,
                             "Poids total": voyage["poids"],
                             "Volume total": voyage["volume"],
-                            "Client(s) inclus": clients_list,
-                            "Représentant(s) inclus": representants_list,
+                            "Client(s) inclus": clients_str,
+                            "Représentant(s) inclus": representants_str,
                             "BL inclus": ";".join(voyage["bls"]),
-                            "Taux d'occupation (%)": taux_occupation,
+                            "Taux d'occupation (%)": max(taux_poids, taux_volume),
                             "Location_camion": False,
                             "Location_proposee": False,
                             "Code Véhicule": "ESTAFETTE",
-                            "Camion N°": camion_nom
+                            "Camion N°": f"E{num_estafette}-Voyage {i}"
                         })
-                    
+                
                 else:
-                    # Algorithme standard pour les autres zones
-                    # Récupérer les estafettes existantes pour cette zone
-                    estafettes_existantes = self.df_base[
-                        (self.df_base["Zone"] == zone) & 
-                        (self.df_base["Code Véhicule"] != CAMION_CODE)
-                    ].copy()
-                    
-                    # Récupérer les numéros d'estafette existants
-                    numeros_existants = []
-                    if not estafettes_existantes.empty:
-                        for _, row in estafettes_existantes.iterrows():
-                            camion_nom = row.get("Camion N°", "")
-                            if "E" in str(camion_nom):
-                                try:
-                                    num = int(str(camion_nom).replace("E", "").split("-")[0])
-                                    numeros_existants.append(num)
-                                except:
-                                    pass
-                        numeros_existants = sorted(numeros_existants)
-                    
-                    # Trier par poids décroissant
-                    df_zone_sorted = df_zone.sort_values(by="Poids total", ascending=False).reset_index()
+                    # =====================================================
+                    # ALGORITHME STANDARD AVEC REGROUPEMENT STRICT PAR CLIENT
+                    # =====================================================
                     estafettes_zone = []
                     
-                    # Algorithme d'optimisation (bin packing)
-                    for idx, row in df_zone_sorted.iterrows():
-                        bl = str(row["No livraison"])
-                        poids = row["Poids total"]
-                        volume = row["Volume total"]
-                        client = str(row["Client de l'estafette"])
-                        representant = str(row["Représentant"])
-                        placed = False
+                    for client_data in clients_list:
+                        client = client_data["client"]
+                        poids_client = client_data["poids_total"]
+                        volume_client = client_data["volume_total"]
                         
+                        # ✅ CAS 1 : Le client ENTIER rentre dans une estafette existante
+                        placed_entier = False
                         for e in estafettes_zone:
-                            if (e["poids"] + poids <= CAPACITE_POIDS_ESTAFETTE and 
-                                e["volume"] + volume <= CAPACITE_VOLUME_ESTAFETTE):
-                                e["poids"] += poids
-                                e["volume"] += volume
-                                e["bls"].append(bl)
+                            if (e["poids"] + poids_client <= CAPACITE_POIDS_ESTAFETTE and 
+                                e["volume"] + volume_client <= CAPACITE_VOLUME_ESTAFETTE):
+                                e["poids"] += poids_client
+                                e["volume"] += volume_client
+                                for bl_info in client_data["bls"]:
+                                    e["bls"].append(bl_info["bl"])
                                 e["clients"].add(client)
-                                e["representants"].add(representant)
-                                placed = True
+                                e["representants"].update(client_data["representants"])
+                                placed_entier = True
                                 break
                         
-                        if not placed:
-                            # Trouver un numéro disponible
+                        if placed_entier:
+                            continue
+                        
+                        # ✅ CAS 2 : Le client dépasse la capacité d'UNE estafette → répartition inévitable
+                        if poids_client > CAPACITE_POIDS_ESTAFETTE or volume_client > CAPACITE_VOLUME_ESTAFETTE:
+                            bls_restants = client_data["bls"].copy()
+                            while bls_restants:
+                                placed_bl = False
+                                for e in estafettes_zone:
+                                    if (e["poids"] + bls_restants[0]["poids"] <= CAPACITE_POIDS_ESTAFETTE and 
+                                        e["volume"] + bls_restants[0]["volume"] <= CAPACITE_VOLUME_ESTAFETTE):
+                                        bl_info = bls_restants.pop(0)
+                                        e["poids"] += bl_info["poids"]
+                                        e["volume"] += bl_info["volume"]
+                                        e["bls"].append(bl_info["bl"])
+                                        e["clients"].add(client)
+                                        e["representants"].update(client_data["representants"])
+                                        placed_bl = True
+                                        break
+                                
+                                if not placed_bl:
+                                    if numeros_existants:
+                                        num = numeros_existants.pop(0)
+                                    else:
+                                        num = (max([e["num_global"] for e in estafettes_zone], default=0) + 1
+                                            if estafettes_zone else 1)
+                                    
+                                    bl_info = bls_restants.pop(0)
+                                    estafettes_zone.append({
+                                        "poids": bl_info["poids"],
+                                        "volume": bl_info["volume"],
+                                        "bls": [bl_info["bl"]],
+                                        "clients": {client},
+                                        "representants": set(client_data["representants"]),
+                                        "num_global": num
+                                    })
+                        
+                        # ✅ CAS 3 : Le client pourrait tenir dans une estafette VIDE → créer une nouvelle
+                        else:
                             if numeros_existants:
                                 num = numeros_existants.pop(0)
                             else:
-                                all_nums = []
-                                for _, r in self.df_base.iterrows():
-                                    camion_nom = r.get("Camion N°", "")
-                                    if "E" in str(camion_nom):
-                                        try:
-                                            n = int(str(camion_nom).replace("E", "").split("-")[0])
-                                            all_nums.append(n)
-                                        except:
-                                            pass
-                                num = max(all_nums + [0]) + 1
+                                num = (max([e["num_global"] for e in estafettes_zone], default=0) + 1
+                                    if estafettes_zone else 1)
                             
                             estafettes_zone.append({
-                                "poids": poids,
-                                "volume": volume,
-                                "bls": [bl],
+                                "poids": poids_client,
+                                "volume": volume_client,
+                                "bls": [bl_info["bl"] for bl_info in client_data["bls"]],
                                 "clients": {client},
-                                "representants": {representant},
+                                "representants": set(client_data["representants"]),
                                 "num_global": num
                             })
-
-                    # Formater les résultats pour la zone
+                    
+                    # Formater les résultats
                     for e in estafettes_zone:
-                        clients_list = ", ".join(sorted(list(e["clients"])))
-                        representants_list = ", ".join(sorted(list(e["representants"])))
-                        
+                        clients_str = ", ".join(sorted(list(e["clients"])))
+                        representants_str = ", ".join(sorted(list(e["representants"])))
                         taux_poids = (e["poids"] / CAPACITE_POIDS_ESTAFETTE) * 100
                         taux_volume = (e["volume"] / CAPACITE_VOLUME_ESTAFETTE) * 100
-                        taux_occupation = max(taux_poids, taux_volume)
-                        
-                        camion_nom = f"E{e['num_global']}"
                         
                         resultats_optimises.append({
                             "Zone": zone,
                             "Estafette N°": e["num_global"],
                             "Poids total": e["poids"],
                             "Volume total": e["volume"],
-                            "Client(s) inclus": clients_list,
-                            "Représentant(s) inclus": representants_list,
+                            "Client(s) inclus": clients_str,
+                            "Représentant(s) inclus": representants_str,
                             "BL inclus": ";".join(e["bls"]),
-                            "Taux d'occupation (%)": taux_occupation,
+                            "Taux d'occupation (%)": max(taux_poids, taux_volume),
                             "Location_camion": False,
                             "Location_proposee": False,
                             "Code Véhicule": "ESTAFETTE",
-                            "Camion N°": camion_nom
+                            "Camion N°": f"E{e['num_global']}"
                         })
             
             if resultats_optimises:
