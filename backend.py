@@ -210,20 +210,21 @@ class DeliveryProcessor:
 
     def _calculate_optimized_estafette(self, df_grouped_zone):
         """
-        Calcule les voyages optimisés avec règle spéciale pour Zone 7 (max 3 voyages par estafette).
+        Calcule les voyages optimisés avec règle spéciale pour Zone 7.
         
-        MODIFICATION : Minimise le passage chez le même client en regroupant ses BLs
-        dans la même estafette autant que possible.
+        MODIFICATION MAJEURE : Regroupement STRICT par client.
+        Un client ne peut JAMAIS être réparti sur plusieurs estafettes de la même zone,
+        SAUF si son poids/volume total dépasse la capacité d'une estafette.
         """
         resultats = []
         estafette_num = 1
         CAPACITE_POIDS_ESTAFETTE = 1550  # kg
         CAPACITE_VOLUME_ESTAFETTE = 4.608  # m³
-        MAX_VOYAGES_ZONE7 = 3  # Max 3 voyages par estafette pour Zone 7
+        MAX_VOYAGES_ZONE7 = 3
 
         for zone, group in df_grouped_zone.groupby("Zone"):
             # =====================================================
-            # ÉTAPE 1 : Regrouper les BLs par client
+            # ÉTAPE 1 : Regrouper les BLs par client (DONNÉES CONSOLIDÉES)
             # =====================================================
             clients_data = {}
             for idx, row in group.iterrows():
@@ -231,21 +232,21 @@ class DeliveryProcessor:
                 if client not in clients_data:
                     clients_data[client] = {
                         "bls": [],
-                        "poids_total": 0,
-                        "volume_total": 0,
+                        "poids_total": 0.0,
+                        "volume_total": 0.0,
                         "representants": set()
                     }
                 
                 clients_data[client]["bls"].append({
                     "bl": str(row["No livraison"]),
-                    "poids": row["Poids total"],
-                    "volume": row["Volume total"]
+                    "poids": float(row["Poids total"]),
+                    "volume": float(row["Volume total"])
                 })
-                clients_data[client]["poids_total"] += row["Poids total"]
-                clients_data[client]["volume_total"] += row["Volume total"]
+                clients_data[client]["poids_total"] += float(row["Poids total"])
+                clients_data[client]["volume_total"] += float(row["Volume total"])
                 clients_data[client]["representants"].add(str(row["Représentant"]))
             
-            # Convertir en liste pour itération
+            # Convertir en liste
             clients_list = []
             for client, data in clients_data.items():
                 clients_list.append({
@@ -256,177 +257,168 @@ class DeliveryProcessor:
                     "representants": data["representants"]
                 })
             
-            # Trier les clients par poids total décroissant (pour meilleur remplissage)
+            # Trier les clients par poids total décroissant
             clients_list.sort(key=lambda x: x["poids_total"], reverse=True)
             
             # =====================================================
             # RÈGLE SPÉCIALE POUR ZONE 7
             # =====================================================
             if zone == "Zone 7" and len(clients_list) > 0:
-                # Regrouper les clients en voyages de max capacité
                 voyages = []
                 voyage_actuel = {
-                    "poids": 0, 
-                    "volume": 0, 
-                    "bls": [], 
-                    "clients": set(), 
-                    "representants": set(),
-                    "clients_bls": {}  # Pour tracker les BLs par client
+                    "poids": 0.0, "volume": 0.0, "bls": [],
+                    "clients": set(), "representants": set()
                 }
                 
                 for client_data in clients_list:
                     client = client_data["client"]
-                    bls_client = client_data["bls"]
-                    poids_client = client_data["poids_total"]
-                    volume_client = client_data["volume_total"]
                     
-                    # Vérifier si le client entier peut entrer dans le voyage actuel
-                    if (voyage_actuel["poids"] + poids_client <= CAPACITE_POIDS_ESTAFETTE and 
-                        voyage_actuel["volume"] + volume_client <= CAPACITE_VOLUME_ESTAFETTE):
-                        # Ajouter tout le client
-                        voyage_actuel["poids"] += poids_client
-                        voyage_actuel["volume"] += volume_client
+                    # ✅ VÉRIFIER SI LE CLIENT ENTIER RENTRE DANS LE VOYAGE ACTUEL
+                    if (voyage_actuel["poids"] + client_data["poids_total"] <= CAPACITE_POIDS_ESTAFETTE and 
+                        voyage_actuel["volume"] + client_data["volume_total"] <= CAPACITE_VOLUME_ESTAFETTE):
+                        # Ajouter TOUT le client d'un coup
+                        voyage_actuel["poids"] += client_data["poids_total"]
+                        voyage_actuel["volume"] += client_data["volume_total"]
                         voyage_actuel["clients"].add(client)
                         voyage_actuel["representants"].update(client_data["representants"])
-                        for bl_info in bls_client:
+                        for bl_info in client_data["bls"]:
                             voyage_actuel["bls"].append(bl_info["bl"])
                     else:
-                        # Le client ne rentre pas entièrement
-                        # Essayer d'ajouter les BLs un par un
-                        for bl_info in bls_client:
-                            bl = bl_info["bl"]
-                            poids = bl_info["poids"]
-                            volume = bl_info["volume"]
-                            
-                            if (voyage_actuel["poids"] + poids <= CAPACITE_POIDS_ESTAFETTE and 
-                                voyage_actuel["volume"] + volume <= CAPACITE_VOLUME_ESTAFETTE):
-                                voyage_actuel["poids"] += poids
-                                voyage_actuel["volume"] += volume
-                                voyage_actuel["bls"].append(bl)
-                                voyage_actuel["clients"].add(client)
-                                voyage_actuel["representants"].update(client_data["representants"])
-                            else:
-                                # Sauvegarder le voyage actuel s'il n'est pas vide
-                                if voyage_actuel["bls"]:
-                                    voyages.append(voyage_actuel)
-                                    voyage_actuel = {
-                                        "poids": 0, "volume": 0, "bls": [], 
-                                        "clients": set(), "representants": set()
-                                    }
-                                
-                                # Si on a atteint le max de voyages, forcer l'ajout dans le dernier
-                                if len(voyages) >= MAX_VOYAGES_ZONE7:
-                                    dernier_voyage = voyages[-1]
-                                    dernier_voyage["poids"] += poids
-                                    dernier_voyage["volume"] += volume
-                                    dernier_voyage["bls"].append(bl)
-                                    dernier_voyage["clients"].add(client)
-                                    dernier_voyage["representants"].update(client_data["representants"])
-                                else:
-                                    # Créer un nouveau voyage
-                                    voyage_actuel = {
-                                        "poids": poids, "volume": volume, "bls": [bl],
-                                        "clients": {client}, "representants": set(client_data["representants"])
-                                    }
+                        # ✅ SI LE CLIENT NE RENTRE PAS EN ENTIER : NE PAS LE RÉPARTIR
+                        # Créer un nouveau voyage pour ce client
+                        if voyage_actuel["bls"]:
+                            voyages.append(voyage_actuel)
+                        
+                        # Vérifier si on a atteint le max de voyages
+                        if len(voyages) >= MAX_VOYAGES_ZONE7:
+                            # Forcer l'ajout dans le dernier voyage (cas extrême)
+                            dernier_voyage = voyages[-1]
+                            dernier_voyage["poids"] += client_data["poids_total"]
+                            dernier_voyage["volume"] += client_data["volume_total"]
+                            dernier_voyage["clients"].add(client)
+                            dernier_voyage["representants"].update(client_data["representants"])
+                            for bl_info in client_data["bls"]:
+                                dernier_voyage["bls"].append(bl_info["bl"])
+                            voyage_actuel = {"poids": 0, "volume": 0, "bls": [], "clients": set(), "representants": set()}
+                        else:
+                            # Nouveau voyage avec TOUT le client
+                            voyage_actuel = {
+                                "poids": client_data["poids_total"],
+                                "volume": client_data["volume_total"],
+                                "bls": [bl_info["bl"] for bl_info in client_data["bls"]],
+                                "clients": {client},
+                                "representants": set(client_data["representants"])
+                            }
                 
-                # Ajouter le dernier voyage s'il n'est pas vide
+                # Ajouter le dernier voyage
                 if voyage_actuel["bls"]:
                     voyages.append(voyage_actuel)
                 
-                # Créer les entrées pour chaque voyage avec le même numéro d'estafette
                 for i, voyage in enumerate(voyages, 1):
                     if i > MAX_VOYAGES_ZONE7:
                         break
-                    
-                    clients_list_str = ", ".join(sorted(list(voyage["clients"])))
-                    representants_list = ", ".join(sorted(list(voyage["representants"])))
-                    
+                    clients_str = ", ".join(sorted(list(voyage["clients"])))
+                    representants_str = ", ".join(sorted(list(voyage["representants"])))
                     resultats.append([
-                        zone,
-                        estafette_num,
-                        voyage["poids"],
-                        voyage["volume"],
-                        clients_list_str,
-                        representants_list,
-                        ";".join(voyage["bls"]),
-                        i
+                        zone, estafette_num, voyage["poids"], voyage["volume"],
+                        clients_str, representants_str, ";".join(voyage["bls"]), i
                     ])
                 
                 estafette_num += 1
                 
             else:
                 # =====================================================
-                # ALGORITHME STANDARD AVEC REGROUPEMENT PAR CLIENT
+                # ALGORITHME STANDARD AVEC REGROUPEMENT STRICT PAR CLIENT
                 # =====================================================
                 estafettes = []
+                # Track les clients déjà placés pour éviter les doublons
+                clients_placed = set()
                 
                 for client_data in clients_list:
                     client = client_data["client"]
-                    bls_client = client_data["bls"]
+                    
+                    if client in clients_placed:
+                        continue  # Sécurité : ne pas traiter 2 fois le même client
+                    
                     poids_client = client_data["poids_total"]
                     volume_client = client_data["volume_total"]
                     
-                    # Essayer de placer le client entier dans une estafette existante
+                    # ✅ CAS 1 : Le client tient EN ENTIER dans une estafette existante
                     placed_entier = False
-                    
                     for e in estafettes:
                         if (e["poids"] + poids_client <= CAPACITE_POIDS_ESTAFETTE and 
                             e["volume"] + volume_client <= CAPACITE_VOLUME_ESTAFETTE):
-                            # Placer tout le client dans cette estafette
+                            # Ajouter TOUT le client
                             e["poids"] += poids_client
                             e["volume"] += volume_client
-                            for bl_info in bls_client:
+                            for bl_info in client_data["bls"]:
                                 e["bls"].append(bl_info["bl"])
                             e["clients"].add(client)
                             e["representants"].update(client_data["representants"])
                             placed_entier = True
                             break
                     
-                    if not placed_entier:
-                        # Le client ne rentre pas entièrement dans une estafette existante
-                        # Essayer de placer les BLs un par un
-                        for bl_info in bls_client:
-                            bl = bl_info["bl"]
-                            poids = bl_info["poids"]
-                            volume = bl_info["volume"]
-                            placed = False
-                            
+                    if placed_entier:
+                        clients_placed.add(client)
+                        continue
+                    
+                    # ✅ CAS 2 : Le client ne tient pas en entier
+                    # Vérifier si c'est parce qu'il dépasse la capacité d'UNE estafette
+                    if poids_client > CAPACITE_POIDS_ESTAFETTE or volume_client > CAPACITE_VOLUME_ESTAFETTE:
+                        # Le client est trop gros → répartition INÉVITABLE
+                        # On essaie de minimiser le nombre d'estafettes
+                        bls_restants = client_data["bls"].copy()
+                        
+                        while bls_restants:
+                            # Chercher une estafette existante avec de la place
+                            placed_bl = False
                             for e in estafettes:
-                                if (e["poids"] + poids <= CAPACITE_POIDS_ESTAFETTE and 
-                                    e["volume"] + volume <= CAPACITE_VOLUME_ESTAFETTE):
-                                    e["poids"] += poids
-                                    e["volume"] += volume
-                                    e["bls"].append(bl)
+                                if (e["poids"] + bls_restants[0]["poids"] <= CAPACITE_POIDS_ESTAFETTE and 
+                                    e["volume"] + bls_restants[0]["volume"] <= CAPACITE_VOLUME_ESTAFETTE):
+                                    bl_info = bls_restants.pop(0)
+                                    e["poids"] += bl_info["poids"]
+                                    e["volume"] += bl_info["volume"]
+                                    e["bls"].append(bl_info["bl"])
                                     e["clients"].add(client)
                                     e["representants"].update(client_data["representants"])
-                                    placed = True
+                                    placed_bl = True
                                     break
                             
-                            if not placed:
+                            if not placed_bl:
                                 # Créer une nouvelle estafette
+                                bl_info = bls_restants.pop(0)
                                 estafettes.append({
-                                    "poids": poids,
-                                    "volume": volume,
-                                    "bls": [bl],
+                                    "poids": bl_info["poids"],
+                                    "volume": bl_info["volume"],
+                                    "bls": [bl_info["bl"]],
                                     "clients": {client},
                                     "representants": set(client_data["representants"]),
                                     "num_global": estafette_num
                                 })
                                 estafette_num += 1
+                        
+                        clients_placed.add(client)
+                    else:
+                        # ✅ CAS 3 : Le client pourrait tenir dans une estafette VIDE
+                        # → Créer une nouvelle estafette dédiée à ce client
+                        estafettes.append({
+                            "poids": poids_client,
+                            "volume": volume_client,
+                            "bls": [bl_info["bl"] for bl_info in client_data["bls"]],
+                            "clients": {client},
+                            "representants": set(client_data["representants"]),
+                            "num_global": estafette_num
+                        })
+                        estafette_num += 1
+                        clients_placed.add(client)
                 
-                # Formater les résultats pour les autres zones
+                # Formater les résultats
                 for e in estafettes:
                     clients_str = ", ".join(sorted(list(e["clients"])))
                     representants_str = ", ".join(sorted(list(e["representants"])))
                     resultats.append([
-                        zone,
-                        e["num_global"],
-                        e["poids"],
-                        e["volume"],
-                        clients_str,
-                        representants_str,
-                        ";".join(e["bls"]),
-                        1
+                        zone, e["num_global"], e["poids"], e["volume"],
+                        clients_str, representants_str, ";".join(e["bls"]), 1
                     ])
         
         # Créer le DataFrame
@@ -440,27 +432,20 @@ class DeliveryProcessor:
         df_estafettes["Taux Volume (%)"] = (df_estafettes["Volume total chargé"] / CAPACITE_VOLUME_ESTAFETTE) * 100
         df_estafettes["Taux d'occupation (%)"] = df_estafettes[["Taux Poids (%)", "Taux Volume (%)"]].max(axis=1).round(2)
         
-        # Initialisation des colonnes de location
         df_estafettes["Location_camion"] = False
         df_estafettes["Location_proposee"] = False
         df_estafettes["Code Véhicule"] = "ESTAFETTE"
         
-        # Créer le nom du véhicule avec le numéro de voyage pour Zone 7
         def get_vehicle_name(row):
-            estafette_num_val = row["Estafette N°"]
-            voyage_num = row["Numéro Voyage"]
-            zone_val = row["Zone"]
-            
-            if zone_val == "Zone 7":
-                return f"E{estafette_num_val}-Voyage {voyage_num}"
+            if row["Zone"] == "Zone 7":
+                return f"E{row['Estafette N°']}-Voyage {row['Numéro Voyage']}"
             else:
-                return f"E{estafette_num_val}"
+                return f"E{row['Estafette N°']}"
         
         df_estafettes["Camion N°"] = df_estafettes.apply(get_vehicle_name, axis=1)
         df_estafettes = df_estafettes.drop(columns=["Taux Poids (%)", "Taux Volume (%)", "Numéro Voyage"]) 
         
         return df_estafettes
-     
 
 # =====================================================
 # CLASSE DE GESTION DE LA LOCATION DE CAMIONS
