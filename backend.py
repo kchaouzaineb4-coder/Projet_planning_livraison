@@ -9,6 +9,9 @@ SEUIL_VOLUME = 9.216    # m³
 CAPACITE_POIDS_ESTAFETTE = 1550  # kg
 CAPACITE_VOLUME_ESTAFETTE = 4.608  # m³
 
+# --- Sites autorisés ---
+SITES_AUTORISES = ["SA1", "AP1", "SO1", "TC1"]
+
 # NOUVELLES CONSTANTES POUR LES TYPES DE CAMIONS
 CAPACITE_POIDS_CAMION_5T = 5000  # kg
 CAPACITE_VOLUME_CAMION_5T = 20.0  # m³
@@ -134,7 +137,21 @@ class DeliveryProcessor:
             "SOPALALG", "AQUA", "WINOX", "QUIVEM", "SANISTONE",
             "SOPAMAR", "SOPALAFR", "SOPALINTER"
         ]
-        return df[(df["Type livraison"] != "SDC") & (~df["Client commande"].isin(clients_exclus))]
+
+        # Vérifier que la colonne existe
+        if "Site vente" not in df.columns:
+            raise ValueError(
+                "La colonne 'Site vente' est introuvable dans le fichier Livraisons. "
+                f"Colonnes disponibles : {list(df.columns)}"
+            )
+
+        # Filtre sur les sites : on garde seulement SA1, AP1, SO1, TC1
+        sites_normalises = df["Site vente"].astype(str).str.strip().str.upper()
+        df = df[sites_normalises.isin(SITES_AUTORISES)]
+
+        # Filtres existants
+        df = df[(df["Type livraison"] != "SDC") & (~df["Client commande"].isin(clients_exclus))]
+        return df.copy()
 
     def _calculate_weights(self, df):
         df["Poids de l'US"] = pd.to_numeric(df["Poids de l'US"].astype(str).str.replace(",", ".")
