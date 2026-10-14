@@ -146,7 +146,7 @@ class DeliveryProcessor:
                 f"Colonnes disponibles : {list(df.columns)}"
             )
 
-        # Filtre sur les sites : on garde seulement SA1, AP1, SO1, TC1
+        # Filtre sur les sites : on garde seulement SA1, AP1, SO1, TC1, SO2
         sites_normalises = df["Site vente"].astype(str).str.strip().str.upper()
         df = df[sites_normalises.isin(SITES_AUTORISES)]
 
