@@ -197,6 +197,12 @@ class DeliveryProcessor:
         return df
 
     def _add_zone(self, df):
+        """
+        Ajoute la colonne Zone au DataFrame.
+        - Normalisation des villes (accents, majuscules).
+        - Zone 7 Sud : clients spécifiques à Sfax.
+        - Zone 7 Nord : autres clients de Sfax.
+        """
         zones = {
             "Zone 1": ["BARDO", "TUNIS", "ZAHROUNI"],
             "Zone 2": ["BEN AROUS"],
@@ -204,10 +210,17 @@ class DeliveryProcessor:
             "Zone 4": ["MSAKEN", "SOUSSE", "KAIROUAN"],
             "Zone 5": ["NABEUL"],
             "Zone 6": ["BIZERTE"],
-            "Zone 7": ["MAHDIA", "MONASTIR", "JAMMEL"],
-            "Zone 8": ["JANDOUBA", "JENDOUBA", "GAFSA", "SIDI BOUZID"],
-            "Zone 9": ["DJERBA", "GABES", "MEDENINE"]
+            "Zone 9": ["MAHDIA", "MONASTIR", "JAMMEL"],
+            "Zone 10": ["JANDOUBA", "JENDOUBA", "GAFSA", "SIDI BOUZID"],
+            "Zone 11": ["DJERBA", "GABES", "MEDENINE"],
         }
+
+        # Clients Sfax → Zone 7 sud
+        CLIENTS_ZONE_7_SUD = {
+            'CEGA2', 'CBHC', 'EBCH', 'PYRAMIDE', 'STEMSEG', 'TUNISACE1'
+        }
+        # Villes Sfax (à reconnaître pour la règle Nord/Sud)
+        VILLES_SFAX = {"SFAX", "SFAX VILLE", "SFAX SUD", "SFAX NORD"}  # adapte si besoin
 
         def normaliser(texte):
             """Majuscules, sans accents, sans espaces superflus (GABÈS = GABES)."""
@@ -215,24 +228,30 @@ class DeliveryProcessor:
             texte = unicodedata.normalize("NFD", texte)
             return "".join(c for c in texte if unicodedata.category(c) != "Mn")
 
-        # Table de correspondance ville normalisée -> zone
+        # Table ville normalisée -> zone
         ville_vers_zone = {}
         for z, villes in zones.items():
             for v in villes:
                 ville_vers_zone[normaliser(v)] = z
 
-        df["Zone"] = df["Ville"].apply(lambda v: ville_vers_zone.get(normaliser(v), "Zone inconnue"))
+        def get_zone(row):
+            ville_norm = normaliser(row.get("Ville", ""))
+            client_norm = normaliser(row.get("Client", ""))
+
+            # 1) Cas Sfax → découpage Nord/Sud
+            if ville_norm in VILLES_SFAX:
+                if client_norm in {normaliser(c) for c in CLIENTS_ZONE_7_SUD}:
+                    return "Zone 7 sud"
+                else:
+                    return "Zone 7 nord"
+
+            # 2) Cas standard : lookup par ville
+            return ville_vers_zone.get(ville_norm, "Zone inconnue")
+
+        df["Zone"] = df.apply(get_zone, axis=1)
         return df
 
-        def get_zone(ville):
-            ville = str(ville).upper().strip()
-            for z, villes in zones.items():
-                if ville in villes:
-                    return z
-            return "Zone inconnue"
-
-        df["Zone"] = df["Ville"].apply(get_zone)
-        return df
+    
 
     def _group_by_zone(self, df_grouped_zone):
         df_zone = df_grouped_zone.groupby("Zone", as_index=False).agg({
