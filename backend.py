@@ -2,6 +2,7 @@
 import pandas as pd
 import math
 import numpy as np
+import unicodedata
 
 # --- Constantes pour la location de camion ---
 SEUIL_POIDS = 3000.0    # kg
@@ -197,15 +198,31 @@ class DeliveryProcessor:
 
     def _add_zone(self, df):
         zones = {
-            "Zone 1": ["TUNIS", "ARIANA", "MANOUBA", "BEN AROUS", "BIZERTE", "MATEUR",
-                      "MENZEL BOURGUIBA", "UTIQUE"],
-            "Zone 2": ["NABEUL", "HAMMAMET", "KORBA", "MENZEL TEMIME", "KELIBIA", "SOLIMAN"],
-            "Zone 3": ["SOUSSE", "MONASTIR", "MAHDIA", "KAIROUAN"],
-            "Zone 4": ["GABÈS", "MEDENINE", "ZARZIS", "DJERBA"],
-            "Zone 5": ["GAFSA", "KASSERINE", "TOZEUR", "NEFTA", "DOUZ"],
-            "Zone 6": ["JENDOUBA", "BÉJA", "LE KEF", "TABARKA", "SILIANA"],
-            "Zone 7": ["SFAX"]
+            "Zone 1": ["BARDO", "TUNIS", "ZAHROUNI"],
+            "Zone 2": ["BEN AROUS"],
+            "Zone 3": ["ARIANA", "SOUKRA", "AOUINA", "CHARGUIA"],
+            "Zone 4": ["MSAKEN", "SOUSSE", "KAIROUAN"],
+            "Zone 5": ["NABEUL"],
+            "Zone 6": ["BIZERTE"],
+            "Zone 7": ["MAHDIA", "MONASTIR", "JAMMEL"],
+            "Zone 8": ["JANDOUBA", "JENDOUBA", "GAFSA", "SIDI BOUZID"],
+            "Zone 9": ["DJERBA", "GABES", "MEDENINE"]
         }
+
+        def normaliser(texte):
+            """Majuscules, sans accents, sans espaces superflus (GABÈS = GABES)."""
+            texte = str(texte).strip().upper()
+            texte = unicodedata.normalize("NFD", texte)
+            return "".join(c for c in texte if unicodedata.category(c) != "Mn")
+
+        # Table de correspondance ville normalisée -> zone
+        ville_vers_zone = {}
+        for z, villes in zones.items():
+            for v in villes:
+                ville_vers_zone[normaliser(v)] = z
+
+        df["Zone"] = df["Ville"].apply(lambda v: ville_vers_zone.get(normaliser(v), "Zone inconnue"))
+        return df
 
         def get_zone(ville):
             ville = str(ville).upper().strip()
