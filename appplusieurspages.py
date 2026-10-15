@@ -3598,41 +3598,69 @@ def page_optimisation():
 
                 def to_excel(df):
                     df_export = df.copy()
-                    
-                    # Formater les colonnes avec retours à ligne pour Excel
+
+                    # --- Colonnes à exporter, dans l'ordre souhaité ---
+                    ordre_colonnes = [
+                        "Zone",
+                        "Véhicule N°",
+                        "Poids total chargé",
+                        "Volume total chargé",
+                        "Client(s) inclus",
+                        "Représentant(s) inclus",
+                        "BL inclus",
+                        "Taux occupation poids (%)",
+                        "Taux occupation volume (%)",
+                        "Véhicule attribué",
+                        "Chauffeur attribué",
+                        "Matricule chauffeur",
+                        "Location_camion",
+                        "Location_proposee",
+                        "Code Véhicule",
+                    ]
+
+                    # Garder uniquement ces colonnes (celles qui existent), dans cet ordre.
+                    # "Taux d'occupation (%)" est donc supprimée automatiquement.
+                    colonnes_existantes = [c for c in ordre_colonnes if c in df_export.columns]
+                    df_export = df_export[colonnes_existantes].copy()
+
+                    # --- Formater les colonnes avec retours à la ligne pour Excel ---
                     colonnes_a_formater = ['Client(s) inclus', 'Représentant(s) inclus', 'BL inclus']
                     for col in colonnes_a_formater:
                         if col in df_export.columns:
                             df_export[col] = df_export[col].apply(
-                                lambda x: '\n'.join([elem.strip() for elem in str(x).replace(';', ',').split(',') if elem.strip()]) 
-                                if pd.notna(x) else ""
+                                lambda x: '\n'.join(
+                                    [elem.strip() for elem in str(x).replace(';', ',').split(',') if elem.strip()]
+                                ) if pd.notna(x) else ""
                             )
-                    
+
                     if "Poids total chargé" in df_export.columns:
                         df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
                     if "Volume total chargé" in df_export.columns:
                         df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
-                    
+
                     output = BytesIO()
                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
                         df_export.to_excel(writer, index=False, sheet_name='Voyages_Attribués')
-                        
-                        # Appliquer le formatage des retours à ligne et CENTRAGE dans Excel
-                        workbook = writer.book
+
                         worksheet = writer.sheets['Voyages_Attribués']
-                        
-                        # Style de centrage avec retours à ligne
+
+                        # Style de centrage avec retours à la ligne
                         center_alignment = openpyxl.styles.Alignment(
-                            horizontal='center', 
-                            vertical='center', 
+                            horizontal='center',
+                            vertical='center',
                             wrap_text=True
                         )
-                        
+
                         # Appliquer le centrage à TOUTES les cellules
-                        for row in worksheet.iter_rows(min_row=1, max_row=len(df_export) + 1, min_col=1, max_col=len(df_export.columns)):
+                        for row in worksheet.iter_rows(
+                            min_row=1,
+                            max_row=len(df_export) + 1,
+                            min_col=1,
+                            max_col=len(df_export.columns)
+                        ):
                             for cell in row:
                                 cell.alignment = center_alignment
-                        
+
                         # Ajuster automatiquement la largeur des colonnes
                         for column in worksheet.columns:
                             max_length = 0
@@ -3640,21 +3668,18 @@ def page_optimisation():
                             for cell in column:
                                 try:
                                     if cell.value:
-                                        # Calculer la longueur maximale en prenant en compte les retours à ligne
                                         lines = str(cell.value).split('\n')
                                         max_line_length = max(len(line) for line in lines)
                                         max_length = max(max_length, max_line_length)
-                                except:
+                                except Exception:
                                     pass
-                            adjusted_width = min(50, (max_length + 2))  # Limiter à 50 caractères max
-                            worksheet.column_dimensions[column_letter].width = adjusted_width
-                        
-                        # Ajuster la hauteur des lignes pour les retours à ligne
-                        for row in range(2, len(df_export) + 2):  # Commencer à la ligne 2 (après l'en-tête)
-                            worksheet.row_dimensions[row].height = 60  # Hauteur fixe pour accommoder les retours à ligne
-                    
-                    return output.getvalue()
+                            worksheet.column_dimensions[column_letter].width = min(50, max_length + 2)
 
+                        # Ajuster la hauteur des lignes pour les retours à la ligne
+                        for row in range(2, len(df_export) + 2):
+                            worksheet.row_dimensions[row].height = 60
+
+                    return output.getvalue()
                 # --- Export PDF avec tableau ÉLARGI et ESPACES MINIMISÉS ---
                 from fpdf import FPDF
 
