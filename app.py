@@ -443,7 +443,7 @@ with tab_grouped:
             )
 
         for col in df_liv.columns:
-            if str(col).startswith("Désignation"):
+            if "signation" in str(col):
                 df_liv[col] = df_liv[col].astype(str).apply(
                     lambda x: "<br>".join(d.strip() for d in x.split(","))
                 )
@@ -677,7 +677,7 @@ with tab_zone_group:
         )
 
     for col in df_liv_zone.columns:
-        if str(col).startswith("Désignation"):
+        if "signation" in str(col):
             df_liv_zone[col] = df_liv_zone[col].astype(str).apply(
                 lambda x: "<br>".join(d.strip() for d in x.split(","))
             )
