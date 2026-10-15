@@ -3331,7 +3331,43 @@ def page_optimisation():
                                 st.metric("Représentants", row_valide.get('Représentant(s) inclus', 'N/A'))
 
                     # --- Export Excel ---
-                    excel_data = to_excel(df_voyages_valides)
+                    # --- Export Excel avec retours à la ligne ---
+                    import re
+                    from io import BytesIO
+                    from openpyxl.utils import get_column_letter
+                    from openpyxl.styles import Alignment
+
+                    df_export_valides = df_voyages_valides.copy()
+
+                    colonnes_multilignes = ["Client(s) inclus", "Représentant(s) inclus", "BL inclus"]
+
+                    def vers_retours_ligne(valeur):
+                        if pd.isna(valeur):
+                            return ""
+                        texte = str(valeur).strip()
+                        if texte in ("", "nan"):
+                            return ""
+                        elements = [e.strip() for e in re.split(r"[;,]", texte) if e.strip()]
+                        return "\n".join(elements)
+
+                    for col in colonnes_multilignes:
+                        if col in df_export_valides.columns:
+                            df_export_valides[col] = df_export_valides[col].apply(vers_retours_ligne)
+
+                    excel_buffer = BytesIO()
+                    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+                        df_export_valides.to_excel(writer, index=False, sheet_name="Voyages validés")
+                        worksheet = writer.sheets["Voyages validés"]
+
+                        for col_idx, col_name in enumerate(df_export_valides.columns, start=1):
+                            if col_name in colonnes_multilignes:
+                                col_letter = get_column_letter(col_idx)
+                                worksheet.column_dimensions[col_letter].width = 25
+                                for row in range(2, len(df_export_valides) + 2):
+                                    worksheet[f"{col_letter}{row}"].alignment = Alignment(wrap_text=True, vertical="top")
+
+                    excel_buffer.seek(0)
+                    excel_data = excel_buffer.getvalue()
                     st.download_button(
                         label="💾 Télécharger les voyages validés (XLSX)",
                         data=excel_data,
