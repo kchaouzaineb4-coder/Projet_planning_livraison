@@ -2788,11 +2788,26 @@ def page_optimisation():
                                     html_table = df_display.to_html(escape=False, index=False, classes="custom-table-voyages", border=0)
 
                                     # Modifier le HTML pour ajouter des classes
-                                    for i, row in df_display.iterrows():
+                                    # Remplacer toute la boucle for + les replace par ceci :
+
+                                    import re
+
+                                    html_table = df_display.to_html(escape=False, index=False, classes="custom-table-voyages", border=0)
+
+                                    # Séparer l'en-tête et les lignes de données
+                                    parties = html_table.split("<tbody>")
+                                    tbody_lignes = parties[1].split("<tr>")   # [0] = vide avant le premier <tr>
+
+                                    nouvelles_lignes = [tbody_lignes[0]]
+                                    for (i, row), contenu in zip(df_display.iterrows(), tbody_lignes[1:]):
                                         if row["Véhicule N°"] == source:
-                                            html_table = html_table.replace(f'<tr>', f'<tr class="highlight-source">', 1)
+                                            nouvelles_lignes.append(f'<tr class="highlight-source">{contenu}')
                                         elif row["Véhicule N°"] == cible:
-                                            html_table = html_table.replace(f'<tr>', f'<tr class="highlight-target">', 1)
+                                            nouvelles_lignes.append(f'<tr class="highlight-target">{contenu}')
+                                        else:
+                                            nouvelles_lignes.append(f'<tr>{contenu}')
+
+                                    html_table = parties[0] + "<tbody>" + "".join(nouvelles_lignes)
 
                                     st.markdown(f"""
                                             <div class="table-container-voyages">
