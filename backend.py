@@ -21,6 +21,12 @@ CAPACITE_VOLUME_CAMION_10T = 40.0  # m³
 
 CAMION_CODE = "CAMION-LOUE"
 
+CLIENTS_EXCLUS = [
+    "AMECAP", "SANA", "SOPAL", "SOPALGAZ", "SOPALSERV", "SOPALTEC",
+    "SOPALALG", "AQUAPLAST", "WINOX", "QUIVEM", "SANISTONE",
+    "SOPAMAR", "SOPALAFR", "SOPALINTER", "PERSOGSO"
+]
+
 # REMPLACER LES ANCIENNES CONSTANTES PAR DES FONCTIONS
 # Les fonctions suivantes retournent les capacités selon le type de camion
 def get_capacite_poids_camion(truck_type="5 tonnes"):
@@ -133,11 +139,8 @@ class DeliveryProcessor:
         return df_clients[["Client", "Ville", "Représentant"]].copy()
 
     def _filter_initial_data(self, df):
-        clients_exclus = [
-            "AMECAP", "SANA", "SOPAL", "SOPALGAZ", "SOPALSERV", "SOPALTEC",
-            "SOPALALG", "AQUAPLAST", "WINOX", "QUIVEM", "SANISTONE",
-            "SOPAMAR", "SOPALAFR", "SOPALINTER", "PERSOGSO"
-        ]
+        
+        df = df[(df["Type livraison"] != "SDC") & (~df["Client commande"].isin(CLIENTS_EXCLUS))]
 
         # Vérifier que la colonne existe
         if "Site vente" not in df.columns:

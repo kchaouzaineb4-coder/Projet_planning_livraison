@@ -3846,13 +3846,24 @@ def page_optimisation():
                 
                 with tab_analytics2:
                     st.subheader("Rapport Spécifique Client")
-                    clients_disponibles = sorted(st.session_state.df_livraisons_original["Client de l'estafette"].unique())
-                    client_rapport = st.selectbox("Sélectionner un client", clients_disponibles, key="select_client_rapport")
-                    
+
+                    df_source = st.session_state.df_livraisons_original
+                    exclus = {c.strip().upper() for c in CLIENTS_EXCLUS}
+
+                    clients_disponibles = sorted(
+                        c for c in df_source["Client de l'estafette"].dropna().unique()
+                        if str(c).strip().upper() not in exclus
+                    )
+
+                    client_rapport = st.selectbox(
+                        "Sélectionner un client", clients_disponibles, key="select_client_rapport"
+                    )
+
                     if st.button("📋 Générer rapport client", key="btn_rapport_client"):
                         with st.spinner("Génération du rapport client..."):
                             rapport_client = report_generator.generer_rapport_client(client_rapport)
-                            st.text_area(f"Rapport pour {client_rapport}", rapport_client, height=300, key="text_rapport_client")
+                            st.text_area(f"Rapport pour {client_rapport}", rapport_client,
+                                        height=300, key="text_rapport_client")
                 
                 with tab_analytics3:
                     st.subheader("Analyse des Coûts")
