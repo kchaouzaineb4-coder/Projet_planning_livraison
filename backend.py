@@ -196,12 +196,8 @@ class DeliveryProcessor:
 
     def _group_data(self, df):
         df_grouped = df.groupby(["No livraison", "Client", "Ville", "Représentant"], as_index=False).agg({
-            # Utilisation de \n pour le retour à la ligne au lieu de la virgule
-            "Article": lambda x: "\n".join(x.astype(str)), 
-            "Désignation 1": lambda x: "\n".join(
-                # On s'assure de nettoyer les virgules existantes dans les désignations pour éviter les doubles séparateurs
-                x.astype(str).str.replace(r"[,\r\n]+", " ", regex=True).str.strip()
-            ),
+            "Article": lambda x: ", ".join(x.astype(str)),
+            "Désignation 1": lambda x: " || ".join(x.astype(str)),
             "Poids total": "sum",
             "Volume total": "sum"
         }).rename(columns={"Désignation 1": "Désignation"})
