@@ -3382,12 +3382,21 @@ def page_optimisation():
                         df_export_valides.to_excel(writer, index=False, sheet_name="Voyages validés")
                         worksheet = writer.sheets["Voyages validés"]
 
+                        # Centrer toutes les cellules (en-têtes + données), avec retour à la ligne
+                        alignement_centre = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+                        for ligne in worksheet.iter_rows(min_row=1, max_row=worksheet.max_row,
+                                                        min_col=1, max_col=worksheet.max_column):
+                            for cellule in ligne:
+                                cellule.alignment = alignement_centre
+
+                        # Largeur des colonnes
                         for col_idx, col_name in enumerate(df_export_valides.columns, start=1):
+                            col_letter = get_column_letter(col_idx)
                             if col_name in colonnes_multilignes:
-                                col_letter = get_column_letter(col_idx)
                                 worksheet.column_dimensions[col_letter].width = 25
-                                for row in range(2, len(df_export_valides) + 2):
-                                    worksheet[f"{col_letter}{row}"].alignment = Alignment(wrap_text=True, vertical="top")
+                            else:
+                                worksheet.column_dimensions[col_letter].width = max(15, len(str(col_name)) + 4)
 
                     excel_buffer.seek(0)
                     excel_data = excel_buffer.getvalue()
