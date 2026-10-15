@@ -677,9 +677,9 @@ with tab_zone_group:
         )
 
     for col in df_liv_zone.columns:
-        if str(col).startswith("Désignation"):
+        if col == "Article" or "signation" in str(col):
             df_liv_zone[col] = df_liv_zone[col].astype(str).apply(
-                lambda x: "<br>".join(d.strip() for d in x.split(","))
+                lambda x: "<br>".join(d.strip() for d in x.split("\n"))
             )
 
     # Formater les nombres - 3 chiffres après la virgule
