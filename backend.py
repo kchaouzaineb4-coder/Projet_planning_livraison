@@ -198,24 +198,24 @@ class DeliveryProcessor:
 
     def _add_zone(self, df):
         """
-        Ajoute la colonne Zone.
+        Ajoute la colonne Zone (numéro + nom).
         - Villes normalisées (majuscules, sans accents, tirets/espaces uniformisés).
         - Zone 7_Sud : liste de clients précise (quelle que soit la ville).
         - Zone 7_Nord : les autres clients de Sfax.
         """
-        ZONE_7_SUD = "Zone 7_Sud"
-        ZONE_7_NORD = "Zone 7_Nord"
+        ZONE_7_SUD = "Zone 7_Sud - Sfax Sud"
+        ZONE_7_NORD = "Zone 7_Nord - Sfax Nord"
 
         zones = {
-            "Zone 1": ["BARDO", "TUNIS", "ZAHROUNI"],
-            "Zone 2": ["BEN AROUS"],
-            "Zone 3": ["ARIANA", "SOUKRA", "AOUINA", "CHARGUIA"],
-            "Zone 4": ["MSAKEN", "SOUSSE", "KAIROUAN", "KAIROUAN SUD"],
-            "Zone 5": ["NABEUL"],
-            "Zone 6": ["BIZERTE"],
-            "Zone 8": ["MAHDIA", "MONASTIR", "JAMMEL"],
-            "Zone 9": ["JANDOUBA", "JENDOUBA", "GAFSA", "SIDI BOUZID"],
-            "Zone 10": ["DJERBA", "GABES", "MEDENINE", "DJERBA MIDOUN -MEDENINE"],
+            "Zone 1 - Tunis Centre": ["BARDO", "TUNIS", "ZAHROUNI"],
+            "Zone 2 - Ben Arous": ["BEN AROUS"],
+            "Zone 3 - Ariana": ["ARIANA", "SOUKRA", "AOUINA", "CHARGUIA"],
+            "Zone 4 - Sousse-Kairouan": ["MSAKEN", "SOUSSE", "KAIROUAN", "KAIROUAN SUD"],
+            "Zone 5 - Nabeul": ["NABEUL"],
+            "Zone 6 - Bizerte": ["BIZERTE"],
+            "Zone 8 - Monastir-Mahdia": ["MAHDIA", "MONASTIR", "JAMMEL"],
+            "Zone 9 - Intérieur": ["JANDOUBA", "JENDOUBA", "GAFSA", "SIDI BOUZID"],
+            "Zone 10 - Grand Sud": ["DJERBA", "GABES", "MEDENINE", "DJERBA MIDOUN -MEDENINE"],
         }
 
         CLIENTS_ZONE_7_SUD = {"CEGA2", "CBHC", "EBCH", "PYRAMIDE", "STEMSEG", "TUNISACE1"}
@@ -235,47 +235,17 @@ class DeliveryProcessor:
 
         def get_zone(row):
             ville_norm = normaliser(row.get("Ville", ""))
-            # ✅ Correction du bug : la colonne s'appelle "Client de l'estafette"
             client_norm = normaliser(row.get("Client de l'estafette", row.get("Client", "")))
 
-            # 1) Clients de la liste Sud → Zone 7_Sud
+            # 1) Clients de la liste Sud -> Zone 7_Sud
             if client_norm in clients_sud_norm:
                 return ZONE_7_SUD
 
-            # 2) Autres clients de Sfax → Zone 7_Nord
+            # 2) Autres clients de Sfax -> Zone 7_Nord
             if ville_norm in villes_sfax_norm:
                 return ZONE_7_NORD
 
-            # 3) Cas standard : ville → zone
-            return ville_vers_zone.get(ville_norm, "Zone inconnue")
-
-        df["Zone"] = df.apply(get_zone, axis=1)
-        return df
-
-        def normaliser(texte):
-            """Majuscules, sans accents, sans espaces superflus (GABÈS = GABES)."""
-            texte = str(texte).strip().upper()
-            texte = unicodedata.normalize("NFD", texte)
-            return "".join(c for c in texte if unicodedata.category(c) != "Mn")
-
-        # Table ville normalisée -> zone
-        ville_vers_zone = {}
-        for z, villes in zones.items():
-            for v in villes:
-                ville_vers_zone[normaliser(v)] = z
-
-        def get_zone(row):
-            ville_norm = normaliser(row.get("Ville", ""))
-            client_norm = normaliser(row.get("Client", ""))
-
-            # 1) Cas Sfax → découpage Nord/Sud
-            if ville_norm in VILLES_SFAX:
-                if client_norm in {normaliser(c) for c in CLIENTS_ZONE_7_SUD}:
-                    return "Zone 7 sud"
-                else:
-                    return "Zone 7 nord"
-
-            # 2) Cas standard : lookup par ville
+            # 3) Cas standard : ville -> zone
             return ville_vers_zone.get(ville_norm, "Zone inconnue")
 
         df["Zone"] = df.apply(get_zone, axis=1)
