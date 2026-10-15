@@ -136,7 +136,7 @@ class DeliveryProcessor:
         clients_exclus = [
             "AMECAP", "SANA", "SOPAL", "SOPALGAZ", "SOPALSERV", "SOPALTEC",
             "SOPALALG", "AQUA", "WINOX", "QUIVEM", "SANISTONE",
-            "SOPAMAR", "SOPALAFR", "SOPALINTER"
+            "SOPAMAR", "SOPALAFR", "SOPALINTER", "PERSOGSO"
         ]
 
         # Vérifier que la colonne existe
