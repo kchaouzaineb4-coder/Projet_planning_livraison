@@ -197,7 +197,9 @@ class DeliveryProcessor:
     def _group_data(self, df):
         df_grouped = df.groupby(["No livraison", "Client", "Ville", "Représentant"], as_index=False).agg({
             "Article": lambda x: ", ".join(x.astype(str)),
-            "Désignation 1": lambda x: " || ".join(x.astype(str)),
+            "Désignation 1": lambda x: ", ".join(
+                x.astype(str).str.replace(r"[,\r\n]+", " ", regex=True).str.strip()
+            ),
             "Poids total": "sum",
             "Volume total": "sum"
         }).rename(columns={"Désignation 1": "Désignation"})

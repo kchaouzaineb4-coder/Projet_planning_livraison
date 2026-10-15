@@ -445,7 +445,7 @@ with tab_grouped:
         for col in df_liv.columns:
             if str(col).startswith("Désignation"):
                 df_liv[col] = df_liv[col].astype(str).apply(
-                    lambda x: "<br>".join(d.strip() for d in x.split("||") if d.strip())
+                    lambda x: "<br>".join(d.strip() for d in x.split(","))
                 )
 
         # Formater les nombres - 3 chiffres après la virgule
@@ -679,7 +679,7 @@ with tab_zone_group:
     for col in df_liv_zone.columns:
         if str(col).startswith("Désignation"):
             df_liv_zone[col] = df_liv_zone[col].astype(str).apply(
-                lambda x: "<br>".join(d.strip() for d in x.split("||") if d.strip())
+                lambda x: "<br>".join(d.strip() for d in x.split(","))
             )
 
     # Formater les nombres - 3 chiffres après la virgule
