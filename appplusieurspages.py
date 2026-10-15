@@ -990,12 +990,170 @@ def page_analyse():
             villes_count = df_liv_zone["Ville"].nunique()
             st.metric("🏙️ Villes", villes_count)
         
-        # Bouton de téléchargement
+       
+        # =====================================================
+        # EXPORT EXCEL AVEC RETOURS À LA LIGNE
+        # =====================================================
+        from io import BytesIO
+        from openpyxl.styles import Alignment
+        from openpyxl.utils import get_column_letter
+
+        # Garder les données originales pour l'export
+        df_xl_zone = st.session_state.df_grouped_zone.copy()
+
+
+        # =====================================================
+        # ARTICLE : un article par ligne dans la cellule Excel
+        # =====================================================
+        if "Article" in df_xl_zone.columns:
+            df_xl_zone["Article"] = (
+                df_xl_zone["Article"]
+                .fillna("")
+                .astype(str)
+                .apply(
+                    lambda x: "\n".join(
+                        article.strip()
+                        for article in x.split(",")
+                        if article.strip()
+                    )
+                )
+            )
+
+
+        # =====================================================
+        # DÉSIGNATION : une désignation par ligne dans la cellule Excel
+        # =====================================================
+        for c in df_xl_zone.columns:
+
+            if "signation" in str(c):
+
+                df_xl_zone[c] = (
+                    df_xl_zone[c]
+                    .fillna("")
+                    .astype(str)
+                    .apply(
+                        lambda x: "\n".join(
+                            designation.strip()
+                            for designation in (
+                                x.replace("<br>", "||")
+                                .replace("<br/>", "||")
+                                .replace("<br />", "||")
+                            ).split("||")
+                            if designation.strip()
+                        )
+                    )
+                )
+
+
+        # =====================================================
+        # FORMATAGE DES NOMBRES
+        # =====================================================
+        if "Poids total" in df_xl_zone.columns:
+            df_xl_zone["Poids total"] = df_xl_zone["Poids total"].map(
+                lambda x: round(x, 3) if pd.notna(x) else ""
+            )
+
+        if "Volume total" in df_xl_zone.columns:
+            df_xl_zone["Volume total"] = df_xl_zone["Volume total"].map(
+                lambda x: round(x, 3) if pd.notna(x) else ""
+            )
+
+
+        # =====================================================
+        # CRÉATION DU FICHIER EXCEL
+        # =====================================================
         excel_buffer_zone_group = BytesIO()
-        with pd.ExcelWriter(excel_buffer_zone_group, engine='openpyxl') as writer:
-            st.session_state.df_grouped_zone.to_excel(writer, index=False, sheet_name="Livraisons Client Ville Zone")
+
+        with pd.ExcelWriter(
+            excel_buffer_zone_group,
+            engine="openpyxl"
+        ) as writer:
+
+            df_xl_zone.to_excel(
+                writer,
+                index=False,
+                sheet_name="Livraisons Client Ville Zone"
+            )
+
+            ws = writer.sheets["Livraisons Client Ville Zone"]
+
+
+            # =================================================
+            # COLONNES QUI DOIVENT ÊTRE MULTILIGNES
+            # =================================================
+            wrap_columns = []
+
+            if "Article" in df_xl_zone.columns:
+                wrap_columns.append("Article")
+
+            for c in df_xl_zone.columns:
+                if "signation" in str(c):
+                    wrap_columns.append(c)
+
+
+            # =================================================
+            # ALIGNEMENT + RETOUR À LA LIGNE
+            # =================================================
+            for col_idx, column_name in enumerate(df_xl_zone.columns, 1):
+
+                col_letter = get_column_letter(col_idx)
+
+                if column_name in wrap_columns:
+
+                    # Largeur de la colonne
+                    ws.column_dimensions[col_letter].width = 50
+
+                    # Appliquer le retour à la ligne
+                    for row in range(2, len(df_xl_zone) + 2):
+
+                        cell = ws.cell(
+                            row=row,
+                            column=col_idx
+                        )
+
+                        cell.alignment = Alignment(
+                            wrap_text=True,
+                            vertical="top"
+                        )
+
+                        # Adapter la hauteur de la ligne
+                        if cell.value:
+                            nombre_lignes = str(cell.value).count("\n") + 1
+
+                            ws.row_dimensions[row].height = max(
+                                15,
+                                nombre_lignes * 18
+                            )
+
+                else:
+
+                    # Ajustement automatique des autres colonnes
+                    max_length = 0
+
+                    for cell in ws[col_letter]:
+
+                        try:
+                            if cell.value is not None:
+                                max_length = max(
+                                    max_length,
+                                    len(str(cell.value))
+                                )
+                        except Exception:
+                            pass
+
+                    adjusted_width = min(
+                        max_length + 2,
+                        50
+                    )
+
+                    ws.column_dimensions[col_letter].width = adjusted_width
+
+
+        # =====================================================
+        # BOUTON DE TÉLÉCHARGEMENT
+        # =====================================================
         excel_buffer_zone_group.seek(0)
-        
+
         st.download_button(
             label="💾 Télécharger Livraisons Client/Ville/Zone",
             data=excel_buffer_zone_group,
