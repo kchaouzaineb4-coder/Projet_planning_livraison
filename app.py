@@ -442,10 +442,11 @@ with tab_grouped:
                 lambda x: "<br>".join(a.strip() for a in x.split(",") if a.strip())
             )
 
-        if "Désignation" in df_liv.columns:
-            df_liv["Désignation"] = df_liv["Désignation"].astype(str).apply(
-                lambda x: "<br>".join(d.strip() for d in x.split("||") if d.strip())
-            )
+        for col in df_liv.columns:
+            if str(col).startswith("Désignation"):
+                df_liv[col] = df_liv[col].astype(str).apply(
+                    lambda x: "<br>".join(d.strip() for d in x.split("||") if d.strip())
+                )
 
         # Formater les nombres - 3 chiffres après la virgule
         if "Poids total" in df_liv.columns:
@@ -675,10 +676,11 @@ with tab_zone_group:
             lambda x: "<br>".join(a.strip() for a in x.split(",") if a.strip())
         )
 
-    if "Désignation" in df_liv_zone.columns:
-        df_liv_zone["Désignation"] = df_liv_zone["Désignation"].astype(str).apply(
-            lambda x: "<br>".join(d.strip() for d in x.split("||") if d.strip())
-        )
+    for col in df_liv_zone.columns:
+        if str(col).startswith("Désignation"):
+            df_liv_zone[col] = df_liv_zone[col].astype(str).apply(
+                lambda x: "<br>".join(d.strip() for d in x.split("||") if d.strip())
+            )
 
     # Formater les nombres - 3 chiffres après la virgule
     if "Poids total" in df_liv_zone.columns:
