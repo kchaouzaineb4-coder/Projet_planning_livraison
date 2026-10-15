@@ -196,62 +196,62 @@ class DeliveryProcessor:
             df["Besoin estafette réel"] = df[["Besoin estafette (poids)", "Besoin estafette (volume)"]].max(axis=1)
         return df
 
-        def _add_zone(self, df):
-            """
-            Ajoute la colonne Zone.
-            - Villes normalisées (majuscules, sans accents, tirets/espaces uniformisés).
-            - Zone 7_Sud : liste de clients précise (quelle que soit la ville).
-            - Zone 7_Nord : les autres clients de Sfax.
-            """
-            ZONE_7_SUD = "Zone 7_Sud"
-            ZONE_7_NORD = "Zone 7_Nord"
+    def _add_zone(self, df):
+        """
+        Ajoute la colonne Zone.
+        - Villes normalisées (majuscules, sans accents, tirets/espaces uniformisés).
+        - Zone 7_Sud : liste de clients précise (quelle que soit la ville).
+        - Zone 7_Nord : les autres clients de Sfax.
+        """
+        ZONE_7_SUD = "Zone 7_Sud"
+        ZONE_7_NORD = "Zone 7_Nord"
 
-            zones = {
-                "Zone 1": ["BARDO", "TUNIS", "ZAHROUNI"],
-                "Zone 2": ["BEN AROUS"],
-                "Zone 3": ["ARIANA", "SOUKRA", "AOUINA", "CHARGUIA"],
-                "Zone 4": ["MSAKEN", "SOUSSE", "KAIROUAN", "KAIROUAN SUD"],
-                "Zone 5": ["NABEUL"],
-                "Zone 6": ["BIZERTE"],
-                "Zone 8": ["MAHDIA", "MONASTIR", "JAMMEL"],
-                "Zone 9": ["JANDOUBA", "JENDOUBA", "GAFSA", "SIDI BOUZID"],
-                "Zone 10": ["DJERBA", "GABES", "MEDENINE", "DJERBA MIDOUN -MEDENINE"],
-            }
+        zones = {
+            "Zone 1": ["BARDO", "TUNIS", "ZAHROUNI"],
+            "Zone 2": ["BEN AROUS"],
+            "Zone 3": ["ARIANA", "SOUKRA", "AOUINA", "CHARGUIA"],
+            "Zone 4": ["MSAKEN", "SOUSSE", "KAIROUAN", "KAIROUAN SUD"],
+            "Zone 5": ["NABEUL"],
+            "Zone 6": ["BIZERTE"],
+            "Zone 8": ["MAHDIA", "MONASTIR", "JAMMEL"],
+            "Zone 9": ["JANDOUBA", "JENDOUBA", "GAFSA", "SIDI BOUZID"],
+            "Zone 10": ["DJERBA", "GABES", "MEDENINE", "DJERBA MIDOUN -MEDENINE"],
+        }
 
-            CLIENTS_ZONE_7_SUD = {"CEGA2", "CBHC", "EBCH", "PYRAMIDE", "STEMSEG", "TUNISACE1"}
-            VILLES_SFAX = {"SFAX", "SFAX VILLE", "SFAX SUD", "SFAX NORD"}
+        CLIENTS_ZONE_7_SUD = {"CEGA2", "CBHC", "EBCH", "PYRAMIDE", "STEMSEG", "TUNISACE1"}
+        VILLES_SFAX = {"SFAX", "SFAX VILLE", "SFAX SUD", "SFAX NORD"}
 
-            def normaliser(texte):
-                """Majuscules, sans accents, tirets/espaces uniformisés."""
-                texte = str(texte).strip().upper()
-                texte = unicodedata.normalize("NFD", texte)
-                texte = "".join(c for c in texte if unicodedata.category(c) != "Mn")
-                texte = texte.replace("-", " ")
-                return " ".join(texte.split())
+        def normaliser(texte):
+            """Majuscules, sans accents, tirets/espaces uniformisés."""
+            texte = str(texte).strip().upper()
+            texte = unicodedata.normalize("NFD", texte)
+            texte = "".join(c for c in texte if unicodedata.category(c) != "Mn")
+            texte = texte.replace("-", " ")
+            return " ".join(texte.split())
 
-            ville_vers_zone = {normaliser(v): z for z, villes in zones.items() for v in villes}
-            clients_sud_norm = {normaliser(c) for c in CLIENTS_ZONE_7_SUD}
-            villes_sfax_norm = {normaliser(v) for v in VILLES_SFAX}
+        ville_vers_zone = {normaliser(v): z for z, villes in zones.items() for v in villes}
+        clients_sud_norm = {normaliser(c) for c in CLIENTS_ZONE_7_SUD}
+        villes_sfax_norm = {normaliser(v) for v in VILLES_SFAX}
 
-            def get_zone(row):
-                ville_norm = normaliser(row.get("Ville", ""))
-                # ✅ Correction du bug : la colonne s'appelle "Client de l'estafette"
-                client_norm = normaliser(row.get("Client de l'estafette", row.get("Client", "")))
+        def get_zone(row):
+            ville_norm = normaliser(row.get("Ville", ""))
+            # ✅ Correction du bug : la colonne s'appelle "Client de l'estafette"
+            client_norm = normaliser(row.get("Client de l'estafette", row.get("Client", "")))
 
-                # 1) Clients de la liste Sud → Zone 7_Sud
-                if client_norm in clients_sud_norm:
-                    return ZONE_7_SUD
+            # 1) Clients de la liste Sud → Zone 7_Sud
+            if client_norm in clients_sud_norm:
+                return ZONE_7_SUD
 
-                # 2) Autres clients de Sfax → Zone 7_Nord
-                if ville_norm in villes_sfax_norm:
-                    return ZONE_7_NORD
+            # 2) Autres clients de Sfax → Zone 7_Nord
+            if ville_norm in villes_sfax_norm:
+                return ZONE_7_NORD
 
-                # 3) Cas standard : ville → zone
-                return ville_vers_zone.get(ville_norm, "Zone inconnue")
+            # 3) Cas standard : ville → zone
+            return ville_vers_zone.get(ville_norm, "Zone inconnue")
 
-            df["Zone"] = df.apply(get_zone, axis=1)
-            return df
-    
+        df["Zone"] = df.apply(get_zone, axis=1)
+        return df
+
         def normaliser(texte):
             """Majuscules, sans accents, sans espaces superflus (GABÈS = GABES)."""
             texte = str(texte).strip().upper()
