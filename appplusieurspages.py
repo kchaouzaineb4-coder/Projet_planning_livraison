@@ -2686,7 +2686,6 @@ def page_optimisation():
                                    #st.markdown("---")
                                     st.subheader("📊 Voyages après transfert (toutes les zones)")
 
-                                  
                                     # =====================================================
                                     # CALCUL DES TAUX D'OCCUPATION POIDS ET VOLUME
                                     # =====================================================
@@ -2719,7 +2718,6 @@ def page_optimisation():
                                             "Taux occupation volume (%)": taux_volume
                                         })
 
-
                                     # Supprimer l'ancien taux maximum
                                     df_voyages = df_voyages.drop(
                                         columns=["Taux d'occupation (%)"],
@@ -2731,27 +2729,49 @@ def page_optimisation():
                                         ["Taux occupation poids (%)", "Taux occupation volume (%)"]
                                     ] = df_voyages.apply(calculer_taux_occupation, axis=1)
 
-                                    
-                                    # Préparer l'affichage
+                                    # =====================================================
+                                    # ✅ RÉORDONNANCEMENT DES COLONNES
+                                    # =====================================================
+                                    ordre_colonnes = [
+                                        "Zone",
+                                        "Véhicule N°",
+                                        "Poids total chargé",
+                                        "Volume total chargé",
+                                        "Client(s) inclus",
+                                        "Représentant(s) inclus",
+                                        "BL inclus",
+                                        "Taux occupation poids (%)",
+                                        "Taux occupation volume (%)",
+                                        "Location_camion",
+                                        "Location_proposee",
+                                        "Code Véhicule"
+                                    ]
+
+                                    # Garder uniquement les colonnes existantes dans cet ordre
+                                    colonnes_existantes = [c for c in ordre_colonnes if c in df_voyages.columns]
+                                    # Ajouter à la fin les éventuelles colonnes non listées (sécurité)
+                                    autres_colonnes = [c for c in df_voyages.columns if c not in colonnes_existantes]
+                                    df_voyages = df_voyages[colonnes_existantes + autres_colonnes]
+
+                                    # =====================================================
+                                    # PRÉPARATION DE L'AFFICHAGE
+                                    # =====================================================
                                     df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
-                                    
-                                    # Mettre en évidence les véhicules modifiés
-                                   #def highlight_transferred(row):
-                                   #    if row["Véhicule N°"] == source:
-                                    #       return ['background-color: #FFE6E6' if col == "BL inclus" else '' for col in df_display.columns]
-                                    #   elif row["Véhicule N°"] == cible:
-                                     #      return ['background-color: #E6FFE6' if col == "BL inclus" else '' for col in df_display.columns]
-                                     #  return [''] * len(df_display.columns)
-                                    
+
                                     # Formater pour l'affichage HTML
                                     if "BL inclus" in df_display.columns:
                                         df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
                                             lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" and x != "" else "Aucun BL"
                                         )
-                                    
+
                                     df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
                                     df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-                                    
+
+                                    # Formater les deux taux d'occupation
+                                    for col_taux in ["Taux occupation poids (%)", "Taux occupation volume (%)"]:
+                                        if col_taux in df_display.columns:
+                                            df_display[col_taux] = df_display[col_taux].map(lambda x: f"{x:.3f}%")
+
                                     # CSS pour mettre en évidence
                                     st.markdown("""
                                     <style>
@@ -2763,24 +2783,22 @@ def page_optimisation():
                                     }
                                     </style>
                                     """, unsafe_allow_html=True)
-                                    
+
                                     # Ajouter des classes CSS pour les lignes modifiées
                                     html_table = df_display.to_html(escape=False, index=False, classes="custom-table-voyages", border=0)
-                                    
+
                                     # Modifier le HTML pour ajouter des classes
                                     for i, row in df_display.iterrows():
                                         if row["Véhicule N°"] == source:
                                             html_table = html_table.replace(f'<tr>', f'<tr class="highlight-source">', 1)
                                         elif row["Véhicule N°"] == cible:
                                             html_table = html_table.replace(f'<tr>', f'<tr class="highlight-target">', 1)
-                                    
+
                                     st.markdown(f"""
                                             <div class="table-container-voyages">
                                                 {html_table}
                                             </div>
                                             """, unsafe_allow_html=True)
-                                    
-                                   #st.info("**Légende :** 🔴 Véhicule source (BLs retirés) | 🟢 Véhicule cible (BLs ajoutés)")
                                     
                                     # --- Export Excel avec retours à la ligne \n ---
                                     df_export = df_voyages.copy()
