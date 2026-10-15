@@ -3022,13 +3022,15 @@ def page_optimisation():
                         
                         # AJOUTER À L'HISTORIQUE
                         from datetime import datetime
+                        from zoneinfo import ZoneInfo
+
                         historique_entry = {
                             "Zone": zone_objet,
                             "Véhicule": vehicule_objet,
                             "Objet": nom_objet.strip(),
                             "Poids (kg)": poids_objet,
                             "Volume (m³)": volume_objet,
-                            "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            "Date": datetime.now(ZoneInfo("Africa/Tunis")).strftime("%Y-%m-%d %H:%M:%S")
                         }
                         st.session_state.objets_historique.append(historique_entry)
                         
