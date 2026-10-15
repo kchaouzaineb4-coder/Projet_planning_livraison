@@ -2816,45 +2816,56 @@ def page_optimisation():
                                             """, unsafe_allow_html=True)
                                     
                                     # --- Export Excel avec retours à la ligne \n ---
-                                    df_export = df_voyages.copy()
-                                    
-                                    # Transformer les BL avec retours à la ligne \n pour Excel
-                                    if "BL inclus" in df_export.columns:
-                                        df_export["BL inclus"] = df_export["BL inclus"].astype(str).apply(
-                                            lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
-                                        )
-                                    
-                                    df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
-                                    df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
-                                    
+                                    import re
                                     from io import BytesIO
                                     import openpyxl
                                     from openpyxl.styles import Alignment
-                                    
+                                    from openpyxl.utils import get_column_letter
+
+                                    df_export = df_voyages.copy()
+
+                                    # Colonnes à afficher avec un élément par ligne
+                                    colonnes_multilignes = ["Client(s) inclus", "Représentant(s) inclus", "BL inclus"]
+
+                                    def vers_retours_ligne(valeur):
+                                        if pd.isna(valeur):
+                                            return ""
+                                        texte = str(valeur).strip()
+                                        if texte in ("", "nan"):
+                                            return ""
+                                        # Sépare sur ; ou , puis réunit avec des retours à la ligne
+                                        elements = [e.strip() for e in re.split(r"[;,]", texte) if e.strip()]
+                                        return "\n".join(elements)
+
+                                    for col in colonnes_multilignes:
+                                        if col in df_export.columns:
+                                            df_export[col] = df_export[col].apply(vers_retours_ligne)
+
+                                    df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
+                                    df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
+
                                     excel_buffer = BytesIO()
-                                    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                                        df_export.to_excel(writer, index=False, sheet_name='Transfert BLs')
-                                        
-                                        # Appliquer le format wrap_text pour Excel
-                                        workbook = writer.book
-                                        worksheet = writer.sheets['Transfert BLs']
-                                        
-                                        # Appliquer le style wrap_text à la colonne BL inclus
-                                        if "BL inclus" in df_export.columns:
-                                            for col_idx, col_name in enumerate(df_export.columns):
-                                                if col_name == "BL inclus":
-                                                    col_letter = openpyxl.utils.get_column_letter(col_idx + 1)
-                                                    for row in range(2, len(df_export) + 2):
-                                                        cell = worksheet[f"{col_letter}{row}"]
-                                                        cell.alignment = Alignment(wrap_text=True, vertical='top')
-                                    
+                                    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+                                        df_export.to_excel(writer, index=False, sheet_name="Transfert BLs")
+
+                                        worksheet = writer.sheets["Transfert BLs"]
+
+                                        # wrap_text sur les 3 colonnes + largeur confortable
+                                        for col_idx, col_name in enumerate(df_export.columns, start=1):
+                                            if col_name in colonnes_multilignes:
+                                                col_letter = get_column_letter(col_idx)
+                                                worksheet.column_dimensions[col_letter].width = 25
+                                                for row in range(2, len(df_export) + 2):
+                                                    cell = worksheet[f"{col_letter}{row}"]
+                                                    cell.alignment = Alignment(wrap_text=True, vertical="top")
+
                                     excel_buffer.seek(0)
-                                    
+
                                     st.download_button(
                                         label="💾 Télécharger le tableau mis à jour (XLSX)",
                                         data=excel_buffer,
                                         file_name="voyages_apres_transfert.xlsx",
-                                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                                     )
                             #else:
                                 #st.info("ℹ️ Générez d'abord les voyages optimisés dans l'onglet 1")
