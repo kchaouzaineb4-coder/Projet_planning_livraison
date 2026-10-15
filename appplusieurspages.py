@@ -159,13 +159,13 @@ if 'truck_type' not in st.session_state:
 # 📌 Constantes pour les véhicules et chauffeurs
 # =====================================================
 VEHICULES_DISPONIBLES = [
-    'SLG-VEH11', 'SLG-VEH14', 'SLG-VEH22', 'SLG-VEH19',
-    'SLG-VEH10', 'SLG-VEH16', 'SLG-VEH23', 'SLG-VEH08', 'SLG-VEH20', 'code-Camion'
+    'SLG-VEH11', 'SLG-VEH08', 'SLG-VEH22', 'SLG-VEH23',
+    'SLG-VEH20', 'SLG-VEH19', 'SLG-VEH204', 'SLG-VEH178', 'SLG-VEH198', 'code-Camion'
 ]
 
 CHAUFFEURS_DETAILS = {
-    '09254': 'DAMMAK Karim', '06002': 'MAAZOUN Bassem', '11063': 'SASSI Ramzi',
-    '10334': 'BOUJELBENE Mohamed', '15144': 'GADDOUR Rami', '08278': 'DAMMAK Wissem',
+    '09254': 'DAMMAK Karim', '00000': 'NAJI Mohamed', '00000': 'MSEKNI Mahdi', '00000': 'GHAOUI Mohamed Amine', '00000': 'HARABI Salah', '00000': 'ALLAYA Maher',
+    '10334': 'BOUJELBENE Mohamed', '15144': 'GADDOUR Rami', '08278': 'DAMMAK Wissem', '00000': 'MAKNI Hcine', '00000': 'BARI Aymen',
     '18339': 'REKIK Ahmed', '07250': 'BARKIA Mustapha', '13321': 'BADRI Moez','99999': 'Chauffeur Camion'
 }
 # =====================================================
