@@ -473,7 +473,92 @@ def page_analyse():
         
         # Créer une copie du DataFrame et FILTRER TRIPOLI
         df_liv = st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').copy()
-        df_liv = df_liv[df_liv["Ville"] != "TRIPOLI"]  # ← FILTRE TRIPOLI
+        df_liv = df_liv[df_liv["Ville"] != "TRIPOLI"]  # ← FILTRE TRIPOLI ICI
+        
+        # CSS pour un tableau organisé et professionnel
+        st.markdown("""
+        <style>
+        /* Style général du tableau */
+        .custom-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        /* En-têtes du tableau - BLEU ROYAL SANS DÉGRADÉ */
+        .custom-table th {
+            background-color: #0369A1;
+            color: white;
+            padding: 12px 8px;
+            text-align: center;
+            border: 2px solid #4682B4;
+            font-weight: normal;  /* CHANGÉ : bold → normal */
+            font-size: 13px;
+            vertical-align: middle;
+        }
+        
+        /* Cellules du tableau - TOUTES EN BLANC */
+        .custom-table td {
+            padding: 10px 8px;
+            text-align: center;
+            border: 1px solid #B0C4DE;
+            background-color: white;
+            color: #000000;
+            vertical-align: middle;
+            font-weight: normal;  /* AJOUT : poids normal */
+        }
+        
+        /* Bordures visibles pour toutes les cellules */
+        .custom-table th, 
+        .custom-table td {
+            border: 1px solid #B0C4DE !important;
+        }
+        
+        /* Bordures épaisses pour l'extérieur du tableau */
+        .custom-table {
+            border: 2px solid #4682B4 !important;
+        }
+        
+        /* Style spécifique pour la colonne Article - CENTRÉ */
+        .custom-table td:nth-child(5) {
+            text-align: center;
+            max-width: 200px;
+            word-wrap: break-word;
+            white-space: normal;
+            vertical-align: middle;
+        }
+        
+        /* Style pour les cellules de poids et volume - NOIR SANS GRAS */
+        .custom-table td:nth-child(6),
+        .custom-table td:nth-child(7) {
+            font-weight: normal;  /* CHANGÉ : 600 → normal */
+            color: #000000 !important;
+            vertical-align: middle;
+        }
+        
+        /* Conteneur du tableau avec défilement horizontal */
+        .table-container {
+            overflow-x: auto;
+            margin: 1rem 0;
+            border-radius: 8px;
+            border: 2px solid #4682B4;
+        }
+        
+        /* Supprimer l'alternance des couleurs - TOUTES LES LIGNES BLANCHES */
+        .custom-table tr:nth-child(even) td {
+            background-color: white !important;
+        }
+        
+        /* Survol des lignes - léger effet */
+        .custom-table tr:hover td {
+            background-color: #F0F8FF !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
         
         # Vérifier si le DataFrame n'est pas vide après filtrage
         if df_liv.empty:
@@ -485,7 +570,13 @@ def page_analyse():
                 df_liv["Article"] = df_liv["Article"].astype(str).apply(
                     lambda x: "<br>".join(a.strip() for a in x.split(",") if a.strip())
                 )
-            
+
+            for col in df_liv.columns:
+                if str(col).startswith("Désignation"):
+                    df_liv[col] = df_liv[col].astype(str).apply(
+                        lambda x: "<br>".join(d.strip() for d in x.split("||") if d.strip())
+                    )
+
             # Formater les nombres - 3 chiffres après la virgule
             if "Poids total" in df_liv.columns:
                 df_liv["Poids total"] = df_liv["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
@@ -506,47 +597,206 @@ def page_analyse():
             </div>
             """, unsafe_allow_html=True)
         
-        # Métriques résumées
+        # Métriques résumées - CORRECTION : Utiliser les données filtrées
         st.markdown("---")
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            total_livraisons = len(df_liv) if not df_liv.empty else 0
+            total_livraisons = len(df_liv)
             st.metric("📦 Total Livraisons", total_livraisons)
         
         with col2:
-            total_clients = df_liv["Client"].nunique() if not df_liv.empty else 0
+            total_clients = df_liv["Client"].nunique()
             st.metric("👥 Clients Uniques", total_clients)
         
         with col3:
-            # Calculer le poids total à partir des données filtrées
+            # CORRECTION : Calculer le poids total à partir des données filtrées (données originales)
             df_liv_original = st.session_state.df_grouped[st.session_state.df_grouped["Ville"] != "TRIPOLI"]
-            total_poids = df_liv_original["Poids total"].sum() if not df_liv_original.empty else 0
+            total_poids = df_liv_original["Poids total"].sum()
             st.metric("⚖️ Poids Total", f"{total_poids:.3f} kg")
         
         with col4:
-            # Calculer le volume total à partir des données filtrées
-            total_volume = df_liv_original["Volume total"].sum() if not df_liv_original.empty else 0
+            # CORRECTION : Calculer le volume total à partir des données filtrées (données originales)
+            total_volume = df_liv_original["Volume total"].sum()
             st.metric("📏 Volume Total", f"{total_volume:.3f} m³")
         
-        # Bouton de téléchargement
+        # =====================================================
+        # EXPORT EXCEL AVEC RETOURS À LA LIGNE
+        # =====================================================
         from io import BytesIO
+        from openpyxl.styles import Alignment
+        from openpyxl.utils import get_column_letter
+
+        # Garder les données originales pour l'export
+        df_xl = st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').copy()
+
+        # Exclure TRIPOLI
+        df_xl = df_xl[df_xl["Ville"] != "TRIPOLI"].copy()
+
+
+        # =====================================================
+        # ARTICLE : un article par ligne dans la cellule Excel
+        # =====================================================
+        if "Article" in df_xl.columns:
+            df_xl["Article"] = (
+                df_xl["Article"]
+                .fillna("")
+                .astype(str)
+                .apply(
+                    lambda x: "\n".join(
+                        article.strip()
+                        for article in x.split(",")
+                        if article.strip()
+                    )
+                )
+            )
+
+
+        # =====================================================
+        # DÉSIGNATION : une désignation par ligne dans la cellule Excel
+        # =====================================================
+        for c in df_xl.columns:
+
+            if "signation" in str(c):
+
+                df_xl[c] = (
+                    df_xl[c]
+                    .fillna("")
+                    .astype(str)
+                    .apply(
+                        lambda x: "\n".join(
+                            designation.strip()
+                            for designation in (
+                                x.replace("<br>", "||")
+                                .replace("<br/>", "||")
+                                .replace("<br />", "||")
+                            ).split("||")
+                            if designation.strip()
+                        )
+                    )
+                )
+
+
+        # =====================================================
+        # FORMATAGE DES NOMBRES
+        # =====================================================
+        if "Poids total" in df_xl.columns:
+            df_xl["Poids total"] = df_xl["Poids total"].map(
+                lambda x: round(x, 3) if pd.notna(x) else ""
+            )
+
+        if "Volume total" in df_xl.columns:
+            df_xl["Volume total"] = df_xl["Volume total"].map(
+                lambda x: round(x, 3) if pd.notna(x) else ""
+            )
+
+
+        # =====================================================
+        # CRÉATION DU FICHIER EXCEL
+        # =====================================================
         excel_buffer_grouped = BytesIO()
-        with pd.ExcelWriter(excel_buffer_grouped, engine='openpyxl') as writer:
-            st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').to_excel(writer, index=False, sheet_name="Livraisons Client Ville")
+
+        with pd.ExcelWriter(
+            excel_buffer_grouped,
+            engine="openpyxl"
+        ) as writer:
+
+            df_xl.to_excel(
+                writer,
+                index=False,
+                sheet_name="Livraisons Client Ville"
+            )
+
+            ws = writer.sheets["Livraisons Client Ville"]
+
+
+            # =================================================
+            # COLONNES QUI DOIVENT ÊTRE MULTILIGNES
+            # =================================================
+            wrap_columns = []
+
+            if "Article" in df_xl.columns:
+                wrap_columns.append("Article")
+
+            for c in df_xl.columns:
+                if "signation" in str(c):
+                    wrap_columns.append(c)
+
+
+            # =================================================
+            # ALIGNEMENT + RETOUR À LA LIGNE
+            # =================================================
+            for col_idx, column_name in enumerate(df_xl.columns, 1):
+
+                col_letter = get_column_letter(col_idx)
+
+                if column_name in wrap_columns:
+
+                    # Largeur de la colonne
+                    ws.column_dimensions[col_letter].width = 50
+
+                    for row in range(2, len(df_xl) + 2):
+
+                        cell = ws.cell(
+                            row=row,
+                            column=col_idx
+                        )
+
+                        # Activer le retour à la ligne Excel
+                        cell.alignment = Alignment(
+                            wrap_text=True,
+                            vertical="top"
+                        )
+
+                        # Adapter la hauteur de ligne au nombre de lignes
+                        if cell.value:
+                            nombre_lignes = str(cell.value).count("\n") + 1
+                            ws.row_dimensions[row].height = max(
+                                15,
+                                nombre_lignes * 18
+                            )
+
+                else:
+
+                    # Ajustement automatique des autres colonnes
+                    max_length = 0
+
+                    for cell in ws[col_letter]:
+
+                        try:
+                            if cell.value is not None:
+                                max_length = max(
+                                    max_length,
+                                    len(str(cell.value))
+                                )
+                        except Exception:
+                            pass
+
+                    adjusted_width = min(
+                        max_length + 2,
+                        50
+                    )
+
+                    ws.column_dimensions[col_letter].width = adjusted_width
+
+
         excel_buffer_grouped.seek(0)
-        
+
+
+        # =====================================================
+        # BOUTON DE TÉLÉCHARGEMENT
+        # =====================================================
         st.download_button(
             label="💾 Télécharger Livraisons Client/Ville",
             data=excel_buffer_grouped,
             file_name="Livraisons_Client_Ville.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        
-        # Stockage pour la section transfert
+            
+        # Stockage pour la section 5
         if "df_livraisons" not in st.session_state:
             st.session_state.df_livraisons = df_liv.copy()
-    
+
     # --- Onglet Besoin Estafette par Ville --- 
     with tab_city: 
         st.subheader("Besoin Estafette par Ville") 
