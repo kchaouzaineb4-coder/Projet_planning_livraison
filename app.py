@@ -441,7 +441,11 @@ with tab_grouped:
             df_liv["Article"] = df_liv["Article"].astype(str).apply(
                 lambda x: "<br>".join(a.strip() for a in x.split(",") if a.strip())
             )
-        
+
+        if "Désignation" in df_liv.columns:
+            df_liv["Désignation"] = df_liv["Désignation"].astype(str).apply(
+                lambda x: "<br>".join(d.strip() for d in x.split("\n"))
+            )
         # Formater les nombres - 3 chiffres après la virgule
         if "Poids total" in df_liv.columns:
             df_liv["Poids total"] = df_liv["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
@@ -669,7 +673,12 @@ with tab_zone_group:
         df_liv_zone["Article"] = df_liv_zone["Article"].astype(str).apply(
             lambda x: "<br>".join(a.strip() for a in x.split(",") if a.strip())
         )
-    
+
+    if "Désignation" in df_liv_zone.columns:
+        df_liv_zone["Désignation"] = df_liv_zone["Désignation"].astype(str).apply(
+            lambda x: "<br>".join(d.strip() for d in x.split("\n"))
+        )
+
     # Formater les nombres - 3 chiffres après la virgule
     if "Poids total" in df_liv_zone.columns:
         df_liv_zone["Poids total"] = df_liv_zone["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")

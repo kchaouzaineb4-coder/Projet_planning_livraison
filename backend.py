@@ -162,17 +162,26 @@ class DeliveryProcessor:
         return df[["No livraison", "Article", "Client commande", "Poids total", "Quantité livrée US", "Poids de l'US"]]
 
     def _calculate_volumes(self, df_liv, df_art):
-        df_art_sel = df_art[["Article", "Volume de l'US", "Unité Volume"]].copy()
+        colonnes = ["Article", "Volume de l'US", "Unité Volume"]
+        if "Désignation 1" in df_art.columns:
+            colonnes.append("Désignation 1")
+
+        df_art_sel = df_art[colonnes].copy()
+        if "Désignation 1" not in df_art_sel.columns:
+            df_art_sel["Désignation 1"] = ""
+
         df_art_sel["Volume de l'US"] = pd.to_numeric(
             df_art_sel["Volume de l'US"].astype(str).str.replace(",", "."), errors="coerce")
-        # Un seul volume par article, pour éviter de multiplier les lignes
+        # Un seul enregistrement par article, pour ne pas multiplier les lignes
         df_art_sel = df_art_sel.drop_duplicates(subset="Article")
 
         df_liv_sel = df_liv[["No livraison", "Article", "Client commande"]].copy()
         df_liv_sel = df_liv_sel.reset_index(drop=True)
         df_vol = pd.merge(df_liv_sel, df_art_sel, on="Article", how="left")
         df_vol.index = df_liv_sel.index
-        return df_vol[["Volume de l'US", "Unité Volume"]]
+
+        df_vol["Désignation 1"] = df_vol["Désignation 1"].fillna("").astype(str)
+        return df_vol[["Volume de l'US", "Unité Volume", "Désignation 1"]]
 
     def _merge_delivery_data(self, df_poids, df_vol):
         # Même nombre de lignes, même ordre : on colle les colonnes côte à côte
@@ -188,9 +197,11 @@ class DeliveryProcessor:
     def _group_data(self, df):
         df_grouped = df.groupby(["No livraison", "Client", "Ville", "Représentant"], as_index=False).agg({
             "Article": lambda x: ", ".join(x.astype(str)),
+            "Désignation 1": lambda x: "\n".join(x.astype(str)),
             "Poids total": "sum",
             "Volume total": "sum"
-        })
+        }).rename(columns={"Désignation 1": "Désignation"})
+        
         df_city = df_grouped.groupby("Ville", as_index=False).agg({
             "Poids total": "sum",
             "Volume total": "sum",
