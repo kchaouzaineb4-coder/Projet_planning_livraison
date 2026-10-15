@@ -492,30 +492,57 @@ with tab_grouped:
         total_volume = df_liv_original["Volume total"].sum()
         st.metric("📏 Volume Total", f"{total_volume:.3f} m³")
     
-    # AJOUT DE L'IMPORT MANQUANT POUR BytesIO
+    # =====================================================
+    # EXPORT EXCEL AVEC RETOURS À LA LIGNE
+    # =====================================================
     from io import BytesIO
-    
-    # Bouton de téléchargement (garder les données originales pour l'export)
     from openpyxl.styles import Alignment
 
+    # Bouton de téléchargement (garder les données originales pour l'export)
     df_xl = st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').copy()
-    df_xl = df_xl[df_xl["Ville"] != "TRIPOLI"]          # exclut TRIPOLI (voir point 2)
+    df_xl = df_xl[df_xl["Ville"] != "TRIPOLI"]          # exclut TRIPOLI
 
+    # --- CORRECTION POUR L'ARTICLE ---
     if "Article" in df_xl.columns:
+        # On remplace la virgule suivie d'un espace par un vrai saut de ligne Excel
         df_xl["Article"] = df_xl["Article"].astype(str).str.replace(", ", "\n", regex=False)
+    
+    # --- CORRECTION POUR LA DÉSIGNATION ---
     for c in df_xl.columns:
         if "signation" in str(c):
+            # On remplace <br> par un vrai saut de ligne Excel
             df_xl[c] = df_xl[c].astype(str).str.replace("<br>", "\n", regex=False)
 
     excel_buffer_grouped = BytesIO()
     with pd.ExcelWriter(excel_buffer_grouped, engine='openpyxl') as writer:
         df_xl.to_excel(writer, index=False, sheet_name="Livraisons Client Ville")
         ws = writer.sheets["Livraisons Client Ville"]
+        
+        # Boucle pour ajuster la largeur et l'alignement
         for col_idx, c in enumerate(df_xl.columns, 1):
+            col_letter = ws.cell(row=1, column=col_idx).column_letter
+            
+            # Si c'est la colonne Article ou Désignation
             if c == "Article" or "signation" in str(c):
-                ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = 45
+                ws.column_dimensions[col_letter].width = 50  # Largeur un peu plus grande
+                
+                # Appliquer le retour à la ligne (Wrap Text) sur toutes les lignes de cette colonne
                 for r in range(2, len(df_xl) + 2):
-                    ws.cell(row=r, column=col_idx).alignment = Alignment(wrap_text=True, vertical="top")
+                    cell = ws.cell(row=r, column=col_idx)
+                    cell.alignment = Alignment(wrap_text=True, vertical="top")
+            
+            # Ajustement automatique pour les autres colonnes (optionnel)
+            else:
+                max_length = 0
+                for cell in ws[col_letter]:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                ws.column_dimensions[col_letter].width = adjusted_width
+
     excel_buffer_grouped.seek(0)
     
     st.download_button(
@@ -529,6 +556,7 @@ with tab_grouped:
     if "df_livraisons" not in st.session_state:
         st.session_state.df_livraisons = df_liv.copy()
 
+        
 # --- Onglet Besoin Estafette par Ville ---
 with tab_city:
     st.subheader("Besoin Estafette par Ville")
