@@ -162,15 +162,24 @@ class DeliveryProcessor:
         return df[["No livraison", "Article", "Client commande", "Poids total", "Quantité livrée US", "Poids de l'US"]]
 
     def _calculate_volumes(self, df_liv, df_art):
-        df_liv_sel = df_liv[["No livraison", "Article", "Quantité livrée US", "Client commande"]]
         df_art_sel = df_art[["Article", "Volume de l'US", "Unité Volume"]].copy()
-        df_art_sel["Volume de l'US"] = pd.to_numeric(df_art_sel["Volume de l'US"].astype(str).str.replace(",", "."),
-                                                    errors="coerce")
-        return pd.merge(df_liv_sel, df_art_sel, on="Article", how="left")
+        df_art_sel["Volume de l'US"] = pd.to_numeric(
+            df_art_sel["Volume de l'US"].astype(str).str.replace(",", "."), errors="coerce")
+        # Un seul volume par article, pour éviter de multiplier les lignes
+        df_art_sel = df_art_sel.drop_duplicates(subset="Article")
+
+        df_liv_sel = df_liv[["No livraison", "Article", "Client commande"]].copy()
+        df_liv_sel = df_liv_sel.reset_index(drop=True)
+        df_vol = pd.merge(df_liv_sel, df_art_sel, on="Article", how="left")
+        df_vol.index = df_liv_sel.index
+        return df_vol[["Volume de l'US", "Unité Volume"]]
 
     def _merge_delivery_data(self, df_poids, df_vol):
-        return pd.merge(df_poids.drop(columns=["Quantité livrée US", "Poids de l'US"], errors='ignore'), 
-                       df_vol, on=["No livraison", "Article", "Client commande"], how="left")
+        # Même nombre de lignes, même ordre : on colle les colonnes côte à côte
+        df_poids = df_poids.reset_index(drop=True)
+        df_vol = df_vol.reset_index(drop=True)
+        df_poids = df_poids.drop(columns=["Poids de l'US"], errors="ignore")
+        return pd.concat([df_poids, df_vol], axis=1)
 
     def _add_city_client_info(self, df, df_clients):
         return pd.merge(df, df_clients[["Client", "Ville", "Représentant"]],
