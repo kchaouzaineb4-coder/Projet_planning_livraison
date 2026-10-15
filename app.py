@@ -443,8 +443,9 @@ with tab_grouped:
             )
 
         if "Désignation" in df_liv.columns:
+            import re
             df_liv["Désignation"] = df_liv["Désignation"].astype(str).apply(
-                lambda x: "<br>".join(d.strip() for d in x.split("\n"))
+                lambda x: "<br>".join(d.strip() for d in re.split(r"\\n|\n", x))
             )
         # Formater les nombres - 3 chiffres après la virgule
         if "Poids total" in df_liv.columns:
@@ -675,8 +676,9 @@ with tab_zone_group:
         )
 
     if "Désignation" in df_liv_zone.columns:
+        import re
         df_liv_zone["Désignation"] = df_liv_zone["Désignation"].astype(str).apply(
-            lambda x: "<br>".join(d.strip() for d in x.split("\n"))
+            lambda x: "<br>".join(d.strip() for d in re.split(r"\\n|\n", x))
         )
 
     # Formater les nombres - 3 chiffres après la virgule
