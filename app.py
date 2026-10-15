@@ -496,11 +496,26 @@ with tab_grouped:
     from io import BytesIO
     
     # Bouton de téléchargement (garder les données originales pour l'export)
+    from openpyxl.styles import Alignment
+
+    df_xl = st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').copy()
+    df_xl = df_xl[df_xl["Ville"] != "TRIPOLI"]          # exclut TRIPOLI (voir point 2)
+
+    if "Article" in df_xl.columns:
+        df_xl["Article"] = df_xl["Article"].astype(str).str.replace(", ", "\n", regex=False)
+    for c in df_xl.columns:
+        if "signation" in str(c):
+            df_xl[c] = df_xl[c].astype(str).str.replace("<br>", "\n", regex=False)
+
     excel_buffer_grouped = BytesIO()
     with pd.ExcelWriter(excel_buffer_grouped, engine='openpyxl') as writer:
-        df_xl = st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').copy()
-        df_xl["Désignation"] = df_xl["Désignation"].str.replace("<br>", "\n", regex=False)
         df_xl.to_excel(writer, index=False, sheet_name="Livraisons Client Ville")
+        ws = writer.sheets["Livraisons Client Ville"]
+        for col_idx, c in enumerate(df_xl.columns, 1):
+            if c == "Article" or "signation" in str(c):
+                ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = 45
+                for r in range(2, len(df_xl) + 2):
+                    ws.cell(row=r, column=col_idx).alignment = Alignment(wrap_text=True, vertical="top")
     excel_buffer_grouped.seek(0)
     
     st.download_button(
