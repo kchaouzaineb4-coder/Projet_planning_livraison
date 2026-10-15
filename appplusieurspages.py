@@ -2372,7 +2372,7 @@ def page_optimisation():
     # --- Onglet 2: Transfert BLs ---
     with tab2:
         st.subheader("🔁 Transfert de BLs entre véhicules")
-        st.info("Réorganisez les livraisons entre estafettes/camions")
+        #st.info("Réorganisez les livraisons entre estafettes/camions")
         
         MAX_POIDS = 1550  # kg
         MAX_VOLUME = 4.608  # m³
