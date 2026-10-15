@@ -1974,12 +1974,65 @@ def page_optimisation():
                 df_clean = df_clean.sort_values("Zone_Num").drop("Zone_Num", axis=1)
                 # Alternative plus simple si l'extraction échoue :
                 # df_clean = df_clean.sort_values("Zone")
-            
+        
+            # =====================================================
+            # CALCUL DES TAUX D'OCCUPATION EN POIDS ET EN VOLUME
+            # =====================================================
+
+            def calculer_taux_occupation(row):
+
+                poids = pd.to_numeric(row["Poids total chargé"], errors="coerce")
+                volume = pd.to_numeric(row["Volume total chargé"], errors="coerce")
+
+                # Capacités selon le type de véhicule
+                if str(row.get("Code Véhicule", "")).strip() == "CAMION-LOUE":
+                    capacite_poids = 3000       # kg
+                    capacite_volume = 9.216     # m³
+                else:
+                    capacite_poids = 1550       # kg
+                    capacite_volume = 4.608     # m³
+
+                # Calcul séparé des deux taux
+                taux_poids = (
+                    poids / capacite_poids * 100
+                    if pd.notna(poids) else 0
+                )
+
+                taux_volume = (
+                    volume / capacite_volume * 100
+                    if pd.notna(volume) else 0
+                )
+
+                return pd.Series({
+                    "Taux occupation poids (%)": taux_poids,
+                    "Taux occupation volume (%)": taux_volume
+                })
+
+
+            # Ajouter les deux colonnes au DataFrame
+            df_clean[
+                ["Taux occupation poids (%)", "Taux occupation volume (%)"]
+            ] = df_clean.apply(calculer_taux_occupation, axis=1)
+
             # Définir l'ordre des colonnes pour l'affichage
             colonnes_ordre = [
-                "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé",
-                "Client(s) inclus", "Représentant(s) inclus", "BL inclus", 
-                "Taux d'occupation (%)", "Location_camion", "Location_proposee", "Code Véhicule"
+                "Zone",
+                "Véhicule N°",
+                "Poids total chargé",
+                "Volume total chargé",
+                "Client(s) inclus",
+                "Représentant(s) inclus",
+                "BL inclus",
+                "Taux occupation poids (%)",
+                "Taux occupation volume (%)",
+                "Location_camion",
+                "Location_proposee",
+                "Code Véhicule"
+            ]
+
+            # Filtrer seulement les colonnes qui existent
+            colonnes_finales = [
+                col for col in colonnes_ordre if col in df_clean.columns
             ]
             
             # Filtrer seulement les colonnes qui existent
@@ -2009,8 +2062,15 @@ def page_optimisation():
                 df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
             if "Volume total chargé" in df_display.columns:
                 df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-            if "Taux d'occupation (%)" in df_display.columns:
-                df_display["Taux d'occupation (%)"] = df_display["Taux d'occupation (%)"].map(lambda x: f"{x:.3f}%")
+            # Formater les deux taux pour l'affichage
+            for col in [
+                "Taux occupation poids (%)",
+                "Taux occupation volume (%)"
+            ]:
+                if col in df_display.columns:
+                    df_display[col] = df_display[col].map(
+                        lambda x: f"{x:.3f}%"
+                    )
             
             # CSS POUR UN TABLEAU PROFESSIONNEL (identique aux autres sections)
             st.markdown("""
