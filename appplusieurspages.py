@@ -2213,8 +2213,44 @@ def page_optimisation():
                 
                 st.metric("📦 Estafettes", estafettes)
             
-            # Préparer l'export Excel avec retours à la ligne \n
+            
+            # =====================================================
+            # PRÉPARER L'EXPORT EXCEL
+            # =====================================================
+
+            # Reprendre les données avec les deux taux calculés
             df_export = df_clean.copy()
+
+            # Supprimer l'ancien taux d'occupation maximum
+            df_export = df_export.drop(
+                columns=["Taux d'occupation (%)"],
+                errors="ignore"
+            )
+
+            # Organiser les colonnes dans le même ordre que le tableau Streamlit
+            colonnes_export = [
+                "Zone",
+                "Véhicule N°",
+                "Poids total chargé",
+                "Volume total chargé",
+                "Client(s) inclus",
+                "Représentant(s) inclus",
+                "BL inclus",
+                "Taux occupation poids (%)",
+                "Taux occupation volume (%)",
+                "Location_camion",
+                "Location_proposee",
+                "Code Véhicule"
+            ]
+
+            # Garder uniquement les colonnes existantes, dans le bon ordre
+            colonnes_export = [
+                col for col in colonnes_export
+                if col in df_export.columns
+            ]
+
+            df_export = df_export[colonnes_export].copy()
+
             
             # CORRECTION : S'assurer que l'export est aussi trié par zone
             if "Zone" in df_export.columns:
@@ -2237,11 +2273,30 @@ def page_optimisation():
                     lambda x: "\n".join(bl.strip() for bl in x.split(";")) if x != "nan" else ""
                 )
             
-            # Formater les colonnes numériques pour l'export
+            # =====================================================
+            # FORMATAGE NUMÉRIQUE POUR EXCEL
+            # =====================================================
+
             if "Poids total chargé" in df_export.columns:
-                df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
+                df_export["Poids total chargé"] = (
+                    df_export["Poids total chargé"].round(3)
+                )
+
             if "Volume total chargé" in df_export.columns:
-                df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
+                df_export["Volume total chargé"] = (
+                    df_export["Volume total chargé"].round(3)
+                )
+
+            # Garder les deux taux numériques avec 3 décimales
+            for col in [
+                "Taux occupation poids (%)",
+                "Taux occupation volume (%)"
+            ]:
+                if col in df_export.columns:
+                    df_export[col] = pd.to_numeric(
+                        df_export[col],
+                        errors="coerce"
+                    ).round(3)
             
             # Bouton de téléchargement avec formatage Excel
             from io import BytesIO
