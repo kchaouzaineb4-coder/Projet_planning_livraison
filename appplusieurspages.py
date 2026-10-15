@@ -2772,28 +2772,68 @@ def page_optimisation():
                                         if col_taux in df_display.columns:
                                             df_display[col_taux] = df_display[col_taux].map(lambda x: f"{x:.3f}%")
 
-                                    # CSS pour mettre en évidence
+                                    # =====================================================
+                                    # CSS POUR METTRE EN ÉVIDENCE (CORRIGÉ)
+                                    # =====================================================
                                     st.markdown("""
                                     <style>
                                     .highlight-source {
+                                        background-color: #FFE6E6 !important;
+                                    }
+                                    .highlight-source td {
+                                        background-color: #FFE6E6 !important;
                                         border-left: 5px solid #FF6B6B !important;
                                     }
                                     .highlight-target {
+                                        background-color: #E6FFE6 !important;
+                                    }
+                                    .highlight-target td {
+                                        background-color: #E6FFE6 !important;
                                         border-left: 5px solid #51CF66 !important;
                                     }
                                     </style>
                                     """, unsafe_allow_html=True)
 
-                                    # Ajouter des classes CSS pour les lignes modifiées
-                                    html_table = df_display.to_html(escape=False, index=False, classes="custom-table-voyages", border=0)
+                                    # =====================================================
+                                    # IDENTIFICATION DES INDEX DES LIGNES À COLORER
+                                    # =====================================================
+                                    # Trouver les positions (index dans le DataFrame trié) des lignes source et cible
+                                    positions_source = [
+                                        i for i, row in enumerate(df_display.itertuples()) 
+                                        if row._asdict().get("_4") == source or getattr(row, "Véhicule N°", None) == source
+                                    ]
+                                    # Méthode plus fiable : utiliser reset_index
+                                    df_display_reset = df_display.reset_index(drop=True)
+                                    position_source = df_display_reset[df_display_reset["Véhicule N°"] == source].index.tolist()
+                                    position_cible = df_display_reset[df_display_reset["Véhicule N°"] == cible].index.tolist()
 
-                                    # Modifier le HTML pour ajouter des classes
-                                    for i, row in df_display.iterrows():
-                                        if row["Véhicule N°"] == source:
-                                            html_table = html_table.replace(f'<tr>', f'<tr class="highlight-source">', 1)
-                                        elif row["Véhicule N°"] == cible:
-                                            html_table = html_table.replace(f'<tr>', f'<tr class="highlight-target">', 1)
+                                    # =====================================================
+                                    # CONSTRUCTION DU HTML AVEC COLORATION CORRECTE
+                                    # =====================================================
+                                    html_table = df_display_reset.to_html(escape=False, index=False, classes="custom-table-voyages", border=0)
 
+                                    # Séparer le HTML en lignes pour insérer les classes au bon endroit
+                                    lignes_html = html_table.split("\n")
+                                    nouvelles_lignes = []
+                                    compteur_tr = 0  # Compteur des <tr> rencontrés (hors en-tête)
+
+                                    for ligne in lignes_html:
+                                        # Ignorer les lignes d'en-tête (qui contiennent <th>)
+                                        if "<tr" in ligne and "<th" not in ligne:
+                                            # Ajouter la classe selon la position
+                                            if compteur_tr in position_source:
+                                                ligne = ligne.replace("<tr>", '<tr class="highlight-source">', 1)
+                                            elif compteur_tr in position_cible:
+                                                ligne = ligne.replace("<tr>", '<tr class="highlight-target">', 1)
+                                            compteur_tr += 1
+                                        
+                                        nouvelles_lignes.append(ligne)
+
+                                    html_table = "\n".join(nouvelles_lignes)
+
+                                    # =====================================================
+                                    # AFFICHAGE DU TABLEAU
+                                    # =====================================================
                                     st.markdown(f"""
                                             <div class="table-container-voyages">
                                                 {html_table}
