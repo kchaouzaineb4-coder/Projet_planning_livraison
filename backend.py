@@ -135,7 +135,7 @@ class DeliveryProcessor:
     def _filter_initial_data(self, df):
         clients_exclus = [
             "AMECAP", "SANA", "SOPAL", "SOPALGAZ", "SOPALSERV", "SOPALTEC",
-            "SOPALALG", "AQUA", "WINOX", "QUIVEM", "SANISTONE",
+            "SOPALALG", "AQUAPLAST", "WINOX", "QUIVEM", "SANISTONE",
             "SOPAMAR", "SOPALAFR", "SOPALINTER", "PERSOGSO"
         ]
 
