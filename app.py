@@ -340,6 +340,7 @@ st.markdown("""
 
 
 # --- Onglet Livraisons Client/Ville ---
+# --- Onglet Livraisons Client/Ville ---
 with tab_grouped:
     st.subheader("Livraisons par Client & Ville")
     
@@ -368,7 +369,7 @@ with tab_grouped:
         padding: 12px 8px;
         text-align: center;
         border: 2px solid #4682B4;
-        font-weight: normal;  /* CHANGÉ : bold → normal */
+        font-weight: normal;
         font-size: 13px;
         vertical-align: middle;
     }
@@ -381,7 +382,7 @@ with tab_grouped:
         background-color: white;
         color: #000000;
         vertical-align: middle;
-        font-weight: normal;  /* AJOUT : poids normal */
+        font-weight: normal;
     }
     
     /* Bordures visibles pour toutes les cellules */
@@ -407,7 +408,7 @@ with tab_grouped:
     /* Style pour les cellules de poids et volume - NOIR SANS GRAS */
     .custom-table td:nth-child(6),
     .custom-table td:nth-child(7) {
-        font-weight: normal;  /* CHANGÉ : 600 → normal */
+        font-weight: normal;
         color: #000000 !important;
         vertical-align: middle;
     }
@@ -438,7 +439,6 @@ with tab_grouped:
     else:
         # Préparer les données pour l'affichage HTML
         if "Article" in df_liv.columns:
-            # Transformer les articles avec retours à la ligne HTML - SANS "•"
             df_liv["Article"] = df_liv["Article"].astype(str).apply(
                 lambda x: "<br>".join(a.strip() for a in x.split(",") if a.strip())
             )
@@ -469,7 +469,7 @@ with tab_grouped:
         </div>
         """, unsafe_allow_html=True)
     
-    # Métriques résumées - CORRECTION : Utiliser les données filtrées
+    # Métriques résumées
     st.markdown("---")
     col1, col2, col3, col4 = st.columns(4)
     
@@ -482,35 +482,33 @@ with tab_grouped:
         st.metric("👥 Clients Uniques", total_clients)
     
     with col3:
-        # CORRECTION : Calculer le poids total à partir des données filtrées (données originales)
         df_liv_original = st.session_state.df_grouped[st.session_state.df_grouped["Ville"] != "TRIPOLI"]
         total_poids = df_liv_original["Poids total"].sum()
         st.metric("⚖️ Poids Total", f"{total_poids:.3f} kg")
     
     with col4:
-        # CORRECTION : Calculer le volume total à partir des données filtrées (données originales)
         total_volume = df_liv_original["Volume total"].sum()
         st.metric("📏 Volume Total", f"{total_volume:.3f} m³")
     
     # =====================================================
-    # EXPORT EXCEL AVEC RETOURS À LA LIGNE
+    # EXPORT EXCEL AVEC RETOURS À LA LIGNE (CORRIGÉ)
     # =====================================================
     from io import BytesIO
     from openpyxl.styles import Alignment
 
-    # Bouton de téléchargement (garder les données originales pour l'export)
+    # Préparation des données pour l'export
     df_xl = st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').copy()
-    df_xl = df_xl[df_xl["Ville"] != "TRIPOLI"]          # exclut TRIPOLI
+    df_xl = df_xl[df_xl["Ville"] != "TRIPOLI"]
 
     # --- CORRECTION POUR L'ARTICLE ---
     if "Article" in df_xl.columns:
-        # On remplace la virgule suivie d'un espace par un vrai saut de ligne Excel
+        # Remplacer ", " par un saut de ligne
         df_xl["Article"] = df_xl["Article"].astype(str).str.replace(", ", "\n", regex=False)
     
     # --- CORRECTION POUR LA DÉSIGNATION ---
     for c in df_xl.columns:
         if "signation" in str(c):
-            # On remplace <br> par un vrai saut de ligne Excel
+            # Remplacer <br> par un saut de ligne
             df_xl[c] = df_xl[c].astype(str).str.replace("<br>", "\n", regex=False)
 
     excel_buffer_grouped = BytesIO()
@@ -518,20 +516,20 @@ with tab_grouped:
         df_xl.to_excel(writer, index=False, sheet_name="Livraisons Client Ville")
         ws = writer.sheets["Livraisons Client Ville"]
         
-        # Boucle pour ajuster la largeur et l'alignement
+        # Boucle pour ajuster la largeur, l'alignement ET la hauteur des lignes
         for col_idx, c in enumerate(df_xl.columns, 1):
             col_letter = ws.cell(row=1, column=col_idx).column_letter
             
             # Si c'est la colonne Article ou Désignation
             if c == "Article" or "signation" in str(c):
-                ws.column_dimensions[col_letter].width = 50  # Largeur un peu plus grande
+                ws.column_dimensions[col_letter].width = 50
                 
-                # Appliquer le retour à la ligne (Wrap Text) sur toutes les lignes de cette colonne
+                # Appliquer le retour à la ligne (Wrap Text) sur toutes les lignes
                 for r in range(2, len(df_xl) + 2):
                     cell = ws.cell(row=r, column=col_idx)
                     cell.alignment = Alignment(wrap_text=True, vertical="top")
             
-            # Ajustement automatique pour les autres colonnes (optionnel)
+            # Ajustement automatique pour les autres colonnes
             else:
                 max_length = 0
                 for cell in ws[col_letter]:
@@ -542,6 +540,23 @@ with tab_grouped:
                         pass
                 adjusted_width = min(max_length + 2, 50)
                 ws.column_dimensions[col_letter].width = adjusted_width
+        
+        # --- AJOUT CRUCIAL : FORCER LA HAUTEUR DES LIGNES ---
+        # On parcourt chaque ligne pour calculer la hauteur nécessaire
+        for r in range(2, len(df_xl) + 2):
+            max_lines = 1
+            for c_idx, c_name in enumerate(df_xl.columns, 1):
+                if c_name == "Article" or "signation" in str(c_name):
+                    cell_value = ws.cell(row=r, column=c_idx).value
+                    if cell_value:
+                        # Compter le nombre de sauts de ligne
+                        lines = str(cell_value).count('\n') + 1
+                        if lines > max_lines:
+                            max_lines = lines
+            
+            # Définir la hauteur de la ligne (15 points par ligne de texte)
+            if max_lines > 1:
+                ws.row_dimensions[r].height = 15 * max_lines
 
     excel_buffer_grouped.seek(0)
     
@@ -556,7 +571,7 @@ with tab_grouped:
     if "df_livraisons" not in st.session_state:
         st.session_state.df_livraisons = df_liv.copy()
 
-        
+
 # --- Onglet Besoin Estafette par Ville ---
 with tab_city:
     st.subheader("Besoin Estafette par Ville")
