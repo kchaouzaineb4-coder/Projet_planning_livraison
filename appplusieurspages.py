@@ -164,8 +164,8 @@ VEHICULES_DISPONIBLES = [
 ]
 
 CHAUFFEURS_DETAILS = {
-    '09254': 'DAMMAK Karim', '00000': 'NAJI Mohamed', '00000': 'MSEKNI Mahdi', '00000': 'GHAOUI Mohamed Amine', '00000': 'HARABI Salah', '00000': 'ALLAYA Maher',
-    '10334': 'BOUJELBENE Mohamed', '15144': 'GADDOUR Rami', '08278': 'DAMMAK Wissem', '00000': 'MAKNI Hcine', '00000': 'BARI Aymen',
+    '09254': 'DAMMAK Karim', '00000': 'NAJI Mohamed', '00001': 'MSEKNI Mahdi', '00002': 'GHAOUI Mohamed Amine', '00003': 'HARABI Salah', '00004': 'ALLAYA Maher',
+    '10334': 'BOUJELBENE Mohamed', '15144': 'GADDOUR Rami', '08278': 'DAMMAK Wissem', '00005': 'MAKNI Hcine', '00006': 'BARI Aymen',
     '18339': 'REKIK Ahmed', '07250': 'BARKIA Mustapha', '13321': 'BADRI Moez','99999': 'Chauffeur Camion'
 }
 # =====================================================
