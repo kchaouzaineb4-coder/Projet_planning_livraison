@@ -4154,42 +4154,40 @@ def page_optimisation():
                 col_export1, col_export2 = st.columns(2)
                 
                 with col_export1:
-                # Fonction d'export Excel
-                    def to_excel_with_codes(df):
-                        import re
-                        from openpyxl.utils import get_column_letter
-                        from openpyxl.styles import Alignment
+                # Fonction d'export Excel avec retours à la ligne (tout est défini DANS la fonction)
+                def to_excel_with_codes(df):
+                    import re as _re
+                    from io import BytesIO as _BytesIO
+                    from openpyxl.utils import get_column_letter as _get_col_letter
+                    from openpyxl.styles import Alignment as _Alignment
 
-                        df_export = df.copy()
+                    cols_multi_codes = ["Client(s) inclus", "Représentant(s) inclus", "BL inclus"]
 
-                        colonnes_multilignes = ["Client(s) inclus", "Représentant(s) inclus", "BL inclus"]
-
-                    def vers_retours_ligne(valeur):
+                    def _vers_lignes(valeur):
                         if pd.isna(valeur):
                             return ""
                         texte = str(valeur).strip()
                         if texte in ("", "nan"):
                             return ""
-                        elements = [e.strip() for e in re.split(r"[;,]", texte) if e.strip()]
+                        elements = [e.strip() for e in _re.split(r"[;,]", texte) if e.strip()]
                         return "\n".join(elements)
 
-                    for col in colonnes_multilignes:
-                        if col in df_export.columns:
-                            df_export[col] = df_export[col].apply(vers_retours_ligne)
+                    df_exp = df.copy()
+                    for c in cols_multi_codes:
+                        if c in df_exp.columns:
+                            df_exp[c] = df_exp[c].apply(_vers_lignes)
 
-                    output = BytesIO()
+                    output = _BytesIO()
                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                        df_export.to_excel(writer, index=False, sheet_name='Voyages_avec_Codes')
-                        worksheet = writer.sheets['Voyages_avec_Codes']
+                        df_exp.to_excel(writer, index=False, sheet_name='Voyages_avec_Codes')
+                        ws = writer.sheets['Voyages_avec_Codes']
 
-                        for col_idx, col_name in enumerate(df_export.columns, start=1):
-                            if col_name in colonnes_multilignes:
-                                col_letter = get_column_letter(col_idx)
-                                worksheet.column_dimensions[col_letter].width = 25
-                                for row in range(2, len(df_export) + 2):
-                                    worksheet[f"{col_letter}{row}"].alignment = Alignment(
-                                        wrap_text=True, vertical="top"
-                                    )
+                        for col_idx, col_name in enumerate(df_exp.columns, start=1):
+                            if col_name in cols_multi_codes:
+                                lettre = _get_col_letter(col_idx)
+                                ws.column_dimensions[lettre].width = 25
+                                for r in range(2, len(df_exp) + 2):
+                                    ws[f"{lettre}{r}"].alignment = _Alignment(wrap_text=True, vertical="top")
 
                     return output.getvalue()
 
