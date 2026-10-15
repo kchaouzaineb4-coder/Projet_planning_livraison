@@ -3330,7 +3330,7 @@ def page_optimisation():
                                 st.metric("Volume", f"{row_valide['Volume total chargé']:.3f} m³")
                                 st.metric("Représentants", row_valide.get('Représentant(s) inclus', 'N/A'))
 
-                    # --- Export Excel ---
+                    
                     # --- Export Excel avec retours à la ligne ---
                     import re
                     from io import BytesIO
@@ -3339,6 +3339,28 @@ def page_optimisation():
 
                     df_export_valides = df_voyages_valides.copy()
 
+                    # --- Colonnes à exporter, dans l'ordre souhaité ---
+                    ordre_colonnes = [
+                        "Zone",
+                        "Véhicule N°",
+                        "Poids total chargé",
+                        "Volume total chargé",
+                        "Client(s) inclus",
+                        "Représentant(s) inclus",
+                        "BL inclus",
+                        "Taux occupation poids (%)",
+                        "Taux occupation volume (%)",
+                        "Location_camion",
+                        "Location_proposee",
+                        "Code Véhicule",
+                    ]
+
+                    # Ne garder que ces colonnes (celles qui existent), dans cet ordre.
+                    # "Taux d'occupation (%)" est donc supprimée automatiquement.
+                    colonnes_existantes = [c for c in ordre_colonnes if c in df_export_valides.columns]
+                    df_export_valides = df_export_valides[colonnes_existantes].copy()
+
+                    # --- Colonnes affichées avec un élément par ligne ---
                     colonnes_multilignes = ["Client(s) inclus", "Représentant(s) inclus", "BL inclus"]
 
                     def vers_retours_ligne(valeur):
@@ -3354,6 +3376,7 @@ def page_optimisation():
                         if col in df_export_valides.columns:
                             df_export_valides[col] = df_export_valides[col].apply(vers_retours_ligne)
 
+                    # --- Génération du fichier Excel ---
                     excel_buffer = BytesIO()
                     with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
                         df_export_valides.to_excel(writer, index=False, sheet_name="Voyages validés")
@@ -3368,16 +3391,14 @@ def page_optimisation():
 
                     excel_buffer.seek(0)
                     excel_data = excel_buffer.getvalue()
+
                     st.download_button(
                         label="💾 Télécharger les voyages validés (XLSX)",
                         data=excel_data,
                         file_name="Voyages_valides.xlsx",
-                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True
                     )
-                else:
-                    st.warning("⚠️ Aucun voyage n'a été validé. Veuillez valider au moins un voyage.")
-
         else:
             st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
 
