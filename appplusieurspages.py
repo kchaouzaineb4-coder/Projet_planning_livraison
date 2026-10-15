@@ -3846,13 +3846,42 @@ def page_optimisation():
                 
                 with tab_analytics2:
                     st.subheader("Rapport Spécifique Client")
-                    clients_disponibles = sorted(st.session_state.df_livraisons_original["Client de l'estafette"].unique())
-                    client_rapport = st.selectbox("Sélectionner un client", clients_disponibles, key="select_client_rapport")
-                    
+                    # Liste des clients à exclure (même liste que dans le backend)
+                    clients_exclus_rapport = {
+                        "AMECAP", "SANA", "SOPAL", "SOPALGAZ", "SOPALSERV", "SOPALTEC",
+                        "SOPALALG", "AQUAPLAST", "WINOX", "QUIVEM", "SANISTONE",
+                        "SOPAMAR", "SOPALAFR", "SOPALINTER", "PERSOGSO"
+                    }
+
+                    # Filtrer AVANT de construire la liste déroulante
+                    df_rapport = st.session_state.df_livraisons_original.copy()
+
+                    # Exclusion sur "Client de l'estafette" (colonne affichée dans la liste)
+                    df_rapport = df_rapport[
+                        ~df_rapport["Client de l'estafette"].astype(str).str.strip().str.upper()
+                        .isin(clients_exclus_rapport)
+                    ]
+
+                    # Exclusion aussi sur "Client commande" (colonne utilisée par le backend)
+                    if "Client commande" in df_rapport.columns:
+                        df_rapport = df_rapport[
+                            ~df_rapport["Client commande"].astype(str).str.strip().str.upper()
+                            .isin(clients_exclus_rapport)
+                        ]
+
+                    clients_disponibles = sorted(df_rapport["Client de l'estafette"].dropna().unique())
+
+                    client_rapport = st.selectbox(
+                        "Sélectionner un client", clients_disponibles, key="select_client_rapport"
+                    )
+
                     if st.button("📋 Générer rapport client", key="btn_rapport_client"):
                         with st.spinner("Génération du rapport client..."):
                             rapport_client = report_generator.generer_rapport_client(client_rapport)
-                            st.text_area(f"Rapport pour {client_rapport}", rapport_client, height=300, key="text_rapport_client")
+                            st.text_area(
+                                f"Rapport pour {client_rapport}", rapport_client,
+                                height=300, key="text_rapport_client"
+                            )
                 
                 with tab_analytics3:
                     st.subheader("Analyse des Coûts")
