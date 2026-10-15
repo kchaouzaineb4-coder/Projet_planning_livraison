@@ -492,72 +492,179 @@ with tab_grouped:
         total_volume = df_liv_original["Volume total"].sum()
         st.metric("📏 Volume Total", f"{total_volume:.3f} m³")
     
-        # =====================================================
+    # =====================================================
     # EXPORT EXCEL AVEC RETOURS À LA LIGNE
     # =====================================================
     from io import BytesIO
     from openpyxl.styles import Alignment
-    import re
+    from openpyxl.utils import get_column_letter
 
+    # Garder les données originales pour l'export
     df_xl = st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').copy()
-    df_xl = df_xl[df_xl["Ville"] != "TRIPOLI"]
 
-    # Article : "A, B, C" -> une valeur par ligne
+    # Exclure TRIPOLI
+    df_xl = df_xl[df_xl["Ville"] != "TRIPOLI"].copy()
+
+
+    # =====================================================
+    # ARTICLE : un article par ligne dans la cellule Excel
+    # =====================================================
     if "Article" in df_xl.columns:
-        df_xl["Article"] = df_xl["Article"].astype(str).apply(
-            lambda x: "\n".join(a.strip() for a in x.split(",") if a.strip())
+        df_xl["Article"] = (
+            df_xl["Article"]
+            .fillna("")
+            .astype(str)
+            .apply(
+                lambda x: "\n".join(
+                    article.strip()
+                    for article in x.split(",")
+                    if article.strip()
+                )
+            )
         )
 
-    # Désignation : <br>, || ou \n -> une valeur par ligne (sans couper sur la virgule)
+
+    # =====================================================
+    # DÉSIGNATION : une désignation par ligne dans la cellule Excel
+    # =====================================================
     for c in df_xl.columns:
+
         if "signation" in str(c):
-            df_xl[c] = df_xl[c].astype(str).apply(
-                lambda x: "\n".join(
-                    d.strip() for d in re.split(r"<br>|\|\||\\n|\n", x) if d.strip()
+
+            df_xl[c] = (
+                df_xl[c]
+                .fillna("")
+                .astype(str)
+                .apply(
+                    lambda x: "\n".join(
+                        designation.strip()
+                        for designation in (
+                            x.replace("<br>", "||")
+                            .replace("<br/>", "||")
+                            .replace("<br />", "||")
+                        ).split("||")
+                        if designation.strip()
+                    )
                 )
             )
 
-    colonnes_multi = [c for c in df_xl.columns if c == "Article" or "signation" in str(c)]
 
+    # =====================================================
+    # FORMATAGE DES NOMBRES
+    # =====================================================
+    if "Poids total" in df_xl.columns:
+        df_xl["Poids total"] = df_xl["Poids total"].map(
+            lambda x: round(x, 3) if pd.notna(x) else ""
+        )
+
+    if "Volume total" in df_xl.columns:
+        df_xl["Volume total"] = df_xl["Volume total"].map(
+            lambda x: round(x, 3) if pd.notna(x) else ""
+        )
+
+
+    # =====================================================
+    # CRÉATION DU FICHIER EXCEL
+    # =====================================================
     excel_buffer_grouped = BytesIO()
-    with pd.ExcelWriter(excel_buffer_grouped, engine='openpyxl') as writer:
-        df_xl.to_excel(writer, index=False, sheet_name="Livraisons Client Ville")
+
+    with pd.ExcelWriter(
+        excel_buffer_grouped,
+        engine="openpyxl"
+    ) as writer:
+
+        df_xl.to_excel(
+            writer,
+            index=False,
+            sheet_name="Livraisons Client Ville"
+        )
+
         ws = writer.sheets["Livraisons Client Ville"]
 
-        for col_idx, c in enumerate(df_xl.columns, 1):
-            col_letter = ws.cell(row=1, column=col_idx).column_letter
 
-            # Largeur
-            if c in colonnes_multi:
-                ws.column_dimensions[col_letter].width = 55 if "signation" in str(c) else 22
+        # =================================================
+        # COLONNES QUI DOIVENT ÊTRE MULTILIGNES
+        # =================================================
+        wrap_columns = []
+
+        if "Article" in df_xl.columns:
+            wrap_columns.append("Article")
+
+        for c in df_xl.columns:
+            if "signation" in str(c):
+                wrap_columns.append(c)
+
+
+        # =================================================
+        # ALIGNEMENT + RETOUR À LA LIGNE
+        # =================================================
+        for col_idx, column_name in enumerate(df_xl.columns, 1):
+
+            col_letter = get_column_letter(col_idx)
+
+            if column_name in wrap_columns:
+
+                # Largeur de la colonne
+                ws.column_dimensions[col_letter].width = 50
+
+                for row in range(2, len(df_xl) + 2):
+
+                    cell = ws.cell(
+                        row=row,
+                        column=col_idx
+                    )
+
+                    # Activer le retour à la ligne Excel
+                    cell.alignment = Alignment(
+                        wrap_text=True,
+                        vertical="top"
+                    )
+
+                    # Adapter la hauteur de ligne au nombre de lignes
+                    if cell.value:
+                        nombre_lignes = str(cell.value).count("\n") + 1
+                        ws.row_dimensions[row].height = max(
+                            15,
+                            nombre_lignes * 18
+                        )
+
             else:
-                max_len = max((len(str(cell.value)) for cell in ws[col_letter] if cell.value), default=10)
-                ws.column_dimensions[col_letter].width = min(max_len + 2, 40)
 
-            # Centrage + retour à la ligne sur toutes les cellules de données
-            for r in range(2, len(df_xl) + 2):
-                ws.cell(row=r, column=col_idx).alignment = Alignment(
-                    horizontal="center", vertical="center", wrap_text=True
+                # Ajustement automatique des autres colonnes
+                max_length = 0
+
+                for cell in ws[col_letter]:
+
+                    try:
+                        if cell.value is not None:
+                            max_length = max(
+                                max_length,
+                                len(str(cell.value))
+                            )
+                    except Exception:
+                        pass
+
+                adjusted_width = min(
+                    max_length + 2,
+                    50
                 )
 
-        # Hauteur de ligne = nombre de lignes maximum des colonnes multi-lignes
-        for r in range(2, len(df_xl) + 2):
-            nb_lignes = 1
-            for col_idx, c in enumerate(df_xl.columns, 1):
-                if c in colonnes_multi:
-                    valeur = ws.cell(row=r, column=col_idx).value
-                    nb_lignes = max(nb_lignes, str(valeur).count("\n") + 1)
-            ws.row_dimensions[r].height = 15 * nb_lignes
+                ws.column_dimensions[col_letter].width = adjusted_width
+
 
     excel_buffer_grouped.seek(0)
-    
+
+
+    # =====================================================
+    # BOUTON DE TÉLÉCHARGEMENT
+    # =====================================================
     st.download_button(
         label="💾 Télécharger Livraisons Client/Ville",
         data=excel_buffer_grouped,
         file_name="Livraisons_Client_Ville.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-    
+        
     # Stockage pour la section 5
     if "df_livraisons" not in st.session_state:
         st.session_state.df_livraisons = df_liv.copy()
