@@ -1,4 +1,5 @@
 import streamlit as st
+st.sidebar.write(__file__)
 import pandas as pd
 from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME 
 import plotly.express as px
@@ -497,7 +498,9 @@ with tab_grouped:
     # Bouton de téléchargement (garder les données originales pour l'export)
     excel_buffer_grouped = BytesIO()
     with pd.ExcelWriter(excel_buffer_grouped, engine='openpyxl') as writer:
-        st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').to_excel(writer, index=False, sheet_name="Livraisons Client Ville")
+        df_xl = st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').copy()
+        df_xl["Désignation"] = df_xl["Désignation"].str.replace("<br>", "\n", regex=False)
+        df_xl.to_excel(writer, index=False, sheet_name="Livraisons Client Ville")
     excel_buffer_grouped.seek(0)
     
     st.download_button(
