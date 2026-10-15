@@ -2739,8 +2739,8 @@ def page_optimisation():
                                         file_name="voyages_apres_transfert.xlsx",
                                         mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                                     )
-                            else:
-                                st.info("ℹ️ Générez d'abord les voyages optimisés dans l'onglet 1")
+                            #else:
+                                #st.info("ℹ️ Générez d'abord les voyages optimisés dans l'onglet 1")
     
 # --- Onglet 3: Attribution véhicules/chauffeurs ---donne moi le code complet de l'app
 
