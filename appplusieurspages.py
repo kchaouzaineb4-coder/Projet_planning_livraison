@@ -2516,23 +2516,61 @@ def page_optimisation():
                             """
                             st.markdown(html_content, unsafe_allow_html=True)
                             
-                            # --- NOUVEAU : Sélection avec clients ---
+                            # --- Sélection des BLs avec client, poids et volume ---
                             st.subheader("📋 Sélectionner les BLs à transférer")
-                            
-                            # Créer les options avec format "BL - Client"
+
                             options_transfert = []
-                            mapping_bl_original = {}  # Pour garder la correspondance BL original
-                            
+                            mapping_bl_original = {}
+
                             for bl in bls_simples:
-                                client_info = df_livraisons[df_livraisons["No livraison"] == bl]
+
+                                # Nettoyer le numéro du BL
+                                bl = str(bl).strip()
+
+                                # Rechercher les informations du BL
+                                client_info = df_livraisons[
+                                    df_livraisons["No livraison"].astype(str).str.strip() == bl
+                                ]
+
                                 if not client_info.empty:
-                                    client_nom = client_info["Client de l'estafette"].iloc[0]
-                                    option_affichage = f"{bl} - {client_nom}"
+
+                                    ligne_bl = client_info.iloc[0]
+
+                                    # Récupérer le client
+                                    client_nom = str(
+                                        ligne_bl["Client de l'estafette"]
+                                    ).strip()
+
+                                    # Récupérer le poids et le volume du BL
+                                    poids_bl = pd.to_numeric(
+                                        ligne_bl["Poids total"],
+                                        errors="coerce"
+                                    )
+
+                                    volume_bl = pd.to_numeric(
+                                        ligne_bl["Volume total"],
+                                        errors="coerce"
+                                    )
+
+                                    poids_bl = 0 if pd.isna(poids_bl) else poids_bl
+                                    volume_bl = 0 if pd.isna(volume_bl) else volume_bl
+
                                 else:
-                                    option_affichage = f"{bl} - Client non trouvé"
-                                
+                                    client_nom = "Client non trouvé"
+                                    poids_bl = 0
+                                    volume_bl = 0
+
+                                # Construire le libellé affiché
+                                option_affichage = (
+                                    f"{bl} - {client_nom} - "
+                                    f"{poids_bl:.2f} kg - {volume_bl:.2f} m³"
+                                )
+
                                 options_transfert.append(option_affichage)
+
+                                # Conserver le numéro original pour le transfert
                                 mapping_bl_original[option_affichage] = bl
+
                             
                             # Multiselect avec clients
                             bls_selectionnes_affichage = st.multiselect(
