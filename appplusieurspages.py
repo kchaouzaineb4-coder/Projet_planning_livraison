@@ -4154,22 +4154,54 @@ def page_optimisation():
                 col_export1, col_export2 = st.columns(2)
                 
                 with col_export1:
-                    # Fonction d'export Excel
+                # Fonction d'export Excel
                     def to_excel_with_codes(df):
-                        output = BytesIO()
-                        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                            df.to_excel(writer, index=False, sheet_name='Voyages_avec_Codes')
-                        return output.getvalue()
-                    
-                    excel_data = to_excel_with_codes(df_final)
-                    st.download_button(
-                        label="📥 Télécharger Excel avec codes",
-                        data=excel_data,
-                        file_name="voyages_avec_codes.xlsx",
-                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                        use_container_width=True,
-                        key="btn_download_excel_codes"
-                    )
+                        import re
+                        from openpyxl.utils import get_column_letter
+                        from openpyxl.styles import Alignment
+
+                        df_export = df.copy()
+
+                        colonnes_multilignes = ["Client(s) inclus", "Représentant(s) inclus", "BL inclus"]
+
+                    def vers_retours_ligne(valeur):
+                        if pd.isna(valeur):
+                            return ""
+                        texte = str(valeur).strip()
+                        if texte in ("", "nan"):
+                            return ""
+                        elements = [e.strip() for e in re.split(r"[;,]", texte) if e.strip()]
+                        return "\n".join(elements)
+
+                    for col in colonnes_multilignes:
+                        if col in df_export.columns:
+                            df_export[col] = df_export[col].apply(vers_retours_ligne)
+
+                    output = BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        df_export.to_excel(writer, index=False, sheet_name='Voyages_avec_Codes')
+                        worksheet = writer.sheets['Voyages_avec_Codes']
+
+                        for col_idx, col_name in enumerate(df_export.columns, start=1):
+                            if col_name in colonnes_multilignes:
+                                col_letter = get_column_letter(col_idx)
+                                worksheet.column_dimensions[col_letter].width = 25
+                                for row in range(2, len(df_export) + 2):
+                                    worksheet[f"{col_letter}{row}"].alignment = Alignment(
+                                        wrap_text=True, vertical="top"
+                                    )
+
+                    return output.getvalue()
+
+                excel_data = to_excel_with_codes(df_final)
+                st.download_button(
+                    label="📥 Télécharger Excel avec codes",
+                    data=excel_data,
+                    file_name="voyages_avec_codes.xlsx",
+                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    use_container_width=True,
+                    key="btn_download_excel_codes"
+                )
                 
                 with col_export2:
                     # Export PDF avec codes (optionnel)
