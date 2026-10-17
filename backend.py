@@ -1905,6 +1905,15 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
             df_planning_excel = df_voyages_ordered.copy()
 
             # =====================================================
+            # SUPPRIMER LA COLONNE VILLE
+            # UNIQUEMENT POUR LA FEUILLE PLANNING LIVRAISONS
+            # =====================================================
+            df_planning_excel = df_planning_excel.drop(
+                columns=["Ville"],
+                errors="ignore"
+            )
+
+            # =====================================================
             # SIMPLIFIER LE TYPE DE VÉHICULE
             # UNIQUEMENT POUR LA FEUILLE PLANNING LIVRAISONS
             # =====================================================
@@ -1917,7 +1926,9 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
                     .str.strip()
                 )
 
-            # Exporter la feuille principale
+            # =====================================================
+            # EXPORTER LA FEUILLE PRINCIPALE
+            # =====================================================
             if not df_planning_excel.empty:
                 df_planning_excel.to_excel(
                     writer,
@@ -1925,7 +1936,12 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
                     index=False
                 )
             else:
-                pd.DataFrame(columns=colonnes_finales).to_excel(
+                pd.DataFrame(
+                    columns=[
+                        col for col in colonnes_finales
+                        if col != "Ville"
+                    ]
+                ).to_excel(
                     writer,
                     sheet_name="Planning Livraisons",
                     index=False
