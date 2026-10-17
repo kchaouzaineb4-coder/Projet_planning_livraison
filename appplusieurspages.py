@@ -4155,11 +4155,66 @@ def page_optimisation():
                 
                 with col_export1:
                     # Fonction d'export Excel
+                
                     def to_excel_with_codes(df):
+                        from io import BytesIO
+                        import pandas as pd
+                        from openpyxl.styles import Alignment
+
                         output = BytesIO()
+
                         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                            df.to_excel(writer, index=False, sheet_name='Voyages_avec_Codes')
+                            df.to_excel(
+                                writer,
+                                index=False,
+                                sheet_name='Voyages_avec_Codes'
+                            )
+
+                            # Récupérer la feuille Excel
+                            worksheet = writer.sheets['Voyages_avec_Codes']
+
+                            # Colonnes dans lesquelles on veut le retour à la ligne
+                            colonnes_wrap = [
+                                "Client(s) inclus",
+                                "Représentant(s) inclus",
+                                "BL inclus"
+                            ]
+
+                            # Appliquer le retour à la ligne
+                            for col_name in colonnes_wrap:
+                                if col_name in df.columns:
+                                    col_index = df.columns.get_loc(col_name) + 1
+
+                                    for cell in worksheet.iter_cols(
+                                        min_col=col_index,
+                                        max_col=col_index,
+                                        min_row=2
+                                    ):
+                                        for c in cell:
+                                            c.alignment = Alignment(
+                                                wrap_text=True,
+                                                vertical="top"
+                                            )
+
+                            # Ajuster la largeur des colonnes
+                            for col in worksheet.columns:
+                                max_length = 0
+                                column_letter = col[0].column_letter
+
+                                for cell in col:
+                                    if cell.value is not None:
+                                        max_length = max(
+                                            max_length,
+                                            len(str(cell.value))
+                                        )
+
+                                worksheet.column_dimensions[column_letter].width = min(
+                                    max_length + 2,
+                                    50
+                                )
+
                         return output.getvalue()
+
                     
                     excel_data = to_excel_with_codes(df_final)
                     st.download_button(
