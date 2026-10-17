@@ -4270,30 +4270,288 @@ def page_optimisation():
                     from fpdf import FPDF
                     
                     def to_pdf_with_codes(df):
-                        pdf = FPDF(orientation='L')
+                        from fpdf import FPDF
+
+                        # =====================================================
+                        # PDF A4 PAYSAGE
+                        # =====================================================
+                        pdf = FPDF(orientation='L', unit='mm', format='A4')
+                        pdf.set_auto_page_break(auto=True, margin=10)
                         pdf.add_page()
-                        pdf.set_font("Arial", 'B', 16)
-                        pdf.cell(0, 10, "Liste des voyages avec codes", ln=True, align='C')
-                        pdf.ln(10)
-                        
-                        pdf.set_font("Arial", '', 10)
-                        # En-têtes
-                        headers = ['Véhicule', 'Zone', 'Code Voyage', 'Chauffeur']
-                        col_widths = [40, 40, 80, 60]
-                        
-                        for i, header in enumerate(headers):
-                            pdf.cell(col_widths[i], 10, header, border=1)
-                        pdf.ln()
-                        
-                        # Données
-                        pdf.set_font("Arial", '', 9)
+
+                        # =====================================================
+                        # TITRE
+                        # =====================================================
+                        pdf.set_font("Arial", 'B', 12)
+                        pdf.cell(
+                            0,
+                            8,
+                            "Liste des voyages avec codes",
+                            ln=True,
+                            align='C'
+                        )
+
+                        pdf.ln(3)
+
+                        # =====================================================
+                        # COLONNES - ORDRE DEMANDÉ
+                        # =====================================================
+                        headers = [
+                            "Zone",
+                            "Véhicule N°",
+                            "Poids total chargé",
+                            "Volume total chargé",
+                            "Client(s) inclus",
+                            "Représentant(s) inclus",
+                            "BL inclus",
+                            "Taux d'occupation (%)",
+                            "Code Véhicule",
+                            "Véhicule attribué",
+                            "Chauffeur attribué",
+                            "Matricule chauffeur",
+                            "Date Voyage Format",
+                            "Code voyage"
+                        ]
+
+                        # =====================================================
+                        # LARGEURS DES 14 COLONNES
+                        # TOTAL = 277 mm
+                        # A4 paysage = 297 mm
+                        # marges = 10 mm à gauche + 10 mm à droite
+                        # =====================================================
+                        col_widths = [
+                            10,  # Zone
+                            15,  # Véhicule N°
+                            17,  # Poids total chargé
+                            17,  # Volume total chargé
+                            27,  # Client(s) inclus
+                            20,  # Représentant(s) inclus
+                            42,  # BL inclus
+                            16,  # Taux occupation
+                            18,  # Code Véhicule
+                            18,  # Véhicule attribué
+                            20,  # Chauffeur attribué
+                            20,  # Matricule chauffeur
+                            20,  # Date Voyage
+                            17   # Code voyage
+                        ]
+
+                        # =====================================================
+                        # FONCTION POUR RÉCUPÉRER LES VALEURS
+                        # =====================================================
+                        def get_value(row, column):
+                            value = row.get(column, "")
+
+                            if value is None:
+                                return ""
+
+                            if str(value).lower() == "nan":
+                                return ""
+
+                            return str(value)
+
+                        # =====================================================
+                        # NETTOYAGE DU TEXTE
+                        # =====================================================
+                        def clean_text(text):
+
+                            text = str(text)
+
+                            # Chaque élément sur une nouvelle ligne
+                            text = text.replace(";", "\n")
+                            text = text.replace(", ", "\n")
+
+                            return text
+
+                        # =====================================================
+                        # VALEURS DU TABLEAU
+                        # =====================================================
+                        def get_row_values(row):
+
+                            return [
+                                get_value(row, "Zone"),
+                                get_value(row, "Véhicule N°"),
+                                get_value(row, "Poids total chargé"),
+                                get_value(row, "Volume total chargé"),
+                                clean_text(get_value(row, "Client(s) inclus")),
+                                clean_text(get_value(row, "Représentant(s) inclus")),
+                                clean_text(get_value(row, "BL inclus")),
+                                get_value(row, "Taux d'occupation (%)"),
+                                get_value(row, "Code Véhicule"),
+                                get_value(row, "Véhicule attribué"),
+                                get_value(row, "Chauffeur attribué"),
+                                get_value(row, "Matricule chauffeur"),
+                                get_value(row, "Date Voyage Format"),
+                                get_value(row, "Code voyage")
+                            ]
+
+                        # =====================================================
+                        # FONCTION POUR CALCULER LE NOMBRE DE LIGNES
+                        # =====================================================
+                        def calculate_lines(text, width, font_size=5.5):
+
+                            if not text:
+                                return 1
+
+                            lines = []
+
+                            # Gérer les retours à la ligne existants
+                            paragraphs = str(text).split("\n")
+
+                            for paragraph in paragraphs:
+
+                                words = paragraph.split()
+
+                                if not words:
+                                    lines.append("")
+                                    continue
+
+                                current_line = ""
+
+                                for word in words:
+
+                                    test_line = (
+                                        word if not current_line
+                                        else current_line + " " + word
+                                    )
+
+                                    if pdf.get_string_width(test_line) <= width - 1.5:
+                                        current_line = test_line
+
+                                    else:
+                                        if current_line:
+                                            lines.append(current_line)
+
+                                        current_line = word
+
+                                if current_line:
+                                    lines.append(current_line)
+
+                            return max(1, len(lines))
+
+                        # =====================================================
+                        # AFFICHER L'EN-TÊTE
+                        # =====================================================
+                        def draw_header():
+
+                            pdf.set_font("Arial", 'B', 5.5)
+
+                            x_start = pdf.get_x()
+                            y_start = pdf.get_y()
+
+                            header_height = 12
+
+                            for i, header in enumerate(headers):
+
+                                x = pdf.get_x()
+
+                                pdf.multi_cell(
+                                    col_widths[i],
+                                    4,
+                                    header,
+                                    border=1,
+                                    align='C'
+                                )
+
+                                pdf.set_xy(
+                                    x + col_widths[i],
+                                    y_start
+                                )
+
+                            pdf.set_xy(
+                                x_start,
+                                y_start + header_height
+                            )
+
+                        # =====================================================
+                        # EN-TÊTE INITIAL
+                        # =====================================================
+                        draw_header()
+
+                        # =====================================================
+                        # DONNÉES
+                        # =====================================================
+                        pdf.set_font("Arial", '', 5.5)
+
                         for _, row in df.iterrows():
-                            pdf.cell(col_widths[0], 10, str(row.get('Véhicule N°', '')), border=1)
-                            pdf.cell(col_widths[1], 10, str(row.get('Zone', '')), border=1)
-                            pdf.cell(col_widths[2], 10, str(row.get('Code voyage', '')), border=1)
-                            pdf.cell(col_widths[3], 10, str(row.get('Chauffeur attribué', '')), border=1)
-                            pdf.ln()
-                        
+
+                            values = get_row_values(row)
+
+                            # -------------------------------------------------
+                            # Calcul de la hauteur nécessaire pour la ligne
+                            # -------------------------------------------------
+                            line_counts = []
+
+                            for i, value in enumerate(values):
+
+                                nb_lines = calculate_lines(
+                                    value,
+                                    col_widths[i],
+                                    5.5
+                                )
+
+                                line_counts.append(nb_lines)
+
+                            max_lines = max(line_counts)
+
+                            # 3.2 mm par ligne
+                            row_height = max(5, max_lines * 3.2)
+
+                            # -------------------------------------------------
+                            # Vérifier si la ligne tient sur la page
+                            # -------------------------------------------------
+                            if pdf.get_y() + row_height > 195:
+
+                                pdf.add_page()
+
+                                draw_header()
+
+                                pdf.set_font("Arial", '', 5.5)
+
+                            # -------------------------------------------------
+                            # Position de départ
+                            # -------------------------------------------------
+                            x_start = pdf.get_x()
+                            y_start = pdf.get_y()
+
+                            # -------------------------------------------------
+                            # Écrire les 14 cellules
+                            # -------------------------------------------------
+                            for i, value in enumerate(values):
+
+                                x = pdf.get_x()
+
+                                # Alignement
+                                if i in [4, 5, 6]:
+                                    align = "L"
+                                else:
+                                    align = "C"
+
+                                pdf.multi_cell(
+                                    col_widths[i],
+                                    3.2,
+                                    value,
+                                    border=1,
+                                    align=align
+                                )
+
+                                # Revenir au début de la ligne
+                                pdf.set_xy(
+                                    x + col_widths[i],
+                                    y_start
+                                )
+
+                            # -------------------------------------------------
+                            # Ligne suivante
+                            # -------------------------------------------------
+                            pdf.set_xy(
+                                x_start,
+                                y_start + row_height
+                            )
+
+                        # =====================================================
+                        # RETOUR DU PDF
+                        # =====================================================
                         return pdf.output(dest='S').encode('latin-1')
                     
                     try:
