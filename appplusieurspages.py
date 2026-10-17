@@ -4556,7 +4556,28 @@ def page_optimisation():
                     # =====================================================
                     return pdf.output(dest="S").encode("latin-1")
 
-                    
+                
+                # =====================================================
+                # BOUTON DE TÉLÉCHARGEMENT PDF
+                # =====================================================
+                try:
+                    pdf_data = to_pdf_with_codes(df_final)
+
+                    st.download_button(
+                        label="📄 Télécharger PDF avec codes",
+                        data=pdf_data,
+                        file_name="voyages_avec_codes.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        key="btn_download_pdf_codes"
+                    )
+
+                except Exception as e:
+                    st.error(f"Erreur lors de la génération du PDF : {e}")
+
+                else:
+                    st.warning("⚠️ Vous devez d'abord valider les voyages.")
+    
                     try:
                         pdf_data = to_pdf_with_codes(df_final)
                         st.download_button(
