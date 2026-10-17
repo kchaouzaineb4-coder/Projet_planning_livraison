@@ -4163,54 +4163,93 @@ def page_optimisation():
 
                         output = BytesIO()
 
-                        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                            df.to_excel(
+                        # Copie pour ne pas modifier le DataFrame original
+                        df_excel = df.copy()
+
+                        # Colonnes où on veut mettre chaque élément sur une ligne
+                        colonnes_wrap = [
+                            "Client(s) inclus",
+                            "Représentant(s) inclus",
+                            "BL inclus"
+                        ]
+
+                        # =====================================================
+                        # REMPLACER LES SÉPARATEURS PAR DES RETOURS À LA LIGNE
+                        # =====================================================
+                        for col in colonnes_wrap:
+                            if col in df_excel.columns:
+
+                                df_excel[col] = (
+                                    df_excel[col]
+                                    .fillna("")
+                                    .astype(str)
+                                    .str.replace(";", "\n", regex=False)
+                                    .str.replace(", ", "\n", regex=False)
+                                    .str.replace(",", "\n", regex=False)
+                                )
+
+                        # =====================================================
+                        # EXPORT EXCEL
+                        # =====================================================
+                        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+
+                            df_excel.to_excel(
                                 writer,
                                 index=False,
-                                sheet_name='Voyages_avec_Codes'
+                                sheet_name="Voyages_avec_Codes"
                             )
 
-                            # Récupérer la feuille Excel
-                            worksheet = writer.sheets['Voyages_avec_Codes']
+                            worksheet = writer.sheets["Voyages_avec_Codes"]
 
-                            # Colonnes dans lesquelles on veut le retour à la ligne
-                            colonnes_wrap = [
-                                "Client(s) inclus",
-                                "Représentant(s) inclus",
-                                "BL inclus"
-                            ]
+                            # =================================================
+                            # LARGEUR DES COLONNES
+                            # =================================================
 
-                            # Appliquer le retour à la ligne
-                            for col_name in colonnes_wrap:
-                                if col_name in df.columns:
-                                    col_index = df.columns.get_loc(col_name) + 1
-
-                                    for cell in worksheet.iter_cols(
-                                        min_col=col_index,
-                                        max_col=col_index,
-                                        min_row=2
-                                    ):
-                                        for c in cell:
-                                            c.alignment = Alignment(
-                                                wrap_text=True,
-                                                vertical="top"
-                                            )
-
-                            # Ajuster la largeur des colonnes
                             for col in worksheet.columns:
-                                max_length = 0
+
                                 column_letter = col[0].column_letter
 
-                                for cell in col:
-                                    if cell.value is not None:
-                                        max_length = max(
-                                            max_length,
-                                            len(str(cell.value))
-                                        )
+                                # Largeur spécifique pour les 3 colonnes
+                                header = col[0].value
 
-                                worksheet.column_dimensions[column_letter].width = min(
-                                    max_length + 2,
-                                    50
+                                if header == "Client(s) inclus":
+                                    worksheet.column_dimensions[column_letter].width = 30
+
+                                elif header == "Représentant(s) inclus":
+                                    worksheet.column_dimensions[column_letter].width = 25
+
+                                elif header == "BL inclus":
+                                    worksheet.column_dimensions[column_letter].width = 35
+
+                                else:
+                                    worksheet.column_dimensions[column_letter].width = 20
+
+                            # =================================================
+                            # RETOUR À LA LIGNE + HAUTEUR DES LIGNES
+                            # =================================================
+
+                            for row in worksheet.iter_rows():
+
+                                max_lines = 1
+
+                                for cell in row:
+
+                                    # Alignement
+                                    cell.alignment = Alignment(
+                                        wrap_text=True,
+                                        vertical="top"
+                                    )
+
+                                    # Calcul du nombre de lignes
+                                    if cell.value is not None:
+
+                                        nb_lignes = str(cell.value).count("\n") + 1
+
+                                        max_lines = max(max_lines, nb_lignes)
+
+                                # Hauteur de ligne
+                                worksheet.row_dimensions[row[0].row].height = (
+                                    max_lines * 15
                                 )
 
                         return output.getvalue()
