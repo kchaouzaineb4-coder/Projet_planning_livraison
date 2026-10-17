@@ -1896,53 +1896,82 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
             if "Volume total chargé" in df_voyages_ordered.columns and not df_voyages_ordered.empty:
                 df_voyages_ordered["Volume total chargé"] = df_voyages_ordered["Volume total chargé"].round(3)
             
+            
             # =====================================================
             # FEUILLE PRINCIPALE - PLANNING LIVRAISONS
             # =====================================================
-            if not df_voyages_ordered.empty:
-                df_voyages_ordered.to_excel(writer, sheet_name='Planning Livraisons', index=False)
-            else:
-                pd.DataFrame(columns=colonnes_finales).to_excel(writer, sheet_name='Planning Livraisons', index=False)
-            
+
+            # Copier le DataFrame pour ne pas modifier les données originales
+            df_planning_excel = df_voyages_ordered.copy()
+
             # =====================================================
-            # APPLIQUER LE FORMATAGE DES RETOURS À LIGNE DANS EXCEL
+            # SIMPLIFIER LE TYPE DE VÉHICULE
+            # UNIQUEMENT POUR LA FEUILLE PLANNING LIVRAISONS
+            # =====================================================
+            if "Type_Véhicule" in df_planning_excel.columns:
+                df_planning_excel["Type_Véhicule"] = (
+                    df_planning_excel["Type_Véhicule"]
+                    .fillna("")
+                    .astype(str)
+                    .str.replace(r"\s*\([^)]*\)", "", regex=True)
+                    .str.strip()
+                )
+
+            # Exporter la feuille principale
+            if not df_planning_excel.empty:
+                df_planning_excel.to_excel(
+                    writer,
+                    sheet_name="Planning Livraisons",
+                    index=False
+                )
+            else:
+                pd.DataFrame(columns=colonnes_finales).to_excel(
+                    writer,
+                    sheet_name="Planning Livraisons",
+                    index=False
+                )
+
+            # =====================================================
+            # APPLIQUER LE FORMATAGE DES RETOURS À LA LIGNE DANS EXCEL
             # =====================================================
             workbook = writer.book
-            worksheet = writer.sheets['Planning Livraisons']
-            
-            # Style avec retours à ligne et centrage
+            worksheet = writer.sheets["Planning Livraisons"]
+
+            # Style avec retours à la ligne et centrage
             wrap_alignment = Alignment(
-                horizontal='center', 
-                vertical='center', 
+                horizontal="center",
+                vertical="center",
                 wrap_text=True
             )
-            
-            # Appliquer le formatage aux colonnes avec retours à ligne
-            for col_idx, col_name in enumerate(df_voyages_ordered.columns, 1):
+
+            # Appliquer le formatage aux colonnes avec retours à la ligne
+            for col_idx, col_name in enumerate(df_planning_excel.columns, 1):
                 if col_name in colonnes_retours_ligne:
-                    for row_idx in range(2, len(df_voyages_ordered) + 2):  # +2 pour header
+                    for row_idx in range(2, len(df_planning_excel) + 2):
                         cell = worksheet.cell(row=row_idx, column=col_idx)
                         cell.alignment = wrap_alignment
-            
-            # Ajuster la hauteur des lignes pour les retours à ligne
-            for row in range(2, len(df_voyages_ordered) + 2):
+
+            # Ajuster la hauteur des lignes
+            for row in range(2, len(df_planning_excel) + 2):
                 worksheet.row_dimensions[row].height = 40
-            
+
             # Ajuster automatiquement la largeur des colonnes
             for column in worksheet.columns:
                 max_length = 0
                 column_letter = column[0].column_letter
+
                 for cell in column:
                     try:
                         if cell.value:
-                            # Calculer la longueur maximale en prenant en compte les retours à ligne
-                            lines = str(cell.value).split('\n')
+                            lines = str(cell.value).split("\n")
                             max_line_length = max(len(line) for line in lines)
                             max_length = max(max_length, max_line_length)
-                    except:
+                    except Exception:
                         pass
-                adjusted_width = min(50, (max_length + 2))
+
+                adjusted_width = min(50, max_length + 2)
                 worksheet.column_dimensions[column_letter].width = adjusted_width
+
             
             # =====================================================
             # FEUILLE DE SYNTHÈSE DÉTAILLÉE

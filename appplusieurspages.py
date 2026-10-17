@@ -4736,22 +4736,7 @@ def page_finalisation():
                     donnees_supplementaires['Besoin_Estafette_Zone'] = st.session_state.df_zone
                 
                 # Appliquer le formatage avec retours à ligne avant l'export
-                
-                # Préparer les données pour l'export Excel
                 df_export_formate = formater_colonnes_retours_ligne(df_export_final)
-
-                # =====================================================
-                # SIMPLIFIER LA COLONNE Type_Véhicule POUR EXCEL
-                # =====================================================
-                if "Type_Véhicule" in df_export_formate.columns:
-                    df_export_formate["Type_Véhicule"] = (
-                        df_export_formate["Type_Véhicule"]
-                        .fillna("")
-                        .astype(str)
-                        .str.replace(r"\s*\([^)]*\)", "", regex=True)
-                        .str.strip()
-                    )
-
                 
                 # Générer l'export
                 success, message = exporter_planning_excel(
