@@ -263,7 +263,22 @@ hr { border-color: #DCE6F0; }
     .custom-table th, .custom-table td { padding: 7px 5px; }
 }
 
-
+/* Pastille compacte alignée avec les boutons de navigation */
+.nav-stat {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 40px;
+    background: #FFFFFF;
+    border: 1px solid #C9DCEC;
+    border-left: 5px solid #0877B9;
+    border-radius: 8px;
+    padding: 0 16px;
+    box-shadow: 0 2px 8px rgba(18, 59, 93, 0.06);
+}
+.nav-stat .label { color: #64748B; font-size: 0.9rem; font-weight: 500; }
+.nav-stat .value { color: #0877B9; font-size: 1.3rem; font-weight: 800; }
 
 </style>
 """, unsafe_allow_html=True)
@@ -7330,8 +7345,19 @@ def page_finalisation():
                 st.rerun()
         
         with col_nav2:
-            voyages_valides = len(st.session_state.df_voyages_valides) if st.session_state.df_voyages_valides is not None else 0
-            st.metric("📊 Voyages validés", voyages_valides)
+            voyages_valides = (
+                len(st.session_state.df_voyages_valides)
+                if st.session_state.df_voyages_valides is not None else 0
+            )
+            st.markdown(
+                f"""
+                <div class="nav-stat">
+                    <span class="label">📊 Voyages validés</span>
+                    <span class="value">{voyages_valides}</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
         
         with col_nav3:
             if st.button("🔄 Recommencer", type="secondary", use_container_width=True):
