@@ -4591,12 +4591,22 @@ def page_optimisation():
 
                                     excel_buffer.seek(0)
 
-                                    st.download_button(
-                                        label="💾 Télécharger le tableau mis à jour (XLSX)",
-                                        data=excel_buffer,
-                                        file_name="voyages_apres_transfert.xlsx",
-                                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                                    )
+                                    
+                                    # =====================================================
+                                    # BOUTON DE TÉLÉCHARGEMENT CENTRÉ
+                                    # =====================================================
+
+                                    col_gauche_xlsx, col_centre_xlsx, col_droite_xlsx = st.columns([1, 2, 1])
+
+                                    with col_centre_xlsx:
+                                        st.download_button(
+                                            label="💾 Télécharger le tableau mis à jour (XLSX)",
+                                            data=excel_buffer,
+                                            file_name="voyages_apres_transfert.xlsx",
+                                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                            use_container_width=True
+                                        )
+
 
                             #else:
                                 #st.info("ℹ️ Générez d'abord les voyages optimisés dans l'onglet 1")
