@@ -2153,18 +2153,24 @@ def page_analyse():
             ws.page_margins.bottom = 0.5
 
 
+        
         # =====================================================
-        # BOUTON DE TÉLÉCHARGEMENT
+        # BOUTON DE TÉLÉCHARGEMENT CENTRÉ
         # =====================================================
 
         excel_buffer_zone_group.seek(0)
 
-        st.download_button(
-            label="💾 Télécharger Livraisons Client/Ville/Zone",
-            data=excel_buffer_zone_group,
-            file_name="Livraisons_Client_Ville_Zone.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        col_gauche_zone, col_centre_zone, col_droite_zone = st.columns([1, 2, 1])
+
+        with col_centre_zone:
+            st.download_button(
+                label="💾 Télécharger Livraisons Client/Ville/Zone",
+                data=excel_buffer_zone_group,
+                file_name="Livraisons_Client_Ville_Zone.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+
     
     # --- Onglet Besoin Estafette par Zone ---
     with tab_zone_summary:
