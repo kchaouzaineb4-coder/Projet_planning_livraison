@@ -1705,16 +1705,22 @@ def page_analyse():
         excel_buffer_city.seek(0)
 
 
+        
         # =====================================================
-        # BOUTON DE TÉLÉCHARGEMENT
+        # BOUTON DE TÉLÉCHARGEMENT CENTRÉ
         # =====================================================
 
-        st.download_button(
-            label="💾 Télécharger Besoin par Ville",
-            data=excel_buffer_city,
-            file_name="Besoin_Estafette_Ville.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        col_gauche, col_centre, col_droite = st.columns([1, 2, 1])
+
+        with col_centre:
+            st.download_button(
+                label="💾 Télécharger Besoin par Ville",
+                data=excel_buffer_city,
+                file_name="Besoin_Estafette_Ville.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+
     
     # --- Onglet Livraisons Client & Ville + Zone ---
     with tab_zone_group:
