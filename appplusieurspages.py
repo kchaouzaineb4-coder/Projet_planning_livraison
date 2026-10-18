@@ -621,23 +621,32 @@ def page_analyse():
             st.metric("📏 Volume Total", f"{total_volume:.3f} m³")
         
         # =====================================================
-        # EXPORT EXCEL AVEC RETOURS À LA LIGNE
+        # EXPORT EXCEL - LIVRAISONS CLIENT / VILLE
         # =====================================================
+
         from io import BytesIO
-        from openpyxl.styles import Alignment
+        from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
         from openpyxl.utils import get_column_letter
 
         # Garder les données originales pour l'export
-        df_xl = st.session_state.df_grouped.drop(columns=["Zone"], errors='ignore').copy()
+        df_xl = st.session_state.df_grouped.drop(
+            columns=["Zone"],
+            errors="ignore"
+        ).copy()
 
-        # Exclure TRIPOLI
-        df_xl = df_xl[df_xl["Ville"] != "TRIPOLI"].copy()
+        # =====================================================
+        # EXCLURE TRIPOLI
+        # =====================================================
+        df_xl = df_xl[
+            df_xl["Ville"] != "TRIPOLI"
+        ].copy()
 
 
         # =====================================================
-        # ARTICLE : un article par ligne dans la cellule Excel
+        # ARTICLE : UN ARTICLE PAR LIGNE
         # =====================================================
         if "Article" in df_xl.columns:
+
             df_xl["Article"] = (
                 df_xl["Article"]
                 .fillna("")
@@ -653,7 +662,7 @@ def page_analyse():
 
 
         # =====================================================
-        # DÉSIGNATION : une désignation par ligne dans la cellule Excel
+        # DÉSIGNATION : UNE DÉSIGNATION PAR LIGNE
         # =====================================================
         for c in df_xl.columns:
 
@@ -681,11 +690,14 @@ def page_analyse():
         # FORMATAGE DES NOMBRES
         # =====================================================
         if "Poids total" in df_xl.columns:
+
             df_xl["Poids total"] = df_xl["Poids total"].map(
                 lambda x: round(x, 3) if pd.notna(x) else ""
             )
 
+
         if "Volume total" in df_xl.columns:
+
             df_xl["Volume total"] = df_xl["Volume total"].map(
                 lambda x: round(x, 3) if pd.notna(x) else ""
             )
@@ -711,73 +723,263 @@ def page_analyse():
 
 
             # =================================================
-            # COLONNES QUI DOIVENT ÊTRE MULTILIGNES
+            # STYLE DES EN-TÊTES
             # =================================================
+
+            header_fill = PatternFill(
+                fill_type="solid",
+                fgColor="0369A1"
+            )
+
+            header_font = Font(
+                bold=True,
+                color="FFFFFF",
+                size=11
+            )
+
+            thin_side = Side(
+                style="thin",
+                color="B0C4DE"
+            )
+
+            border = Border(
+                left=thin_side,
+                right=thin_side,
+                top=thin_side,
+                bottom=thin_side
+            )
+
+
+            # =================================================
+            # FORMATAGE DE LA LIGNE D'EN-TÊTE
+            # =================================================
+
+            for cell in ws[1]:
+
+                cell.fill = header_fill
+                cell.font = header_font
+
+                cell.alignment = Alignment(
+                    horizontal="center",
+                    vertical="center",
+                    wrap_text=True
+                )
+
+                cell.border = border
+
+
+            # Hauteur de l'en-tête
+            ws.row_dimensions[1].height = 30
+
+
+            # =================================================
+            # IDENTIFIER LES COLONNES MULTILIGNES
+            # =================================================
+
             wrap_columns = []
 
             if "Article" in df_xl.columns:
                 wrap_columns.append("Article")
 
             for c in df_xl.columns:
+
                 if "signation" in str(c):
                     wrap_columns.append(c)
 
 
             # =================================================
-            # ALIGNEMENT + RETOUR À LA LIGNE
+            # LARGEURS DES COLONNES
             # =================================================
-            for col_idx, column_name in enumerate(df_xl.columns, 1):
+
+            largeurs_fixes = {
+
+                "No livraison": 18,
+                "Client": 18,
+                "Ville": 16,
+                "Représentant": 18,
+                "Article": 24,
+                "Désignation": 45,
+                "Poids total": 16,
+                "Volume total": 16
+            }
+
+
+            # =================================================
+            # FORMATAGE DES CELLULES
+            # =================================================
+
+            for col_idx, column_name in enumerate(
+                df_xl.columns,
+                1
+            ):
 
                 col_letter = get_column_letter(col_idx)
 
-                if column_name in wrap_columns:
+                # -------------------------------------------------
+                # LARGEUR DE LA COLONNE
+                # -------------------------------------------------
 
-                    # Largeur de la colonne
-                    ws.column_dimensions[col_letter].width = 50
+                if column_name in largeurs_fixes:
 
-                    for row in range(2, len(df_xl) + 2):
+                    ws.column_dimensions[col_letter].width = (
+                        largeurs_fixes[column_name]
+                    )
+
+                else:
+
+                    max_length = 0
+
+                    for cell in ws[col_letter]:
+
+                        if cell.value is not None:
+
+                            # Pour les cellules multilignes,
+                            # chercher la ligne la plus longue
+                            lignes = str(
+                                cell.value
+                            ).split("\n")
+
+                            longueur = max(
+                                len(ligne)
+                                for ligne in lignes
+                            )
+
+                            max_length = max(
+                                max_length,
+                                longueur
+                            )
+
+                    ws.column_dimensions[col_letter].width = min(
+                        max(max_length + 2, 12),
+                        40
+                    )
+
+
+                # -------------------------------------------------
+                # FORMATAGE DES LIGNES
+                # -------------------------------------------------
+
+                for row in range(
+                    2,
+                    len(df_xl) + 2
+                ):
+
+                    cell = ws.cell(
+                        row=row,
+                        column=col_idx
+                    )
+
+                    # Bordure
+                    cell.border = border
+
+
+                    # ---------------------------------------------
+                    # ARTICLE / DÉSIGNATION
+                    # ---------------------------------------------
+
+                    if column_name in wrap_columns:
+
+                        cell.alignment = Alignment(
+                            horizontal="left",
+                            vertical="top",
+                            wrap_text=True
+                        )
+
+                    # ---------------------------------------------
+                    # AUTRES COLONNES
+                    # ---------------------------------------------
+
+                    else:
+
+                        cell.alignment = Alignment(
+                            horizontal="center",
+                            vertical="center",
+                            wrap_text=True
+                        )
+
+
+            # =================================================
+            # AJUSTER LA HAUTEUR DES LIGNES
+            # =================================================
+
+            for row in range(
+                2,
+                len(df_xl) + 2
+            ):
+
+                nombre_lignes_max = 1
+
+                for col_idx, column_name in enumerate(
+                    df_xl.columns,
+                    1
+                ):
+
+                    if column_name in wrap_columns:
 
                         cell = ws.cell(
                             row=row,
                             column=col_idx
                         )
 
-                        # Activer le retour à la ligne Excel
-                        cell.alignment = Alignment(
-                            wrap_text=True,
-                            vertical="top"
-                        )
-
-                        # Adapter la hauteur de ligne au nombre de lignes
                         if cell.value:
-                            nombre_lignes = str(cell.value).count("\n") + 1
-                            ws.row_dimensions[row].height = max(
-                                15,
-                                nombre_lignes * 18
+
+                            nombre_lignes = (
+                                str(cell.value).count("\n") + 1
                             )
 
-                else:
+                            nombre_lignes_max = max(
+                                nombre_lignes_max,
+                                nombre_lignes
+                            )
 
-                    # Ajustement automatique des autres colonnes
-                    max_length = 0
-
-                    for cell in ws[col_letter]:
-
-                        try:
-                            if cell.value is not None:
-                                max_length = max(
-                                    max_length,
-                                    len(str(cell.value))
-                                )
-                        except Exception:
-                            pass
-
-                    adjusted_width = min(
-                        max_length + 2,
-                        50
+                # Hauteur calculée automatiquement
+                hauteur = max(
+                    25,
+                    min(
+                        nombre_lignes_max * 18,
+                        120
                     )
+                )
 
-                    ws.column_dimensions[col_letter].width = adjusted_width
+                ws.row_dimensions[row].height = hauteur
+
+
+            # =================================================
+            # FILTRE AUTOMATIQUE
+            # =================================================
+
+            ws.auto_filter.ref = ws.dimensions
+
+
+            # =================================================
+            # FIGER LA PREMIÈRE LIGNE
+            # =================================================
+
+            ws.freeze_panes = "A2"
+
+
+            # =================================================
+            # CONFIGURATION D'IMPRESSION
+            # =================================================
+
+            ws.page_setup.orientation = "landscape"
+
+            ws.page_setup.fitToWidth = 1
+            ws.page_setup.fitToHeight = 0
+
+            ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+            ws.print_title_rows = "1:1"
+
+
+            # =================================================
+            # MARGE D'IMPRESSION
+            # =================================================
+
+            ws.page_margins.left = 0.25
+            ws.page_margins.right = 0.25
+            ws.page_margins.top = 0.5
+            ws.page_margins.bottom = 0.5
 
 
         excel_buffer_grouped.seek(0)
@@ -786,6 +988,7 @@ def page_analyse():
         # =====================================================
         # BOUTON DE TÉLÉCHARGEMENT
         # =====================================================
+
         st.download_button(
             label="💾 Télécharger Livraisons Client/Ville",
             data=excel_buffer_grouped,
