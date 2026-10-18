@@ -5516,34 +5516,23 @@ def page_optimisation():
                         "Nom_chauffeur": nom_chauffeur
                     }
 
-            
-            # =====================================================
-            # BOUTON CENTRÉ - APPLIQUER LES ATTRIBUTIONS
-            # =====================================================
-
             col_gauche_attr, col_centre_attr, col_droite_attr = st.columns([1, 2, 1])
 
             with col_centre_attr:
-                if st.button(
+                appliquer = st.button(
                     "✅ Appliquer les attributions",
                     key="btn_apply_attributions",
                     use_container_width=True
-                ):
+                )
 
-                    df_attribution["Véhicule attribué"] = df_attribution.index.map(
-                        lambda i: st.session_state.attributions[i]["Véhicule"]
-                    )
+            if appliquer:
 
-                    df_attribution["Chauffeur attribué"] = df_attribution.index.map(
-                        lambda i: st.session_state.attributions[i]["Nom_chauffeur"]
-                    )
+                df_attribution["Véhicule attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Véhicule"])
+                df_attribution["Chauffeur attribué"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Nom_chauffeur"])
+                df_attribution["Matricule chauffeur"] = df_attribution.index.map(lambda i: st.session_state.attributions[i]["Matricule_chauffeur"])
 
-                    df_attribution["Matricule chauffeur"] = df_attribution.index.map(
-                        lambda i: st.session_state.attributions[i]["Matricule_chauffeur"]
-                    )
-
-                    st.markdown("### 📦 Voyages avec Véhicule et Chauffeur")
-
+                
+                st.markdown("### 📦 Voyages avec Véhicule et Chauffeur")
 
                 # --- Affichage Streamlit amélioré avec retours à ligne ---
                 for idx, row in df_attribution.iterrows():
