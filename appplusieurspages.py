@@ -4810,15 +4810,28 @@ def page_optimisation():
                                 st.metric("Représentants", row_valide.get('Représentant(s) inclus', 'N/A'))
 
                     
-                    # --- Export Excel avec retours à la ligne ---
+                    
+                    # =====================================================
+                    # EXPORT EXCEL : VOYAGES VALIDÉS
+                    # =====================================================
+
                     import re
                     from io import BytesIO
+                    from openpyxl.styles import (
+                        Font,
+                        PatternFill,
+                        Alignment,
+                        Border,
+                        Side
+                    )
                     from openpyxl.utils import get_column_letter
-                    from openpyxl.styles import Alignment
 
                     df_export_valides = df_voyages_valides.copy()
 
-                    # --- Colonnes à exporter, dans l'ordre souhaité ---
+                    # =====================================================
+                    # 1. ORGANISER LES COLONNES
+                    # =====================================================
+
                     ordre_colonnes = [
                         "Zone",
                         "Véhicule N°",
@@ -4834,48 +4847,288 @@ def page_optimisation():
                         "Code Véhicule",
                     ]
 
-                    # Ne garder que ces colonnes (celles qui existent), dans cet ordre.
-                    # "Taux d'occupation (%)" est donc supprimée automatiquement.
-                    colonnes_existantes = [c for c in ordre_colonnes if c in df_export_valides.columns]
-                    df_export_valides = df_export_valides[colonnes_existantes].copy()
+                    colonnes_existantes = [
+                        c for c in ordre_colonnes
+                        if c in df_export_valides.columns
+                    ]
 
-                    # --- Colonnes affichées avec un élément par ligne ---
-                    colonnes_multilignes = ["Client(s) inclus", "Représentant(s) inclus", "BL inclus"]
+                    df_export_valides = df_export_valides[
+                        colonnes_existantes
+                    ].copy()
+
+                    # =====================================================
+                    # 2. TRIER PAR ZONE ET PAR VÉHICULE
+                    # =====================================================
+
+                    if "Zone" in df_export_valides.columns:
+
+                        df_export_valides["_Zone_Num"] = pd.to_numeric(
+                            df_export_valides["Zone"]
+                            .astype(str)
+                            .str.extract(r"(\d+)")[0],
+                            errors="coerce"
+                        )
+
+                        colonnes_tri = ["_Zone_Num"]
+
+                        if "Véhicule N°" in df_export_valides.columns:
+                            colonnes_tri.append("Véhicule N°")
+
+                        df_export_valides = (
+                            df_export_valides
+                            .sort_values(
+                                by=colonnes_tri,
+                                na_position="last"
+                            )
+                            .drop(columns=["_Zone_Num"])
+                        )
+
+                    # =====================================================
+                    # 3. PRÉPARER LES COLONNES MULTILIGNES
+                    # =====================================================
+
+                    colonnes_multilignes = [
+                        "Client(s) inclus",
+                        "Représentant(s) inclus",
+                        "BL inclus"
+                    ]
 
                     def vers_retours_ligne(valeur):
                         if pd.isna(valeur):
                             return ""
+
                         texte = str(valeur).strip()
-                        if texte in ("", "nan"):
+
+                        if texte.lower() in ("", "nan", "none"):
                             return ""
-                        elements = [e.strip() for e in re.split(r"[;,]", texte) if e.strip()]
+
+                        elements = [
+                            e.strip()
+                            for e in re.split(r"[;,]", texte)
+                            if e.strip()
+                        ]
+
                         return "\n".join(elements)
 
                     for col in colonnes_multilignes:
                         if col in df_export_valides.columns:
-                            df_export_valides[col] = df_export_valides[col].apply(vers_retours_ligne)
+                            df_export_valides[col] = (
+                                df_export_valides[col]
+                                .apply(vers_retours_ligne)
+                            )
 
-                    # --- Génération du fichier Excel ---
+                    # =====================================================
+                    # 4. FORMATER LES VALEURS NUMÉRIQUES
+                    # =====================================================
+
+                    for col in [
+                        "Poids total chargé",
+                        "Volume total chargé",
+                        "Taux occupation poids (%)",
+                        "Taux occupation volume (%)"
+                    ]:
+                        if col in df_export_valides.columns:
+                            df_export_valides[col] = pd.to_numeric(
+                                df_export_valides[col],
+                                errors="coerce"
+                            ).round(3)
+
+                    # =====================================================
+                    # 5. CRÉER LE FICHIER EXCEL
+                    # =====================================================
+
                     excel_buffer = BytesIO()
-                    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-                        df_export_valides.to_excel(writer, index=False, sheet_name="Voyages validés")
+
+                    with pd.ExcelWriter(
+                        excel_buffer,
+                        engine="openpyxl"
+                    ) as writer:
+
+                        df_export_valides.to_excel(
+                            writer,
+                            index=False,
+                            sheet_name="Voyages validés"
+                        )
+
+                        workbook = writer.book
                         worksheet = writer.sheets["Voyages validés"]
 
-                        # Centrer toutes les cellules (en-têtes + données), avec retour à la ligne
-                        alignement_centre = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                        # =====================================================
+                        # 6. STYLE DE L'EN-TÊTE
+                        # =====================================================
 
-                        for ligne in worksheet.iter_rows(min_row=1, max_row=worksheet.max_row,
-                                                        min_col=1, max_col=worksheet.max_column):
+                        header_fill = PatternFill(
+                            fill_type="solid",
+                            fgColor="0369A1"
+                        )
+
+                        header_font = Font(
+                            name="Arial",
+                            bold=True,
+                            color="FFFFFF",
+                            size=10
+                        )
+
+                        header_alignment = Alignment(
+                            horizontal="center",
+                            vertical="center",
+                            wrap_text=True
+                        )
+
+                        # =====================================================
+                        # 7. BORDURES ET ALIGNEMENT
+                        # =====================================================
+
+                        thin_border = Border(
+                            left=Side(style="thin", color="B0C4DE"),
+                            right=Side(style="thin", color="B0C4DE"),
+                            top=Side(style="thin", color="B0C4DE"),
+                            bottom=Side(style="thin", color="B0C4DE")
+                        )
+
+                        alignement_centre = Alignment(
+                            horizontal="center",
+                            vertical="center",
+                            wrap_text=True
+                        )
+
+                        for ligne in worksheet.iter_rows():
                             for cellule in ligne:
-                                cellule.alignment = alignement_centre
 
-                        # Largeur des colonnes
-                        for col_idx, col_name in enumerate(df_export_valides.columns, start=1):
+                                cellule.border = thin_border
+                                cellule.alignment = alignement_centre
+                                cellule.font = Font(
+                                    name="Arial",
+                                    size=10
+                                )
+
+                                if cellule.row == 1:
+                                    cellule.fill = header_fill
+                                    cellule.font = header_font
+                                    cellule.alignment = header_alignment
+
+                        worksheet.row_dimensions[1].height = 35
+
+                        # =====================================================
+                        # 8. FORMATS NUMÉRIQUES
+                        # =====================================================
+
+                        formats_numeriques = {
+                            "Poids total chargé": "0.000",
+                            "Volume total chargé": "0.000",
+                            "Taux occupation poids (%)": '0.000"%"',
+                            "Taux occupation volume (%)": '0.000"%"'
+                        }
+
+                        for col_idx, col_name in enumerate(
+                            df_export_valides.columns,
+                            start=1
+                        ):
+                            if col_name in formats_numeriques:
+
+                                for row_idx in range(
+                                    2,
+                                    worksheet.max_row + 1
+                                ):
+                                    worksheet.cell(
+                                        row=row_idx,
+                                        column=col_idx
+                                    ).number_format = formats_numeriques[
+                                        col_name
+                                    ]
+
+                        # =====================================================
+                        # 9. LARGEURS DES COLONNES
+                        # =====================================================
+
+                        largeurs_fixes = {
+                            "Zone": 12,
+                            "Véhicule N°": 15,
+                            "Poids total chargé": 20,
+                            "Volume total chargé": 21,
+                            "Client(s) inclus": 32,
+                            "Représentant(s) inclus": 30,
+                            "BL inclus": 35,
+                            "Taux occupation poids (%)": 23,
+                            "Taux occupation volume (%)": 25,
+                            "Location_camion": 20,
+                            "Location_proposee": 22,
+                            "Code Véhicule": 20
+                        }
+
+                        for col_idx, col_name in enumerate(
+                            df_export_valides.columns,
+                            start=1
+                        ):
                             col_letter = get_column_letter(col_idx)
-                            if col_name in colonnes_multilignes:
-                                worksheet.column_dimensions[col_letter].width = 25
-                            else:
-                                worksheet.column_dimensions[col_letter].width = max(15, len(str(col_name)) + 4)
+
+                            worksheet.column_dimensions[
+                                col_letter
+                            ].width = largeurs_fixes.get(
+                                col_name,
+                                18
+                            )
+
+                        # =====================================================
+                        # 10. HAUTEUR DES LIGNES
+                        # =====================================================
+
+                        for row_idx in range(
+                            2,
+                            worksheet.max_row + 1
+                        ):
+                            max_lines = 1
+
+                            for col_idx, col_name in enumerate(
+                                df_export_valides.columns,
+                                start=1
+                            ):
+                                if col_name in colonnes_multilignes:
+
+                                    valeur = worksheet.cell(
+                                        row=row_idx,
+                                        column=col_idx
+                                    ).value
+
+                                    if valeur:
+                                        nb_lignes = (
+                                            str(valeur).count("\n") + 1
+                                        )
+
+                                        max_lines = max(
+                                            max_lines,
+                                            nb_lignes
+                                        )
+
+                            worksheet.row_dimensions[
+                                row_idx
+                            ].height = min(
+                                max(22, max_lines * 18),
+                                120
+                            )
+
+                        # =====================================================
+                        # 11. FILTRES ET EN-TÊTE FIGÉ
+                        # =====================================================
+
+                        worksheet.auto_filter.ref = worksheet.dimensions
+                        worksheet.freeze_panes = "A2"
+                        worksheet.sheet_view.showGridLines = False
+
+                        # =====================================================
+                        # 12. MISE EN PAGE POUR IMPRESSION
+                        # =====================================================
+
+                        worksheet.page_setup.orientation = "landscape"
+                        worksheet.page_setup.fitToWidth = 1
+                        worksheet.page_setup.fitToHeight = 0
+
+                        worksheet.sheet_properties.pageSetUpPr.fitToPage = True
+                        worksheet.print_title_rows = "1:1"
+
+                    # =====================================================
+                    # 13. BOUTON DE TÉLÉCHARGEMENT
+                    # =====================================================
 
                     excel_buffer.seek(0)
                     excel_data = excel_buffer.getvalue()
@@ -4887,6 +5140,7 @@ def page_optimisation():
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True
                     )
+
         else:
             st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
 
