@@ -3340,58 +3340,212 @@ def page_optimisation():
                         errors="coerce"
                     ).round(3)
             
-            # Bouton de téléchargement avec formatage Excel
+            
+            # =====================================================
+            # BOUTON DE TÉLÉCHARGEMENT AVEC FORMATAGE EXCEL
+            # =====================================================
+
             from io import BytesIO
             import openpyxl
-            from openpyxl.styles import Alignment
-            
+            from openpyxl.styles import (
+                Font,
+                PatternFill,
+                Alignment,
+                Border,
+                Side
+            )
+            from openpyxl.utils import get_column_letter
+
             excel_buffer = BytesIO()
-            
-            with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                df_export.to_excel(writer, index=False, sheet_name="Voyages Optimisés")
-                
-                # Récupérer le workbook et worksheet pour appliquer le formatage
+
+            with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+
+                df_export.to_excel(
+                    writer,
+                    index=False,
+                    sheet_name="Voyages Optimisés"
+                )
+
                 workbook = writer.book
                 worksheet = writer.sheets["Voyages Optimisés"]
-                
-                # Appliquer le style wrap_text aux colonnes avec retours à la ligne
-                wrap_columns = []
-                if "Client(s) inclus" in df_export.columns:
-                    wrap_columns.append("Client(s) inclus")
-                if "Représentant(s) inclus" in df_export.columns:
-                    wrap_columns.append("Représentant(s) inclus")
-                if "BL inclus" in df_export.columns:
-                    wrap_columns.append("BL inclus")
-                
-                # Appliquer le format wrap_text à toutes les cellules des colonnes concernées
-                for col_idx, col_name in enumerate(df_export.columns):
-                    if col_name in wrap_columns:
-                        col_letter = openpyxl.utils.get_column_letter(col_idx + 1)
-                        for row in range(2, len(df_export) + 2):  # Commence à la ligne 2 (après l'en-tête)
-                            cell = worksheet[f"{col_letter}{row}"]
-                            cell.alignment = Alignment(wrap_text=True, vertical='top')
-                
-                # Ajuster la largeur des colonnes pour une meilleure visibilité
-                for column in worksheet.columns:
-                    max_length = 0
-                    column_letter = openpyxl.utils.get_column_letter(column[0].column)
-                    for cell in column:
-                        try:
-                            if len(str(cell.value)) > max_length:
-                                max_length = len(str(cell.value))
-                        except:
-                            pass
-                    adjusted_width = min(max_length + 2, 50)  # Largeur max de 50
-                    worksheet.column_dimensions[column_letter].width = adjusted_width
-            
+
+                # =====================================================
+                # 1. STYLE DE L'EN-TÊTE
+                # =====================================================
+
+                header_fill = PatternFill(
+                    fill_type="solid",
+                    fgColor="0369A1"
+                )
+
+                header_font = Font(
+                    name="Arial",
+                    bold=True,
+                    color="FFFFFF",
+                    size=10
+                )
+
+                header_alignment = Alignment(
+                    horizontal="center",
+                    vertical="center",
+                    wrap_text=True
+                )
+
+                # =====================================================
+                # 2. STYLE DES CELLULES ET DES BORDURES
+                # =====================================================
+
+                thin_border = Border(
+                    left=Side(style="thin", color="B0C4DE"),
+                    right=Side(style="thin", color="B0C4DE"),
+                    top=Side(style="thin", color="B0C4DE"),
+                    bottom=Side(style="thin", color="B0C4DE")
+                )
+
+                cell_alignment = Alignment(
+                    horizontal="center",
+                    vertical="center",
+                    wrap_text=True
+                )
+
+                wrap_columns = [
+                    "Client(s) inclus",
+                    "Représentant(s) inclus",
+                    "BL inclus"
+                ]
+
+                # =====================================================
+                # 3. FORMATAGE DE TOUTES LES CELLULES
+                # =====================================================
+
+                for row in worksheet.iter_rows():
+
+                    for cell in row:
+
+                        cell.border = thin_border
+                        cell.alignment = cell_alignment
+                        cell.font = Font(
+                            name="Arial",
+                            size=10
+                        )
+
+                        # En-tête
+                        if cell.row == 1:
+                            cell.fill = header_fill
+                            cell.font = header_font
+                            cell.alignment = header_alignment
+
+                # Hauteur de l'en-tête
+                worksheet.row_dimensions[1].height = 35
+
+                # =====================================================
+                # 4. FORMATS NUMÉRIQUES
+                # =====================================================
+
+                numeric_formats = {
+                    "Poids total chargé": "0.000",
+                    "Volume total chargé": "0.000",
+                    "Taux occupation poids (%)": "0.000",
+                    "Taux occupation volume (%)": "0.000"
+                }
+
+                for col_idx, col_name in enumerate(df_export.columns, start=1):
+
+                    if col_name in numeric_formats:
+
+                        for row_idx in range(2, worksheet.max_row + 1):
+                            worksheet.cell(
+                                row=row_idx,
+                                column=col_idx
+                            ).number_format = numeric_formats[col_name]
+
+                # =====================================================
+                # 5. LARGEURS DES COLONNES
+                # =====================================================
+
+                largeurs_fixes = {
+                    "Zone": 12,
+                    "Véhicule N°": 14,
+                    "Poids total chargé": 20,
+                    "Volume total chargé": 21,
+                    "Client(s) inclus": 32,
+                    "Représentant(s) inclus": 30,
+                    "BL inclus": 35,
+                    "Taux occupation poids (%)": 22,
+                    "Taux occupation volume (%)": 24,
+                    "Location_camion": 20,
+                    "Location_proposee": 22,
+                    "Code Véhicule": 20
+                }
+
+                for col_idx, col_name in enumerate(df_export.columns, start=1):
+
+                    col_letter = get_column_letter(col_idx)
+
+                    if col_name in largeurs_fixes:
+                        worksheet.column_dimensions[col_letter].width = (
+                            largeurs_fixes[col_name]
+                        )
+                    else:
+                        worksheet.column_dimensions[col_letter].width = 18
+
+                # =====================================================
+                # 6. HAUTEUR DES LIGNES SELON LE CONTENU
+                # =====================================================
+
+                for row_idx in range(2, worksheet.max_row + 1):
+
+                    max_lines = 1
+
+                    for col_idx, col_name in enumerate(df_export.columns, start=1):
+
+                        if col_name in wrap_columns:
+
+                            value = worksheet.cell(
+                                row=row_idx,
+                                column=col_idx
+                            ).value
+
+                            if value is not None:
+                                nb_lines = str(value).count("\n") + 1
+                                max_lines = max(max_lines, nb_lines)
+
+                    # Limiter la hauteur pour conserver un affichage lisible
+                    worksheet.row_dimensions[row_idx].height = min(
+                        max(22, max_lines * 18),
+                        120
+                    )
+
+                # =====================================================
+                # 7. FILTRE AUTOMATIQUE ET FIGER L'EN-TÊTE
+                # =====================================================
+
+                worksheet.auto_filter.ref = worksheet.dimensions
+                worksheet.freeze_panes = "A2"
+
+                # =====================================================
+                # 8. MISE EN PAGE POUR IMPRESSION
+                # =====================================================
+
+                worksheet.sheet_view.showGridLines = False
+
+                worksheet.page_setup.orientation = "landscape"
+                worksheet.page_setup.fitToWidth = 1
+                worksheet.page_setup.fitToHeight = 0
+                worksheet.sheet_properties.pageSetUpPr.fitToPage = True
+
+                worksheet.print_title_rows = "1:1"
+                worksheet.sheet_properties.pageSetUpPr.autoPageBreaks = False
+
             excel_buffer.seek(0)
-            
+
             st.download_button(
                 label="💾 Télécharger Voyages Estafette Optimisés",
                 data=excel_buffer,
                 file_name="Voyages_Estafette_Optimises.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
             
             # Mise à jour pour les sections suivantes
             st.session_state.df_voyages = df_clean
