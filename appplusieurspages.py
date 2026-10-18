@@ -7202,18 +7202,25 @@ def page_finalisation():
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # =====================================================
-                    # TÉLÉCHARGEMENT (aussi centré)
-                    # =====================================================
-                    st.markdown("<br><br>", unsafe_allow_html=True)
                     
+                    # =====================================================
+                    # TÉLÉCHARGEMENT - BOUTON CENTRÉ
+                    # =====================================================
+
+                    st.markdown("<br><br>", unsafe_allow_html=True)
+
                     with open(f"{nom_fichier}.xlsx", "rb") as file:
-                        btn = st.download_button(
-                            label="💾 Télécharger le planning complet",
-                            data=file,
-                            file_name=f"{nom_fichier}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        )
+                        col_gauche_planning, col_centre_planning, col_droite_planning = st.columns([1, 2, 1])
+
+                        with col_centre_planning:
+                            st.download_button(
+                                label="💾 Télécharger le planning complet",
+                                data=file,
+                                file_name=f"{nom_fichier}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True
+                            )
+
                 else:
                     st.error(message)
                     
