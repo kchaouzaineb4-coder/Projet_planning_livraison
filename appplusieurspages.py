@@ -1130,17 +1130,377 @@ def page_analyse():
             
             st.metric("🚐 Besoin Estafettes", f"{total_estafettes:.1f}") 
 
-        # Bouton de téléchargement 
-        excel_buffer_city = BytesIO() 
-        with pd.ExcelWriter(excel_buffer_city, engine='openpyxl') as writer: 
-            st.session_state.df_city.to_excel(writer, index=False, sheet_name="Besoin Estafette Ville") 
-        excel_buffer_city.seek(0) 
-        
-        st.download_button( 
-            label="💾 Télécharger Besoin par Ville", 
-            data=excel_buffer_city, 
-            file_name="Besoin_Estafette_Ville.xlsx", 
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" 
+        # =====================================================
+        # EXPORT EXCEL - BESOIN ESTAFETTE PAR VILLE
+        # =====================================================
+
+        from io import BytesIO
+        from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+        from openpyxl.utils import get_column_letter
+
+
+        # =====================================================
+        # COPIER LES DONNÉES POUR L'EXPORT
+        # =====================================================
+
+        df_xl_city = st.session_state.df_city.copy()
+
+
+        # =====================================================
+        # EXCLURE TRIPOLI
+        # =====================================================
+
+        df_xl_city = df_xl_city[
+            df_xl_city["Ville"] != "TRIPOLI"
+        ].copy()
+
+
+        # =====================================================
+        # FORMATAGE DES NOMBRES
+        # =====================================================
+
+        if "Poids total" in df_xl_city.columns:
+
+            df_xl_city["Poids total"] = df_xl_city["Poids total"].map(
+                lambda x: round(x, 3) if pd.notna(x) else ""
+            )
+
+
+        if "Volume total" in df_xl_city.columns:
+
+            df_xl_city["Volume total"] = df_xl_city["Volume total"].map(
+                lambda x: round(x, 3) if pd.notna(x) else ""
+            )
+
+
+        # =====================================================
+        # FORMATAGE BESOIN ESTAFETTE
+        # RÈGLE SPÉCIALE SFAX / ZONE 7
+        # =====================================================
+
+        if "Besoin estafette réel" in df_xl_city.columns:
+
+            def format_besoin_excel(row):
+
+                val = row["Besoin estafette réel"]
+
+                if pd.isna(val):
+                    return ""
+
+                try:
+                    val = float(val)
+                except:
+                    return str(val)
+
+                # Déterminer si la règle Zone 7 doit être appliquée
+                appliquer_regle_zone7 = False
+
+                # Cas 1 : Ville = SFAX
+                if "Ville" in df_xl_city.columns:
+
+                    ville = str(
+                        row["Ville"]
+                    ).strip().upper()
+
+                    if ville == "SFAX":
+                        appliquer_regle_zone7 = True
+
+                # Cas 2 : Zone = 7
+                if "Zone" in df_xl_city.columns:
+
+                    zone = str(
+                        row["Zone"]
+                    ).strip()
+
+                    if zone in [
+                        "7",
+                        "Zone 7",
+                        "ZONE 7"
+                    ]:
+                        appliquer_regle_zone7 = True
+
+                # -------------------------------------------------
+                # RÈGLE ZONE 7
+                # -------------------------------------------------
+
+                if appliquer_regle_zone7:
+
+                    if val <= 3:
+
+                        return (
+                            f"{int(val)} voyage(s) "
+                            f"par estafette"
+                        )
+
+                    else:
+
+                        nb_est = int(
+                            (val + 2) // 3
+                        )
+
+                        return (
+                            f"{int(val)} voyages → "
+                            f"{nb_est} estafette(s)"
+                        )
+
+                # -------------------------------------------------
+                # AUTRES VILLES
+                # -------------------------------------------------
+
+                else:
+
+                    return f"{val:.1f}"
+
+
+            df_xl_city["Besoin estafette réel"] = (
+                df_xl_city.apply(
+                    format_besoin_excel,
+                    axis=1
+                )
+            )
+
+
+        # =====================================================
+        # CRÉATION DU FICHIER EXCEL
+        # =====================================================
+
+        excel_buffer_city = BytesIO()
+
+
+        with pd.ExcelWriter(
+            excel_buffer_city,
+            engine="openpyxl"
+        ) as writer:
+
+            df_xl_city.to_excel(
+                writer,
+                index=False,
+                sheet_name="Besoin Estafette Ville"
+            )
+
+            ws = writer.sheets[
+                "Besoin Estafette Ville"
+            ]
+
+
+            # =================================================
+            # STYLE DES EN-TÊTES
+            # =================================================
+
+            header_fill = PatternFill(
+                fill_type="solid",
+                fgColor="0369A1"
+            )
+
+            header_font = Font(
+                bold=True,
+                color="FFFFFF",
+                size=11
+            )
+
+            thin_side = Side(
+                style="thin",
+                color="B0C4DE"
+            )
+
+            border = Border(
+                left=thin_side,
+                right=thin_side,
+                top=thin_side,
+                bottom=thin_side
+            )
+
+
+            # =================================================
+            # FORMATAGE DE L'EN-TÊTE
+            # =================================================
+
+            for cell in ws[1]:
+
+                cell.fill = header_fill
+
+                cell.font = header_font
+
+                cell.alignment = Alignment(
+                    horizontal="center",
+                    vertical="center",
+                    wrap_text=True
+                )
+
+                cell.border = border
+
+
+            # Hauteur de l'en-tête
+            ws.row_dimensions[1].height = 30
+
+
+            # =================================================
+            # LARGEURS DES COLONNES
+            # =================================================
+
+            largeurs_fixes = {
+
+                "Ville": 22,
+
+                "Zone": 12,
+
+                "Nombre de BLs": 16,
+
+                "Poids total": 18,
+
+                "Volume total": 18,
+
+                "Besoin estafette réel": 32
+            }
+
+
+            # =================================================
+            # FORMATAGE DES CELLULES
+            # =================================================
+
+            for col_idx, column_name in enumerate(
+                df_xl_city.columns,
+                1
+            ):
+
+                col_letter = get_column_letter(
+                    col_idx
+                )
+
+
+                # -------------------------------------------------
+                # LARGEUR
+                # -------------------------------------------------
+
+                if column_name in largeurs_fixes:
+
+                    ws.column_dimensions[
+                        col_letter
+                    ].width = largeurs_fixes[
+                        column_name
+                    ]
+
+                else:
+
+                    max_length = 0
+
+                    for cell in ws[col_letter]:
+
+                        if cell.value is not None:
+
+                            lignes = str(
+                                cell.value
+                            ).split("\n")
+
+                            longueur = max(
+                                len(ligne)
+                                for ligne in lignes
+                            )
+
+                            max_length = max(
+                                max_length,
+                                longueur
+                            )
+
+                    ws.column_dimensions[
+                        col_letter
+                    ].width = min(
+                        max(
+                            max_length + 2,
+                            12
+                        ),
+                        40
+                    )
+
+
+                # -------------------------------------------------
+                # ALIGNEMENT + BORDURES
+                # -------------------------------------------------
+
+                for row in range(
+                    2,
+                    len(df_xl_city) + 2
+                ):
+
+                    cell = ws.cell(
+                        row=row,
+                        column=col_idx
+                    )
+
+                    cell.alignment = Alignment(
+                        horizontal="center",
+                        vertical="center",
+                        wrap_text=True
+                    )
+
+                    cell.border = border
+
+
+            # =================================================
+            # HAUTEUR DES LIGNES
+            # =================================================
+
+            for row in range(
+                2,
+                len(df_xl_city) + 2
+            ):
+
+                ws.row_dimensions[
+                    row
+                ].height = 30
+
+
+            # =================================================
+            # FILTRE AUTOMATIQUE
+            # =================================================
+
+            ws.auto_filter.ref = ws.dimensions
+
+
+            # =================================================
+            # FIGER LA PREMIÈRE LIGNE
+            # =================================================
+
+            ws.freeze_panes = "A2"
+
+
+            # =================================================
+            # CONFIGURATION IMPRESSION
+            # =================================================
+
+            ws.page_setup.orientation = "landscape"
+
+            ws.page_setup.fitToWidth = 1
+
+            ws.page_setup.fitToHeight = 0
+
+            ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+            ws.print_title_rows = "1:1"
+
+
+            # =================================================
+            # MARGES
+            # =================================================
+
+            ws.page_margins.left = 0.25
+            ws.page_margins.right = 0.25
+            ws.page_margins.top = 0.5
+            ws.page_margins.bottom = 0.5
+
+
+        excel_buffer_city.seek(0)
+
+
+        # =====================================================
+        # BOUTON DE TÉLÉCHARGEMENT
+        # =====================================================
+
+        st.download_button(
+            label="💾 Télécharger Besoin par Ville",
+            data=excel_buffer_city,
+            file_name="Besoin_Estafette_Ville.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     
     # --- Onglet Livraisons Client & Ville + Zone ---
