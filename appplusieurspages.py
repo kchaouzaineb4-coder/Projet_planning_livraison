@@ -3781,12 +3781,22 @@ def page_optimisation():
 
             excel_buffer.seek(0)
 
-            st.download_button(
-                label="💾 Télécharger Voyages Estafette Optimisés",
-                data=excel_buffer,
-                file_name="Voyages_Estafette_Optimises.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            
+            # =====================================================
+            # BOUTON DE TÉLÉCHARGEMENT CENTRÉ
+            # =====================================================
+
+            col_gauche_voyages, col_centre_voyages, col_droite_voyages = st.columns([1, 2, 1])
+
+            with col_centre_voyages:
+                st.download_button(
+                    label="💾 Télécharger Voyages Estafette Optimisés",
+                    data=excel_buffer,
+                    file_name="Voyages_Estafette_Optimises.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+
 
             
             # Mise à jour pour les sections suivantes
