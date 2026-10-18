@@ -5937,15 +5937,13 @@ def page_optimisation():
                 col1, col2 = st.columns(2)
 
                 
+                
                 # =====================================================
-                # BOUTONS EXCEL ET PDF CENTRÉS - VOYAGES ATTRIBUÉS
+                # BOUTONS EXCEL ET PDF - VOYAGES ATTRIBUÉS
+                # Même disposition que Voyages_avec_Codes
                 # =====================================================
 
-                col_vide_gauche, col_excel_attribue, col_pdf_attribue, col_vide_droite = st.columns(
-                    [1, 2, 2, 1]
-                )
-
-                with col_excel_attribue:
+                with col_export1:
                     st.download_button(
                         label="💾 Télécharger le tableau final (XLSX)",
                         data=to_excel(df_attribution),
@@ -5955,7 +5953,7 @@ def page_optimisation():
                         use_container_width=True
                     )
 
-                with col_pdf_attribue:
+                with col_export2:
                     st.download_button(
                         label="📄 Télécharger le tableau final (PDF)",
                         data=to_pdf_better_centered(df_attribution),
@@ -5964,6 +5962,7 @@ def page_optimisation():
                         key="btn_download_pdf",
                         use_container_width=True
                     )
+
 
                         
                 # Mettre à jour le session state
