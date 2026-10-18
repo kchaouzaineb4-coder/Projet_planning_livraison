@@ -7,99 +7,67 @@ import openpyxl
 from openpyxl.styles import Alignment
 
 # =====================================================
-# CONFIGURATION DE LA PAGE ET DESIGN GLOBAL
+# CONFIGURATION DE LA PAGE (doit etre la 1ere commande Streamlit)
 # =====================================================
-
 st.set_page_config(
     page_title="🚚 Planning de Livraisons",
     page_icon="🚚",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
-
+ 
 # =====================================================
-# CSS GLOBAL - DESIGN MODERNE ET PROFESSIONNEL
+# CSS GLOBAL
 # =====================================================
-
 st.markdown("""
 <style>
-
-/* =====================================================
-   1. FOND GENERAL ET ZONE PRINCIPALE
-   ===================================================== */
-
-.stApp {
-    background-color: #F5F8FC;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+ 
+/* 1. FOND ET ZONE PRINCIPALE */
+html, body, .stApp, button, input {
+    font-family: 'Inter', 'Segoe UI', sans-serif;
 }
-
+.stApp { background-color: #F5F8FC; }
 .block-container {
     padding-top: 2rem;
     padding-bottom: 2rem;
-    max-width: 1500px;
+    max-width: 1300px;
 }
-
-
-/* =====================================================
-   2. TITRES ET TEXTE GENERAL
-   ===================================================== */
-
-h1, h2, h3 {
-    color: #123B5D !important;
-    font-weight: 700 !important;
-}
-
-.stApp p,
-.stApp label {
-    color: #334155;
-}
-
-/* En-tête personnalisé */
+ 
+/* 2. TITRES ET TEXTE */
+h1, h2, h3 { color: #123B5D !important; font-weight: 700 !important; }
+.stApp p, .stApp label { color: #334155; }
+ 
 .main-header {
-    font-size: 2.5rem;
+    font-size: 2.3rem;
     color: #123B5D;
     text-align: center;
-    margin-bottom: 1rem;
+    margin-bottom: 1.5rem;
     padding-bottom: 1rem;
     border-bottom: 3px solid #0877B9;
+    font-weight: 800;
 }
-
-
-/* =====================================================
-   3. BARRE LATERALE ET NAVIGATION
-   ===================================================== */
-
+ 
+/* 3. BARRE LATERALE */
 [data-testid="stSidebar"] {
     background-color: #EDF3F9;
     border-right: 1px solid #DCE6F0;
 }
-
-[data-testid="stSidebarNav"] {
-    padding-top: 20px;
+.sidebar-title {
+    text-align: center;
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: #123B5D;
+    margin: 8px 0 4px 0;
 }
-
-[data-testid="stSidebarNav"] a {
-    padding: 10px 15px;
-    margin: 5px 0;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-weight: 500;
-    transition: all 0.2s ease;
+.sidebar-footer {
+    text-align: center;
+    font-size: 0.78rem;
+    color: #64748B;
+    line-height: 1.6;
 }
-
-[data-testid="stSidebarNav"] a:hover {
-    background-color: #DCEAF7;
-    color: #0877B9;
-}
-
-
-
-/* =====================================================
-   4. BOUTONS - THEME BLEU ET BLANC
-   ===================================================== */
-
-/* Boutons principaux */
+ 
+/* 4. BOUTONS (global) */
 .stButton > button,
 .stDownloadButton > button,
 .stFormSubmitButton > button {
@@ -111,106 +79,58 @@ h1, h2, h3 {
     min-height: 40px;
     transition: all 0.2s ease;
 }
-
-/* Texte et icônes à l'intérieur des boutons */
 .stButton > button *,
 .stDownloadButton > button *,
-.stFormSubmitButton > button * {
-    color: #FFFFFF !important;
-}
-
-/* Survol : fond blanc et texte bleu */
+.stFormSubmitButton > button * { color: #FFFFFF !important; }
+ 
 .stButton > button:hover,
 .stDownloadButton > button:hover,
 .stFormSubmitButton > button:hover {
     background-color: #FFFFFF !important;
-    color: #0877B9 !important;
     border: 1px solid #0877B9 !important;
 }
-
-/* Texte et icônes au survol */
 .stButton > button:hover *,
 .stDownloadButton > button:hover *,
-.stFormSubmitButton > button:hover * {
-    color: #0877B9 !important;
-}
-
-/* Boutons désactivés */
+.stFormSubmitButton > button:hover * { color: #0877B9 !important; }
+ 
 .stButton > button:disabled,
-.stDownloadButton > button:disabled,
-.stFormSubmitButton > button:disabled {
+.stDownloadButton > button:disabled {
     background-color: #E2E8F0 !important;
-    color: #64748B !important;
     border-color: #CBD5E1 !important;
     cursor: not-allowed;
 }
-
-/* Boutons désactivés : texte et icônes */
 .stButton > button:disabled *,
-.stDownloadButton > button:disabled *,
-.stFormSubmitButton > button:disabled * {
-    color: #64748B !important;
-}
-
-
-
-/* =====================================================
-   5. CHAMPS DE SAISIE ET IMPORT DE FICHIERS
-   ===================================================== */
-
-[data-testid="stFileUploader"],
-[data-testid="stSelectbox"],
-[data-testid="stTextInput"] {
-    border-radius: 10px;
-}
-
-
-/* =====================================================
-   6. CARTES DE METRIQUES
-   ===================================================== */
-
+.stDownloadButton > button:disabled * { color: #64748B !important; }
+ 
+/* 5. METRIQUES */
 [data-testid="stMetric"] {
     background-color: #FFFFFF;
     border: 1px solid #DCE6F0;
+    border-left: 5px solid #0877B9;
     border-radius: 12px;
     padding: 18px;
-    box-shadow: 0 2px 8px rgba(18, 59, 93, 0.05);
+    box-shadow: 0 2px 8px rgba(18, 59, 93, 0.06);
 }
-
-/* Valeurs des indicateurs */
-[data-testid="stMetricValue"] {
-    color: #0877B9;
-    font-weight: 700;
-}
-
-/* Cartes personnalisées existantes */
+[data-testid="stMetricValue"] { color: #0877B9; font-weight: 800; }
+[data-testid="stMetricLabel"] * { color: #64748B !important; font-size: 0.95rem; }
+ 
 .metric-card {
-    background: linear-gradient(
-        135deg,
-        #FFFFFF 0%,
-        #EDF5FC 100%
-    );
+    background: linear-gradient(135deg, #FFFFFF 0%, #EDF5FC 100%);
     padding: 1.5rem;
     border-radius: 12px;
     border-left: 5px solid #0877B9;
     box-shadow: 0 2px 8px rgba(18, 59, 93, 0.08);
 }
-
-
-/* =====================================================
-   7. TABLEAUX HTML PERSONNALISES
-   ===================================================== */
-
+ 
+/* 6. TABLEAUX HTML PERSONNALISES */
 .custom-table {
     width: 100%;
     border-collapse: collapse;
-    font-family: Arial, sans-serif;
     font-size: 14px;
     box-shadow: 0 2px 8px rgba(18, 59, 93, 0.08);
     border-radius: 8px;
     overflow: hidden;
 }
-
 .custom-table th {
     background-color: #0877B9;
     color: #FFFFFF;
@@ -219,44 +139,25 @@ h1, h2, h3 {
     border: 1px solid #DCE6F0;
     font-weight: 600;
     font-size: 13px;
-    vertical-align: middle;
 }
-
 .custom-table td {
     padding: 10px 8px;
     text-align: center;
     border: 1px solid #DCE6F0;
     background-color: #FFFFFF;
     color: #1E293B;
-    vertical-align: middle;
-    font-weight: normal;
 }
-
-/* Survol des lignes des tableaux personnalisés */
-.custom-table tbody tr:hover td {
-    background-color: #F0F7FD;
-}
-
-
-/* =====================================================
-   8. TABLEAUX STREAMLIT
-   ===================================================== */
-
+.custom-table tbody tr:hover td { background-color: #F0F7FD; }
+ 
+/* 7. TABLEAUX STREAMLIT */
 [data-testid="stDataFrame"] {
     border: 1px solid #DCE6F0;
     border-radius: 8px;
     overflow: hidden;
 }
-
-
-/* =====================================================
-   9. ONGLETS
-   ===================================================== */
-
-.stTabs [data-baseweb="tab-list"] {
-    gap: 8px;
-}
-
+ 
+/* 8. ONGLETS */
+.stTabs [data-baseweb="tab-list"] { gap: 8px; }
 .stTabs [data-baseweb="tab"] {
     min-height: 45px;
     white-space: normal;
@@ -265,56 +166,104 @@ h1, h2, h3 {
     padding: 10px 16px;
     font-weight: 600;
 }
-
 .stTabs [aria-selected="true"] {
     background-color: #0877B9 !important;
     color: #FFFFFF !important;
 }
-
-
-/* =====================================================
-   10. SEPARATEURS
-   ===================================================== */
-
-hr {
-    border-color: #DCE6F0;
+ 
+/* 9. SEPARATEURS */
+hr { border-color: #DCE6F0; }
+ 
+/* 10. BANDEAU D'INSTRUCTIONS (texte blanc lisible) */
+.hero {
+    background: linear-gradient(135deg, #0B4F7A 0%, #0877B9 100%);
+    border-radius: 16px;
+    padding: 28px 24px;
+    text-align: center;
+    box-shadow: 0 8px 24px rgba(8, 119, 185, 0.25);
+    margin-bottom: 24px;
 }
-
-
-/* =====================================================
-   11. CONTENEURS ET BLOCS
-   ===================================================== */
-
-[data-testid="stVerticalBlockBorderWrapper"] {
-    border-radius: 10px;
+.stApp .hero h1,
+.stApp .hero h2,
+.stApp .hero h3 {
+    color: #FFFFFF !important;
+    margin: 0 0 8px 0;
 }
-
-
-/* =====================================================
-   12. ADAPTATION AUX PETITS ECRANS
-   ===================================================== */
-
+.stApp .hero p {
+    color: #E3F1FB !important;
+    font-size: 1.05rem;
+    margin: 0;
+}
+ 
+/* 11. CARTES DE FICHIERS ET UPLOAD */
+.file-card {
+    background: #FFFFFF;
+    border: 1px solid #DCE6F0;
+    border-top: 4px solid #0877B9;
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 2px 8px rgba(18, 59, 93, 0.06);
+    margin-bottom: 8px;
+}
+.file-card h3 { margin: 0 0 4px 0; font-size: 1.15rem; }
+.file-card span { color: #64748B; font-size: 0.9rem; }
+ 
+[data-testid="stFileUploader"] section {
+    background: #FFFFFF;
+    border: 2px dashed #9DC4E0;
+    border-radius: 12px;
+}
+[data-testid="stFileUploader"] section:hover {
+    border-color: #0877B9;
+    background: #F0F7FD;
+}
+ 
+/* 12. BOUTON D'ACTION PRINCIPAL (orange) */
+.stApp .st-key-cta button {
+    background-color: #F59E0B !important;
+    border: 1px solid #F59E0B !important;
+    min-height: 50px;
+    font-size: 1.05rem !important;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+}
+.stApp .st-key-cta button * { color: #1E293B !important; }
+.stApp .st-key-cta button:hover {
+    background-color: #D97706 !important;
+    border-color: #D97706 !important;
+}
+.stApp .st-key-cta button:hover * { color: #FFFFFF !important; }
+ 
+/* 13. MENU LATERAL : page active mise en evidence */
+[data-testid="stSidebar"] .stButton > button {
+    justify-content: flex-start;
+    text-align: left;
+    padding: 10px 16px;
+}
+[data-testid="stSidebar"] [data-testid="stBaseButton-secondary"] {
+    background-color: #FFFFFF !important;
+    border: 1px solid #C9DCEC !important;
+}
+[data-testid="stSidebar"] [data-testid="stBaseButton-secondary"] * { color: #123B5D !important; }
+[data-testid="stSidebar"] [data-testid="stBaseButton-secondary"]:hover {
+    background-color: #DCEAF7 !important;
+    border-color: #0877B9 !important;
+}
+[data-testid="stSidebar"] [data-testid="stBaseButton-primary"] {
+    background-color: #0877B9 !important;
+    border: 1px solid #0877B9 !important;
+    box-shadow: 0 3px 10px rgba(8, 119, 185, 0.35);
+}
+[data-testid="stSidebar"] [data-testid="stBaseButton-primary"] * { color: #FFFFFF !important; }
+ 
+/* 14. PETITS ECRANS */
 @media (max-width: 768px) {
-
-    .block-container {
-        padding-top: 1rem;
-        padding-bottom: 1rem;
-    }
-
-    .main-header {
-        font-size: 1.7rem;
-    }
-
-    .custom-table {
-        font-size: 12px;
-    }
-
-    .custom-table th,
-    .custom-table td {
-        padding: 7px 5px;
-    }
-
+    .block-container { padding-top: 1rem; padding-bottom: 1rem; }
+    .main-header { font-size: 1.6rem; }
+    .custom-table { font-size: 12px; }
+    .custom-table th, .custom-table td { padding: 7px 5px; }
 }
+
+
 
 </style>
 """, unsafe_allow_html=True)
