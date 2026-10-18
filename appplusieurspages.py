@@ -5936,23 +5936,35 @@ def page_optimisation():
                 # Afficher les boutons de téléchargement côte à côte
                 col1, col2 = st.columns(2)
 
-                with col1:
+                
+                # =====================================================
+                # BOUTONS EXCEL ET PDF CENTRÉS - VOYAGES ATTRIBUÉS
+                # =====================================================
+
+                col_vide_gauche, col_excel_attribue, col_pdf_attribue, col_vide_droite = st.columns(
+                    [1, 2, 2, 1]
+                )
+
+                with col_excel_attribue:
                     st.download_button(
                         label="💾 Télécharger le tableau final (XLSX)",
                         data=to_excel(df_attribution),
                         file_name="Voyages_attribues.xlsx",
-                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                        key="btn_download_excel"
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key="btn_download_excel",
+                        use_container_width=True
                     )
 
-                with col2:
+                with col_pdf_attribue:
                     st.download_button(
                         label="📄 Télécharger le tableau final (PDF)",
                         data=to_pdf_better_centered(df_attribution),
                         file_name="Voyages_attribues.pdf",
-                        mime='application/pdf',
-                        key="btn_download_pdf"
+                        mime="application/pdf",
+                        key="btn_download_pdf",
+                        use_container_width=True
                     )
+
                         
                 # Mettre à jour le session state
                 st.session_state.df_voyages_valides = df_attribution
