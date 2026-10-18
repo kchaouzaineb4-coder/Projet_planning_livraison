@@ -6604,8 +6604,8 @@ def page_optimisation():
                     except:
                             st.info("ℹ️ Export PDF non disponible")
 
-                    else:
-                        st.warning("⚠️ Vous devez d'abord valider les voyages.")
+                    #else:
+                        #st.warning("⚠️ Vous devez d'abord valider les voyages.")
 
 # =====================================================
 # PAGE 4: VALIDATION & EXPORT (VERSION OPTIMISÉE)
