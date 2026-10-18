@@ -6,6 +6,14 @@ from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManage
 import openpyxl
 from openpyxl.styles import Alignment
 
+import os
+import base64
+
+@st.cache_data
+def logo_en_base64(chemin="logo.png"):
+    with open(chemin, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
 # =====================================================
 # CONFIGURATION DE LA PAGE (doit etre la 1ere commande Streamlit)
 # =====================================================
@@ -7395,11 +7403,14 @@ def main():
     
     # Sidebar avec navigation
     with st.sidebar:
-        st.image("https://th.bing.com/th/id/OIP.NX4XkAk56j_1bs6CiYhdxQHaHa?pid=ImgDet&rs=1", width=120)
-        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚚 Planning Livraisons</h2>", 
-                   unsafe_allow_html=True)
-        
-        st.markdown("---")
+        if os.path.exists("logo.png"):
+            st.markdown(
+                f'<div class="logo-card"><img src="data:image/png;base64,{logo_en_base64()}" alt="Logo"></div>',
+                unsafe_allow_html=True,
+            )
+        st.markdown('<div class="sidebar-title">🚚 Planning Livraisons</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sidebar-subtitle">Optimisation & suivi des voyages</div>', unsafe_allow_html=True)
+        st.divider()
         
         # Boutons de navigation avec icônes
         page_options = {
