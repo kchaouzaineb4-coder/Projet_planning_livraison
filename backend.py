@@ -2110,35 +2110,147 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
             except Exception as e:
                 print(f"⚠️ Erreur lors de la création des capacités véhicules : {e}")
             
+            
             # =====================================================
             # DONNÉES SUPPLÉMENTAIRES
+            # AVEC RETOURS À LA LIGNE POUR ARTICLE ET DÉSIGNATION
             # =====================================================
             if donnees_supplementaires:
                 for nom_feuille, data in donnees_supplementaires.items():
+
+                    nom_feuille = nom_feuille[:31]
+
                     if isinstance(data, pd.DataFrame) and not data.empty:
-                        nom_feuille = nom_feuille[:31]
-                        data.to_excel(writer, sheet_name=nom_feuille, index=False)
+
+                        # Copier les données pour ne pas modifier l'original
+                        data_export = data.copy()
+
+                        # =========================================
+                        # ARTICLE : un article par ligne dans la cellule
+                        # =========================================
+                        if "Article" in data_export.columns:
+                            data_export["Article"] = (
+                                data_export["Article"]
+                                .fillna("")
+                                .astype(str)
+                                .apply(
+                                    lambda x: "\n".join(
+                                        article.strip()
+                                        for article in x.split(",")
+                                        if article.strip()
+                                    )
+                                )
+                            )
+
+                        # =========================================
+                        # DÉSIGNATION : une désignation par ligne
+                        # =========================================
+                        for col in data_export.columns:
+                            if "signation" in str(col).lower():
+
+                                data_export[col] = (
+                                    data_export[col]
+                                    .fillna("")
+                                    .astype(str)
+                                    .apply(
+                                        lambda x: "\n".join(
+                                            designation.strip()
+                                            for designation in (
+                                                x.replace("<br />", "||")
+                                                .replace("<br/>", "||")
+                                                .replace("<br>", "||")
+                                            ).split("||")
+                                            if designation.strip()
+                                        )
+                                    )
+                                )
+
+                        # Exporter la feuille
+                        data_export.to_excel(
+                            writer,
+                            sheet_name=nom_feuille,
+                            index=False
+                        )
+
+                        # =========================================
+                        # ACTIVER LE RETOUR À LA LIGNE DANS EXCEL
+                        # =========================================
+                        worksheet = writer.sheets[nom_feuille]
+
+                        for col_idx, col_name in enumerate(data_export.columns, 1):
+
+                            # Colonnes Article et Désignation
+                            if (
+                                col_name == "Article"
+                                or "signation" in str(col_name).lower()
+                            ):
+
+                                # Largeur de la colonne
+                                from openpyxl.utils import get_column_letter
+                                lettre = get_column_letter(col_idx)
+                                worksheet.column_dimensions[lettre].width = 35
+
+                                # Activer le retour à la ligne
+                                for row_idx in range(2, len(data_export) + 2):
+
+                                    cellule = worksheet.cell(
+                                        row=row_idx,
+                                        column=col_idx
+                                    )
+
+                                    cellule.alignment = Alignment(
+                                        horizontal="center",
+                                        vertical="center",
+                                        wrap_text=True
+                                    )
+
+                        # =========================================
+                        # AJUSTER LA HAUTEUR DES LIGNES
+                        # =========================================
+                        for row_idx in range(2, len(data_export) + 2):
+
+                            max_lignes = 1
+
+                            for cellule in worksheet[row_idx]:
+                                if cellule.value is not None:
+                                    nb_lignes = str(cellule.value).count("\n") + 1
+                                    max_lignes = max(max_lignes, nb_lignes)
+
+                            worksheet.row_dimensions[row_idx].height = min(
+                                120,
+                                max(22, max_lignes * 18)
+                            )
+
                     else:
-                        pd.DataFrame({f'Info': [f'Données non disponibles pour {nom_feuille}']}).to_excel(writer, sheet_name=nom_feuille[:31], index=False)
-            
-            # =====================================================
-            # FEUILLE COMPLÈTE (toutes les colonnes) - pour référence
-            # =====================================================
-            try:
-                if not df_voyages_working.empty:
-                    df_voyages_complet = df_voyages_working.copy()
-                    # Formater les valeurs numériques
-                    if "Poids total chargé" in df_voyages_complet.columns:
-                        df_voyages_complet["Poids total chargé"] = df_voyages_complet["Poids total chargé"].round(3)
-                    if "Volume total chargé" in df_voyages_complet.columns:
-                        df_voyages_complet["Volume total chargé"] = df_voyages_complet["Volume total chargé"].round(3)
-                    
-                    df_voyages_complet.to_excel(writer, sheet_name='Données Complètes', index=False)
-                else:
-                    pd.DataFrame(columns=list(df_voyages_working.columns)).to_excel(writer, sheet_name='Données Complètes', index=False)
-            except Exception as e:
-                print(f"⚠️ Erreur lors de la création de la feuille complète : {e}")
-                pd.DataFrame({'Erreur': ['Impossible de créer la feuille complète']}).to_excel(writer, sheet_name='Données Complètes', index=False)
+                        pd.DataFrame({
+                            "Info": [
+                                f"Données non disponibles pour {nom_feuille}"
+                            ]
+                        }).to_excel(
+                            writer,
+                            sheet_name=nom_feuille,
+                            index=False
+                        )
+
+                        
+                        # =====================================================
+                        # FEUILLE COMPLÈTE (toutes les colonnes) - pour référence
+                        # =====================================================
+                        try:
+                            if not df_voyages_working.empty:
+                                df_voyages_complet = df_voyages_working.copy()
+                                # Formater les valeurs numériques
+                                if "Poids total chargé" in df_voyages_complet.columns:
+                                    df_voyages_complet["Poids total chargé"] = df_voyages_complet["Poids total chargé"].round(3)
+                                if "Volume total chargé" in df_voyages_complet.columns:
+                                    df_voyages_complet["Volume total chargé"] = df_voyages_complet["Volume total chargé"].round(3)
+                                
+                                df_voyages_complet.to_excel(writer, sheet_name='Données Complètes', index=False)
+                            else:
+                                pd.DataFrame(columns=list(df_voyages_working.columns)).to_excel(writer, sheet_name='Données Complètes', index=False)
+                        except Exception as e:
+                            print(f"⚠️ Erreur lors de la création de la feuille complète : {e}")
+                            pd.DataFrame({'Erreur': ['Impossible de créer la feuille complète']}).to_excel(writer, sheet_name='Données Complètes', index=False)
             
             # =====================================================
             # MISE EN FORME PROFESSIONNELLE DE TOUTES LES FEUILLES
