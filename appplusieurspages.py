@@ -1555,20 +1555,33 @@ def page_analyse():
         
        
         # =====================================================
-        # EXPORT EXCEL AVEC RETOURS À LA LIGNE
+        # EXPORT EXCEL - LIVRAISONS CLIENT / VILLE / ZONE
         # =====================================================
+
         from io import BytesIO
-        from openpyxl.styles import Alignment
+        from openpyxl.styles import (
+            Alignment,
+            Font,
+            PatternFill,
+            Border,
+            Side
+        )
         from openpyxl.utils import get_column_letter
 
-        # Garder les données originales pour l'export
+
+        # =====================================================
+        # COPIER LES DONNÉES POUR L'EXPORT
+        # =====================================================
+
         df_xl_zone = st.session_state.df_grouped_zone.copy()
 
 
         # =====================================================
-        # ARTICLE : un article par ligne dans la cellule Excel
+        # ARTICLE : UN ARTICLE PAR LIGNE
         # =====================================================
+
         if "Article" in df_xl_zone.columns:
+
             df_xl_zone["Article"] = (
                 df_xl_zone["Article"]
                 .fillna("")
@@ -1584,8 +1597,9 @@ def page_analyse():
 
 
         # =====================================================
-        # DÉSIGNATION : une désignation par ligne dans la cellule Excel
+        # DÉSIGNATION : UNE DÉSIGNATION PAR LIGNE
         # =====================================================
+
         for c in df_xl_zone.columns:
 
             if "signation" in str(c):
@@ -1611,21 +1625,35 @@ def page_analyse():
         # =====================================================
         # FORMATAGE DES NOMBRES
         # =====================================================
+
         if "Poids total" in df_xl_zone.columns:
-            df_xl_zone["Poids total"] = df_xl_zone["Poids total"].map(
-                lambda x: round(x, 3) if pd.notna(x) else ""
+
+            df_xl_zone["Poids total"] = (
+                df_xl_zone["Poids total"].map(
+                    lambda x: round(x, 3)
+                    if pd.notna(x)
+                    else ""
+                )
             )
 
+
         if "Volume total" in df_xl_zone.columns:
-            df_xl_zone["Volume total"] = df_xl_zone["Volume total"].map(
-                lambda x: round(x, 3) if pd.notna(x) else ""
+
+            df_xl_zone["Volume total"] = (
+                df_xl_zone["Volume total"].map(
+                    lambda x: round(x, 3)
+                    if pd.notna(x)
+                    else ""
+                )
             )
 
 
         # =====================================================
         # CRÉATION DU FICHIER EXCEL
         # =====================================================
+
         excel_buffer_zone_group = BytesIO()
+
 
         with pd.ExcelWriter(
             excel_buffer_zone_group,
@@ -1638,83 +1666,278 @@ def page_analyse():
                 sheet_name="Livraisons Client Ville Zone"
             )
 
-            ws = writer.sheets["Livraisons Client Ville Zone"]
+            ws = writer.sheets[
+                "Livraisons Client Ville Zone"
+            ]
 
 
             # =================================================
-            # COLONNES QUI DOIVENT ÊTRE MULTILIGNES
+            # STYLE DES EN-TÊTES
             # =================================================
+
+            header_fill = PatternFill(
+                fill_type="solid",
+                fgColor="0369A1"
+            )
+
+            header_font = Font(
+                bold=True,
+                color="FFFFFF",
+                size=11
+            )
+
+            thin_side = Side(
+                style="thin",
+                color="B0C4DE"
+            )
+
+            border = Border(
+                left=thin_side,
+                right=thin_side,
+                top=thin_side,
+                bottom=thin_side
+            )
+
+
+            # =================================================
+            # FORMATAGE DE LA LIGNE D'EN-TÊTE
+            # =================================================
+
+            for cell in ws[1]:
+
+                cell.fill = header_fill
+
+                cell.font = header_font
+
+                cell.alignment = Alignment(
+                    horizontal="center",
+                    vertical="center",
+                    wrap_text=True
+                )
+
+                cell.border = border
+
+
+            # Hauteur de l'en-tête
+            ws.row_dimensions[1].height = 30
+
+
+            # =================================================
+            # COLONNES MULTILIGNES
+            # =================================================
+
             wrap_columns = []
 
             if "Article" in df_xl_zone.columns:
                 wrap_columns.append("Article")
 
             for c in df_xl_zone.columns:
+
                 if "signation" in str(c):
                     wrap_columns.append(c)
 
 
             # =================================================
-            # ALIGNEMENT + RETOUR À LA LIGNE
+            # LARGEURS FIXES
             # =================================================
-            for col_idx, column_name in enumerate(df_xl_zone.columns, 1):
 
-                col_letter = get_column_letter(col_idx)
+            largeurs_fixes = {
 
-                if column_name in wrap_columns:
+                "No livraison": 18,
 
-                    # Largeur de la colonne
-                    ws.column_dimensions[col_letter].width = 50
+                "Client": 18,
 
-                    # Appliquer le retour à la ligne
-                    for row in range(2, len(df_xl_zone) + 2):
+                "Ville": 18,
+
+                "Zone": 12,
+
+                "Représentant": 18,
+
+                "Article": 24,
+
+                "Désignation": 45,
+
+                "Poids total": 16,
+
+                "Volume total": 16
+            }
+
+
+            # =================================================
+            # FORMATAGE DES COLONNES
+            # =================================================
+
+            for col_idx, column_name in enumerate(
+                df_xl_zone.columns,
+                1
+            ):
+
+                col_letter = get_column_letter(
+                    col_idx
+                )
+
+
+                # -------------------------------------------------
+                # LARGEUR DES COLONNES
+                # -------------------------------------------------
+
+                if column_name in largeurs_fixes:
+
+                    ws.column_dimensions[
+                        col_letter
+                    ].width = largeurs_fixes[
+                        column_name
+                    ]
+
+                else:
+
+                    max_length = 0
+
+                    for cell in ws[col_letter]:
+
+                        if cell.value is not None:
+
+                            lignes = str(
+                                cell.value
+                            ).split("\n")
+
+                            longueur = max(
+                                len(ligne)
+                                for ligne in lignes
+                            )
+
+                            max_length = max(
+                                max_length,
+                                longueur
+                            )
+
+                    ws.column_dimensions[
+                        col_letter
+                    ].width = min(
+                        max(
+                            max_length + 2,
+                            12
+                        ),
+                        40
+                    )
+
+
+                # -------------------------------------------------
+                # ALIGNEMENT DES CELLULES
+                # -------------------------------------------------
+
+                for row in range(
+                    2,
+                    len(df_xl_zone) + 2
+                ):
+
+                    cell = ws.cell(
+                        row=row,
+                        column=col_idx
+                    )
+
+                    # Toutes les cellules centrées
+                    cell.alignment = Alignment(
+                        horizontal="center",
+                        vertical="center",
+                        wrap_text=True
+                    )
+
+                    # Bordures
+                    cell.border = border
+
+
+            # =================================================
+            # HAUTEUR DES LIGNES
+            # =================================================
+
+            for row in range(
+                2,
+                len(df_xl_zone) + 2
+            ):
+
+                nombre_lignes_max = 1
+
+                for col_idx, column_name in enumerate(
+                    df_xl_zone.columns,
+                    1
+                ):
+
+                    if column_name in wrap_columns:
 
                         cell = ws.cell(
                             row=row,
                             column=col_idx
                         )
 
-                        cell.alignment = Alignment(
-                            wrap_text=True,
-                            vertical="top"
-                        )
-
-                        # Adapter la hauteur de la ligne
                         if cell.value:
-                            nombre_lignes = str(cell.value).count("\n") + 1
 
-                            ws.row_dimensions[row].height = max(
-                                15,
-                                nombre_lignes * 18
+                            nombre_lignes = (
+                                str(cell.value).count("\n") + 1
                             )
 
-                else:
+                            nombre_lignes_max = max(
+                                nombre_lignes_max,
+                                nombre_lignes
+                            )
 
-                    # Ajustement automatique des autres colonnes
-                    max_length = 0
-
-                    for cell in ws[col_letter]:
-
-                        try:
-                            if cell.value is not None:
-                                max_length = max(
-                                    max_length,
-                                    len(str(cell.value))
-                                )
-                        except Exception:
-                            pass
-
-                    adjusted_width = min(
-                        max_length + 2,
-                        50
+                # Hauteur maximale de 120
+                hauteur = max(
+                    25,
+                    min(
+                        nombre_lignes_max * 18,
+                        120
                     )
+                )
 
-                    ws.column_dimensions[col_letter].width = adjusted_width
+                ws.row_dimensions[
+                    row
+                ].height = hauteur
+
+
+            # =================================================
+            # FILTRE AUTOMATIQUE
+            # =================================================
+
+            ws.auto_filter.ref = ws.dimensions
+
+
+            # =================================================
+            # FIGER LA PREMIÈRE LIGNE
+            # =================================================
+
+            ws.freeze_panes = "A2"
+
+
+            # =================================================
+            # CONFIGURATION D'IMPRESSION
+            # =================================================
+
+            ws.page_setup.orientation = "landscape"
+
+            ws.page_setup.fitToWidth = 1
+
+            ws.page_setup.fitToHeight = 0
+
+            ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+            ws.print_title_rows = "1:1"
+
+
+            # =================================================
+            # MARGES D'IMPRESSION
+            # =================================================
+
+            ws.page_margins.left = 0.25
+            ws.page_margins.right = 0.25
+            ws.page_margins.top = 0.5
+            ws.page_margins.bottom = 0.5
 
 
         # =====================================================
         # BOUTON DE TÉLÉCHARGEMENT
         # =====================================================
+
         excel_buffer_zone_group.seek(0)
 
         st.download_button(
