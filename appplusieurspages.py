@@ -1192,16 +1192,22 @@ def page_analyse():
         excel_buffer_grouped.seek(0)
 
 
+        
         # =====================================================
-        # BOUTON DE TÉLÉCHARGEMENT
+        # BOUTON DE TÉLÉCHARGEMENT CENTRÉ
         # =====================================================
 
-        st.download_button(
-            label="💾 Télécharger Livraisons Client/Ville",
-            data=excel_buffer_grouped,
-            file_name="Livraisons_Client_Ville.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        col_gauche, col_centre, col_droite = st.columns([1, 2, 1])
+
+        with col_centre:
+            st.download_button(
+                label="💾 Télécharger Livraisons Client/Ville",
+                data=excel_buffer_grouped,
+                file_name="Livraisons_Client_Ville.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+
             
         # Stockage pour la section 5
         if "df_livraisons" not in st.session_state:
