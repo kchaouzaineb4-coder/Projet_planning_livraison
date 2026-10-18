@@ -3212,11 +3212,22 @@ def page_optimisation():
         else:
             st.success("✅ Aucune proposition de location de camion en attente de décision.")
             
-            # Bouton pour forcer la détection
-            if st.button("🔍 Vérifier à nouveau les propositions"):
-                if st.session_state.rental_processor:
-                   update_propositions_view()
-                st.rerun()
+            
+            # =====================================================
+            # BOUTON CENTRÉ - VÉRIFIER LES PROPOSITIONS
+            # =====================================================
+
+            col_gauche_verif, col_centre_verif, col_droite_verif = st.columns([1, 2, 1])
+
+            with col_centre_verif:
+                if st.button(
+                    "🔍 Vérifier à nouveau les propositions",
+                    use_container_width=True
+                ):
+                    if st.session_state.rental_processor:
+                        update_propositions_view()
+                    st.rerun()
+
         # =====================================================
         # 4. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 4 - Résultat final)
         # =====================================================
