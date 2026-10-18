@@ -6063,12 +6063,90 @@ def page_optimisation():
                                     .str.replace(",", "\n", regex=False)
                                 )
 
+                        
                         # =====================================================
-                        # EXPORT EXCEL
+                        # EXPORT EXCEL AVEC MISE EN FORME PROFESSIONNELLE
                         # =====================================================
+                        from openpyxl.styles import (
+                            Font, PatternFill, Alignment, Border, Side
+                        )
+                        from openpyxl.utils import get_column_letter
+                        import re
+
                         with pd.ExcelWriter(output, engine="openpyxl") as writer:
 
-                            df_excel.to_excel(
+                            # Copier les données sans modifier le tableau original
+                            df_export = df_excel.copy()
+
+                            # Trier les zones par ordre numérique
+                            if "Zone" in df_export.columns:
+                                df_export["_Zone_Num"] = pd.to_numeric(
+                                    df_export["Zone"].astype(str).str.extract(r"(\d+)")[0],
+                                    errors="coerce"
+                                )
+
+                                colonnes_tri = ["_Zone_Num"]
+
+                                if "Véhicule N°" in df_export.columns:
+                                    colonnes_tri.append("Véhicule N°")
+
+                                df_export = (
+                                    df_export
+                                    .sort_values(
+                                        colonnes_tri,
+                                        na_position="last"
+                                    )
+                                    .drop(columns=["_Zone_Num"])
+                                )
+
+                            # Préparer les colonnes avec plusieurs éléments
+                            colonnes_multilignes = [
+                                "Client(s) inclus",
+                                "Représentant(s) inclus",
+                                "BL inclus"
+                            ]
+
+                            def vers_retours_ligne(valeur):
+                                if pd.isna(valeur):
+                                    return ""
+
+                                texte = str(valeur).strip()
+
+                                if texte.lower() in ("", "nan", "none"):
+                                    return ""
+
+                                elements = [
+                                    element.strip()
+                                    for element in re.split(r"[;,]", texte)
+                                    if element.strip()
+                                ]
+
+                                return "\n".join(elements)
+
+                            for col in colonnes_multilignes:
+                                if col in df_export.columns:
+                                    df_export[col] = df_export[col].apply(
+                                        vers_retours_ligne
+                                    )
+
+                            # Arrondir les valeurs numériques
+                            colonnes_numeriques = [
+                                "Poids total chargé",
+                                "Volume total chargé",
+                                "Taux occupation poids (%)",
+                                "Taux occupation volume (%)",
+                                "Taux d'occupation (%)"
+                            ]
+
+                            for col in colonnes_numeriques:
+                                if col in df_export.columns:
+                                    df_export[col] = pd.to_numeric(
+                                        df_export[col],
+                                        errors="coerce"
+                                    ).round(3)
+
+                            # Exporter dans Excel
+                            df_export.to_excel(
                                 writer,
                                 index=False,
                                 sheet_name="Voyages_avec_Codes"
@@ -6076,58 +6154,139 @@ def page_optimisation():
 
                             worksheet = writer.sheets["Voyages_avec_Codes"]
 
-                            # =================================================
-                            # LARGEUR DES COLONNES
-                            # =================================================
+                            # Définir les bordures
+                            bordure_fine = Side(
+                                style="thin",
+                                color="B0C4DE"
+                            )
 
-                            for col in worksheet.columns:
+                            bordure_cellule = Border(
+                                left=bordure_fine,
+                                right=bordure_fine,
+                                top=bordure_fine,
+                                bottom=bordure_fine
+                            )
 
-                                column_letter = col[0].column_letter
+                            alignement_centre = Alignment(
+                                horizontal="center",
+                                vertical="center",
+                                wrap_text=True
+                            )
 
-                                # Largeur spécifique pour les 3 colonnes
-                                header = col[0].value
-
-                                if header == "Client(s) inclus":
-                                    worksheet.column_dimensions[column_letter].width = 30
-
-                                elif header == "Représentant(s) inclus":
-                                    worksheet.column_dimensions[column_letter].width = 25
-
-                                elif header == "BL inclus":
-                                    worksheet.column_dimensions[column_letter].width = 35
-
-                                else:
-                                    worksheet.column_dimensions[column_letter].width = 20
-
-                            # =================================================
-                            # RETOUR À LA LIGNE + HAUTEUR DES LIGNES
-                            # =================================================
-
-                            for row in worksheet.iter_rows():
-
-                                max_lines = 1
-
-                                for cell in row:
-
-                                    # Alignement
-                                    cell.alignment = Alignment(
-                                        wrap_text=True,
-                                        vertical="top"
+                            # Formater toutes les cellules
+                            for ligne in worksheet.iter_rows():
+                                for cellule in ligne:
+                                    cellule.alignment = alignement_centre
+                                    cellule.border = bordure_cellule
+                                    cellule.font = Font(
+                                        name="Arial",
+                                        size=10
                                     )
 
-                                    # Calcul du nombre de lignes
-                                    if cell.value is not None:
-
-                                        nb_lignes = str(cell.value).count("\n") + 1
-
-                                        max_lines = max(max_lines, nb_lignes)
-
-                                # Hauteur de ligne
-                                worksheet.row_dimensions[row[0].row].height = (
-                                    max_lines * 15
+                            # Formater l'en-tête
+                            for cellule in worksheet[1]:
+                                cellule.fill = PatternFill(
+                                    fill_type="solid",
+                                    fgColor="0369A1"
                                 )
 
+                                cellule.font = Font(
+                                    name="Arial",
+                                    size=10,
+                                    bold=True,
+                                    color="FFFFFF"
+                                )
+
+                            worksheet.row_dimensions[1].height = 35
+
+                            # Appliquer les formats numériques
+                            formats_numeriques = {
+                                "Poids total chargé": "0.000",
+                                "Volume total chargé": "0.000",
+                                "Taux occupation poids (%)": '0.000"%"',
+                                "Taux occupation volume (%)": '0.000"%"',
+                                "Taux d'occupation (%)": '0.000"%"'
+                            }
+
+                            for col_idx, col_name in enumerate(
+                                df_export.columns,
+                                start=1
+                            ):
+                                if col_name in formats_numeriques:
+                                    for ligne_idx in range(
+                                        2, worksheet.max_row + 1
+                                    ):
+                                        worksheet.cell(
+                                            row=ligne_idx,
+                                            column=col_idx
+                                        ).number_format = formats_numeriques[col_name]
+
+                            # Définir la largeur des colonnes
+                            largeurs = {
+                                "Zone": 12,
+                                "Véhicule N°": 15,
+                                "Poids total chargé": 20,
+                                "Volume total chargé": 21,
+                                "Client(s) inclus": 32,
+                                "Représentant(s) inclus": 30,
+                                "BL inclus": 35,
+                                "Taux occupation poids (%)": 25,
+                                "Taux occupation volume (%)": 27,
+                                "Taux d'occupation (%)": 23,
+                                "Véhicule attribué": 25,
+                                "Chauffeur attribué": 25,
+                                "Matricule chauffeur": 20,
+                                "Code Véhicule": 20,
+                                "Location_camion": 20,
+                                "Location_proposee": 22
+                            }
+
+                            for col_idx, col_name in enumerate(
+                                df_export.columns,
+                                start=1
+                            ):
+                                lettre = get_column_letter(col_idx)
+
+                                worksheet.column_dimensions[lettre].width = (
+                                    largeurs.get(col_name, 20)
+                                )
+
+                            # Ajuster la hauteur des lignes
+                            for ligne_idx in range(
+                                2, worksheet.max_row + 1
+                            ):
+                                max_lignes = 1
+
+                                for cellule in worksheet[ligne_idx]:
+                                    if cellule.value is not None:
+                                        nb_lignes = (
+                                            str(cellule.value).count("\n") + 1
+                                        )
+
+                                        max_lignes = max(
+                                            max_lignes,
+                                            nb_lignes
+                                        )
+
+                                worksheet.row_dimensions[ligne_idx].height = min(
+                                    120,
+                                    max(22, max_lignes * 18)
+                                )
+
+                            # Filtres et affichage
+                            worksheet.auto_filter.ref = worksheet.dimensions
+                            worksheet.freeze_panes = "A2"
+                            worksheet.sheet_view.showGridLines = False
+
+                            # Paramètres d'impression
+                            worksheet.page_setup.orientation = "landscape"
+                            worksheet.page_setup.fitToWidth = 1
+                            worksheet.page_setup.fitToHeight = 0
+                            worksheet.sheet_properties.pageSetUpPr.fitToPage = True
+                            worksheet.print_title_rows = "1:1"
+
                         return output.getvalue()
+
 
                     
                     excel_data = to_excel_with_codes(df_final)
