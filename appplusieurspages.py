@@ -880,8 +880,8 @@ def page_analyse():
                     if column_name in wrap_columns:
 
                         cell.alignment = Alignment(
-                            horizontal="left",
-                            vertical="top",
+                            horizontal="center",
+                            vertical="center",
                             wrap_text=True
                         )
 
