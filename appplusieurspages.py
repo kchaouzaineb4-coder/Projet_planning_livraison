@@ -5,9 +5,11 @@ from io import BytesIO
 from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME
 import openpyxl
 from openpyxl.styles import Alignment
+
 # =====================================================
-# CONFIGURATION DE LA PAGE ET CSS GLOBAL
+# CONFIGURATION DE LA PAGE ET DESIGN GLOBAL
 # =====================================================
+
 st.set_page_config(
     page_title="🚚 Planning de Livraisons",
     page_icon="🚚",
@@ -15,103 +17,267 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# CSS global pour toute l'application
+# =====================================================
+# CSS GLOBAL - DESIGN MODERNE ET PROFESSIONNEL
+# =====================================================
+
 st.markdown("""
 <style>
-    /* Navigation sidebar */
-    [data-testid="stSidebarNav"] {
-        padding-top: 20px;
-    }
-    
-    /* Style des liens de navigation */
-    [data-testid="stSidebarNav"] a {
-        padding: 10px 15px;
-        margin: 5px 0;
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-weight: 500;
-        transition: all 0.3s ease;
-    }
-    
-    [data-testid="stSidebarNav"] a:hover {
-        background-color: #E6F3FF;
-        color: #0369A1;
-    }
-    
-    /* En-tête principal */
-    .main-header {
-        font-size: 2.5rem;
-        color: #1E3A8A;
-        text-align: center;
-        margin-bottom: 1rem;
+
+/* =====================================================
+   1. FOND GENERAL ET ZONE PRINCIPALE
+   ===================================================== */
+
+.stApp {
+    background-color: #F5F8FC;
+}
+
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    max-width: 1500px;
+}
+
+
+/* =====================================================
+   2. TITRES ET TEXTE GENERAL
+   ===================================================== */
+
+h1, h2, h3 {
+    color: #123B5D !important;
+    font-weight: 700 !important;
+}
+
+.stApp p,
+.stApp label {
+    color: #334155;
+}
+
+/* En-tête personnalisé */
+.main-header {
+    font-size: 2.5rem;
+    color: #123B5D;
+    text-align: center;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 3px solid #0877B9;
+}
+
+
+/* =====================================================
+   3. BARRE LATERALE ET NAVIGATION
+   ===================================================== */
+
+[data-testid="stSidebar"] {
+    background-color: #EDF3F9;
+    border-right: 1px solid #DCE6F0;
+}
+
+[data-testid="stSidebarNav"] {
+    padding-top: 20px;
+}
+
+[data-testid="stSidebarNav"] a {
+    padding: 10px 15px;
+    margin: 5px 0;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+[data-testid="stSidebarNav"] a:hover {
+    background-color: #DCEAF7;
+    color: #0877B9;
+}
+
+
+/* =====================================================
+   4. BOUTONS
+   ===================================================== */
+
+.stButton > button,
+.stDownloadButton > button {
+    border-radius: 8px;
+    font-weight: 600;
+    min-height: 40px;
+    transition: all 0.2s ease;
+}
+
+.stButton > button:hover,
+.stDownloadButton > button:hover {
+    border-color: #0877B9;
+    color: #0877B9;
+}
+
+
+/* =====================================================
+   5. CHAMPS DE SAISIE ET IMPORT DE FICHIERS
+   ===================================================== */
+
+[data-testid="stFileUploader"],
+[data-testid="stSelectbox"],
+[data-testid="stTextInput"] {
+    border-radius: 10px;
+}
+
+
+/* =====================================================
+   6. CARTES DE METRIQUES
+   ===================================================== */
+
+[data-testid="stMetric"] {
+    background-color: #FFFFFF;
+    border: 1px solid #DCE6F0;
+    border-radius: 12px;
+    padding: 18px;
+    box-shadow: 0 2px 8px rgba(18, 59, 93, 0.05);
+}
+
+/* Valeurs des indicateurs */
+[data-testid="stMetricValue"] {
+    color: #0877B9;
+    font-weight: 700;
+}
+
+/* Cartes personnalisées existantes */
+.metric-card {
+    background: linear-gradient(
+        135deg,
+        #FFFFFF 0%,
+        #EDF5FC 100%
+    );
+    padding: 1.5rem;
+    border-radius: 12px;
+    border-left: 5px solid #0877B9;
+    box-shadow: 0 2px 8px rgba(18, 59, 93, 0.08);
+}
+
+
+/* =====================================================
+   7. TABLEAUX HTML PERSONNALISES
+   ===================================================== */
+
+.custom-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    box-shadow: 0 2px 8px rgba(18, 59, 93, 0.08);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.custom-table th {
+    background-color: #0877B9;
+    color: #FFFFFF;
+    padding: 12px 8px;
+    text-align: center;
+    border: 1px solid #DCE6F0;
+    font-weight: 600;
+    font-size: 13px;
+    vertical-align: middle;
+}
+
+.custom-table td {
+    padding: 10px 8px;
+    text-align: center;
+    border: 1px solid #DCE6F0;
+    background-color: #FFFFFF;
+    color: #1E293B;
+    vertical-align: middle;
+    font-weight: normal;
+}
+
+/* Survol des lignes des tableaux personnalisés */
+.custom-table tbody tr:hover td {
+    background-color: #F0F7FD;
+}
+
+
+/* =====================================================
+   8. TABLEAUX STREAMLIT
+   ===================================================== */
+
+[data-testid="stDataFrame"] {
+    border: 1px solid #DCE6F0;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+
+/* =====================================================
+   9. ONGLETS
+   ===================================================== */
+
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    min-height: 45px;
+    white-space: normal;
+    background-color: #EDF3F9;
+    border-radius: 8px 8px 0 0;
+    padding: 10px 16px;
+    font-weight: 600;
+}
+
+.stTabs [aria-selected="true"] {
+    background-color: #0877B9 !important;
+    color: #FFFFFF !important;
+}
+
+
+/* =====================================================
+   10. SEPARATEURS
+   ===================================================== */
+
+hr {
+    border-color: #DCE6F0;
+}
+
+
+/* =====================================================
+   11. CONTENEURS ET BLOCS
+   ===================================================== */
+
+[data-testid="stVerticalBlockBorderWrapper"] {
+    border-radius: 10px;
+}
+
+
+/* =====================================================
+   12. ADAPTATION AUX PETITS ECRANS
+   ===================================================== */
+
+@media (max-width: 768px) {
+
+    .block-container {
+        padding-top: 1rem;
         padding-bottom: 1rem;
-        border-bottom: 3px solid #1E3A8A;
     }
-    
-    /* Cartes de métriques */
-    .metric-card {
-        background: linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%);
-        padding: 1.5rem;
-        border-radius: 10px;
-        border-left: 5px solid #0369A1;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+
+    .main-header {
+        font-size: 1.7rem;
     }
-    
-    /* Tables */
+
     .custom-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-family: Arial, sans-serif;
-        font-size: 14px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        border-radius: 8px;
-        overflow: hidden;
+        font-size: 12px;
     }
-    
-    .custom-table th {
-        background-color: #0369A1;
-        color: white;
-        padding: 12px 8px;
-        text-align: center;
-        border: 2px solid #4682B4;
-        font-weight: normal;
-        font-size: 13px;
-        vertical-align: middle;
-    }
-    
+
+    .custom-table th,
     .custom-table td {
-        padding: 10px 8px;
-        text-align: center;
-        border: 1px solid #B0C4DE;
-        background-color: white;
-        color: #000000;
-        vertical-align: middle;
-        font-weight: normal;
+        padding: 7px 5px;
     }
-    
-    /* Onglets */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: #F0F2F6;
-        border-radius: 8px 8px 0px 0px;
-        gap: 8px;
-        padding: 10px 16px;
-        font-weight: 600;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background-color: #0369A1 !important;
-        color: white !important;
-    }
+
+}
+
 </style>
 """, unsafe_allow_html=True)
+
 
 # =====================================================
 # FONCTIONS UTILITAIRES COMMUNES
