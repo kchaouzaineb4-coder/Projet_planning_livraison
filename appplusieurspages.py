@@ -94,23 +94,64 @@ h1, h2, h3 {
 }
 
 
+
 /* =====================================================
-   4. BOUTONS
+   4. BOUTONS - THEME BLEU ET BLANC
    ===================================================== */
 
+/* Boutons principaux */
 .stButton > button,
-.stDownloadButton > button {
-    border-radius: 8px;
-    font-weight: 600;
+.stDownloadButton > button,
+.stFormSubmitButton > button {
+    background-color: #0877B9 !important;
+    color: #FFFFFF !important;
+    border: 1px solid #0877B9 !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
     min-height: 40px;
     transition: all 0.2s ease;
 }
 
-.stButton > button:hover,
-.stDownloadButton > button:hover {
-    border-color: #0877B9;
-    color: #0877B9;
+/* Texte et icônes à l'intérieur des boutons */
+.stButton > button *,
+.stDownloadButton > button *,
+.stFormSubmitButton > button * {
+    color: #FFFFFF !important;
 }
+
+/* Survol : fond blanc et texte bleu */
+.stButton > button:hover,
+.stDownloadButton > button:hover,
+.stFormSubmitButton > button:hover {
+    background-color: #FFFFFF !important;
+    color: #0877B9 !important;
+    border: 1px solid #0877B9 !important;
+}
+
+/* Texte et icônes au survol */
+.stButton > button:hover *,
+.stDownloadButton > button:hover *,
+.stFormSubmitButton > button:hover * {
+    color: #0877B9 !important;
+}
+
+/* Boutons désactivés */
+.stButton > button:disabled,
+.stDownloadButton > button:disabled,
+.stFormSubmitButton > button:disabled {
+    background-color: #E2E8F0 !important;
+    color: #64748B !important;
+    border-color: #CBD5E1 !important;
+    cursor: not-allowed;
+}
+
+/* Boutons désactivés : texte et icônes */
+.stButton > button:disabled *,
+.stDownloadButton > button:disabled *,
+.stFormSubmitButton > button:disabled * {
+    color: #64748B !important;
+}
+
 
 
 /* =====================================================
