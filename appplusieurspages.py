@@ -3294,10 +3294,18 @@ def page_optimisation():
             df_export = df_export[colonnes_export].copy()
 
             
-            # CORRECTION : S'assurer que l'export est aussi trié par zone
+                        # Trier les zones par ordre numérique
             if "Zone" in df_export.columns:
-                df_export["Zone_Num"] = df_export["Zone"].str.extract('(\d+)').astype(float)
-                df_export = df_export.sort_values("Zone_Num").drop("Zone_Num", axis=1)
+                df_export["Zone_Num"] = pd.to_numeric(
+                    df_export["Zone"].astype(str).str.extract(r"(\d+)")[0],
+                    errors="coerce"
+                )
+
+                df_export = (
+                    df_export
+                    .sort_values("Zone_Num", na_position="last")
+                    .drop(columns=["Zone_Num"])
+                )
             
             # Transformer les colonnes avec retours à la ligne \n pour Excel
             if "Client(s) inclus" in df_export.columns:
