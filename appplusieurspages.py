@@ -2536,16 +2536,22 @@ def page_analyse():
 
         excel_buffer_zone.seek(0)
 
+        
         # =====================================================
-        # BOUTON DE TÉLÉCHARGEMENT
+        # BOUTON DE TÉLÉCHARGEMENT CENTRÉ
         # =====================================================
 
-        st.download_button(
-            label="💾 Télécharger Besoin par Zone",
-            data=excel_buffer_zone,
-            file_name="Besoin_Estafette_Zone.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        col_gauche_besoin_zone, col_centre_besoin_zone, col_droite_besoin_zone = st.columns([1, 2, 1])
+
+        with col_centre_besoin_zone:
+            st.download_button(
+                label="💾 Télécharger Besoin par Zone",
+                data=excel_buffer_zone,
+                file_name="Besoin_Estafette_Zone.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+
 
     
     # --- Onglet Graphiques ---
