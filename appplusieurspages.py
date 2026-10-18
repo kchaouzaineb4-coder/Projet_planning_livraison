@@ -5,6 +5,12 @@ from io import BytesIO
 from backend import DeliveryProcessor, TruckRentalProcessor, TruckTransferManager, SEUIL_POIDS, SEUIL_VOLUME
 import openpyxl
 from openpyxl.styles import Alignment
+import base64
+
+@st.cache_data
+def logo_en_base64(chemin="logo.png"):
+    with open(chemin, "rb") as f:
+        return base64.b64encode(f.read()).decode()
 
 # =====================================================
 # CONFIGURATION DE LA PAGE (doit etre la 1ere commande Streamlit)
@@ -279,6 +285,39 @@ hr { border-color: #DCE6F0; }
 }
 .nav-stat .label { color: #64748B; font-size: 0.9rem; font-weight: 500; }
 .nav-stat .value { color: #0877B9; font-size: 1.3rem; font-weight: 800; }
+
+/* Logo de la sidebar */
+.logo-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 130px;
+    height: 130px;
+    margin: 8px auto 14px auto;
+    padding: 16px;
+    background: #FFFFFF;
+    border: 1px solid #DCE6F0;
+    border-radius: 24px;
+    box-shadow: 0 6px 18px rgba(18, 59, 93, 0.12);
+}
+.logo-card img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+.sidebar-title {
+    text-align: center;
+    font-weight: 800;
+    font-size: 1.15rem;
+    color: #123B5D;
+    margin: 0;
+}
+.sidebar-subtitle {
+    text-align: center;
+    font-size: 0.82rem;
+    color: #64748B;
+    margin: 2px 0 6px 0;
+}
 
 </style>
 """, unsafe_allow_html=True)
@@ -7393,13 +7432,15 @@ def main():
         st.session_state.page = "import"
     
     # Sidebar avec navigation
-    with st.sidebar:
-        st.image("https://th.bing.com/th/id/OIP.NX4XkAk56j_1bs6CiYhdxQHaHa?pid=ImgDet&rs=1", width=120)
-        st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🚚 Planning Livraisons</h2>", 
-                   unsafe_allow_html=True)
-        
-        st.markdown("---")
-        
+        with st.sidebar:
+            st.markdown(
+                '<div class="logo-card"><img src="https://th.bing.com/th/id/OIP.NX4XkAk56j_1bs6CiYhdxQHaHa?pid=ImgDet&rs=1" alt="Logo"></div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown('<div class="sidebar-title">🚚 Planning Livraisons</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sidebar-subtitle">Optimisation & suivi des voyages</div>', unsafe_allow_html=True)
+            st.divider()
+            
         # Boutons de navigation avec icônes
         page_options = {
             "import": {"icon": "📥", "label": "Importation Données"},
