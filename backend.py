@@ -2139,7 +2139,163 @@ def exporter_planning_excel(df_voyages, file_path, donnees_supplementaires=None,
             except Exception as e:
                 print(f"⚠️ Erreur lors de la création de la feuille complète : {e}")
                 pd.DataFrame({'Erreur': ['Impossible de créer la feuille complète']}).to_excel(writer, sheet_name='Données Complètes', index=False)
-        
+            
+            # =====================================================
+            # MISE EN FORME PROFESSIONNELLE DE TOUTES LES FEUILLES
+            # =====================================================
+            from openpyxl.styles import (
+                Font, PatternFill, Alignment, Border, Side
+            )
+            from openpyxl.utils import get_column_letter
+
+            couleur_entete = "0369A1"
+            couleur_bordure = "B0C4DE"
+
+            bordure_fine = Side(
+                style="thin",
+                color=couleur_bordure
+            )
+
+            bordure_cellule = Border(
+                left=bordure_fine,
+                right=bordure_fine,
+                top=bordure_fine,
+                bottom=bordure_fine
+            )
+
+            alignement_centre = Alignment(
+                horizontal="center",
+                vertical="center",
+                wrap_text=True
+            )
+
+            # Parcourir toutes les feuilles du fichier Excel
+            for nom_feuille in writer.sheets:
+                worksheet = writer.sheets[nom_feuille]
+
+                # Mise en forme de toutes les cellules
+                for ligne in worksheet.iter_rows():
+                    for cellule in ligne:
+                        cellule.alignment = alignement_centre
+                        cellule.border = bordure_cellule
+                        cellule.font = Font(
+                            name="Arial",
+                            size=10
+                        )
+
+                # Mise en forme de l'en-tête
+                if worksheet.max_column > 0:
+                    for cellule in worksheet[1]:
+                        cellule.fill = PatternFill(
+                            fill_type="solid",
+                            fgColor=couleur_entete
+                        )
+                        cellule.font = Font(
+                            name="Arial",
+                            size=10,
+                            bold=True,
+                            color="FFFFFF"
+                        )
+
+                    worksheet.row_dimensions[1].height = 35
+
+                # Adapter la largeur de chaque colonne
+                for col_idx in range(1, worksheet.max_column + 1):
+                    lettre = get_column_letter(col_idx)
+                    entete = worksheet.cell(
+                        row=1,
+                        column=col_idx
+                    ).value
+
+                    max_longueur = 0
+
+                    for ligne_idx in range(
+                        1, worksheet.max_row + 1
+                    ):
+                        valeur = worksheet.cell(
+                            row=ligne_idx,
+                            column=col_idx
+                        ).value
+
+                        if valeur is not None:
+                            lignes_texte = str(valeur).split("\n")
+                            longueur = max(
+                                len(texte) for texte in lignes_texte
+                            )
+                            max_longueur = max(
+                                max_longueur, longueur
+                            )
+
+                    # Largeurs spécifiques aux colonnes importantes
+                    largeurs = {
+                        "Zone": 12,
+                        "Véhicule N°": 15,
+                        "Véhicule": 15,
+                        "Code voyage": 16,
+                        "Chauffeur": 22,
+                        "Client(s) inclus": 32,
+                        "Représentant(s) inclus": 30,
+                        "BL inclus": 35,
+                        "Poids total chargé": 20,
+                        "Volume total chargé": 21,
+                        "Type_Véhicule": 20,
+                        "Type_Camion": 18,
+                        "Métrique": 30,
+                        "Valeur": 22,
+                        "Nombre Véhicules": 20,
+                        "Nombre Camions": 18,
+                        "Nombre Estafettes": 20,
+                        "Poids Total (kg)": 20,
+                        "Poids Moyen (kg)": 20,
+                        "Volume Total (m³)": 21,
+                        "Volume Moyen (m³)": 21,
+                        "Taux Occupation Moyen (%)": 25,
+                        "Utilisation Poids (%)": 22,
+                        "Utilisation Volume (%)": 23,
+                    }
+
+                    if entete in largeurs:
+                        largeur = largeurs[entete]
+                    else:
+                        largeur = max(15, min(35, max_longueur + 2))
+
+                    worksheet.column_dimensions[lettre].width = largeur
+
+                # Adapter la hauteur de chaque ligne au contenu
+                for ligne_idx in range(2, worksheet.max_row + 1):
+                    max_lignes = 1
+
+                    for cellule in worksheet[ligne_idx]:
+                        if cellule.value is not None:
+                            nb_lignes = (
+                                str(cellule.value).count("\n") + 1
+                            )
+                            max_lignes = max(
+                                max_lignes, nb_lignes
+                            )
+
+                    worksheet.row_dimensions[ligne_idx].height = min(
+                        120,
+                        max(22, max_lignes * 18)
+                    )
+
+                # Activer les filtres si la feuille contient des colonnes
+                if worksheet.max_row >= 1 and worksheet.max_column >= 1:
+                    worksheet.auto_filter.ref = worksheet.dimensions
+
+                # Figer la première ligne
+                worksheet.freeze_panes = "A2"
+
+                # Masquer le quadrillage
+                worksheet.sheet_view.showGridLines = False
+
+                # Paramètres d'impression
+                worksheet.page_setup.orientation = "landscape"
+                worksheet.page_setup.fitToWidth = 1
+                worksheet.page_setup.fitToHeight = 0
+                worksheet.sheet_properties.pageSetUpPr.fitToPage = True
+                worksheet.print_title_rows = "1:1"
+
         return True, f"✅ Planning exporté avec succès : {file_path}"
     
     except Exception as e:
