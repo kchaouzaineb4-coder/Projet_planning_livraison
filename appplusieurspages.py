@@ -2348,8 +2348,8 @@ def page_analyse():
                 if "Ville" in df_filtered.columns:
                     ville = str(row["Ville"]).strip().upper()
                     if ville == "SFAX":
-                        # Calcul du nombre d'estafettes (max 3 voyages par estafette)
-                        return int((val + 2) // 3)  # ceil division
+                        # Calcul du nombre d'estafettes (max 2 voyages par estafette)
+                        return int((val + 1) // 2)  # ceil division
                 
                 # Pour les autres villes, retourner la valeur telle quelle
                 return val
@@ -2401,7 +2401,7 @@ def page_analyse():
                 st.plotly_chart(fig4, use_container_width=True)
                 
             # --- AJOUTER UNE NOTE EXPLICATIVE POUR SFAX ---
-            st.caption("ℹ️ Note : Pour SFAX (Zone 7), le nombre d'estafettes est calculé avec un maximum de 3 voyages par estafette.")
+            st.caption("ℹ️ Note : Pour SFAX (Zone 7), le nombre d'estafettes est calculé avec un maximum de 2 voyages par estafette.")
             
         else:
             st.info("ℹ️ Aucune donnée disponible pour les graphiques (TRIPOLI exclue)")
