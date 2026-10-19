@@ -2707,6 +2707,9 @@ def refuse_location_callback():
 # =====================================================
 # PAGE 3: Optimisation & location
 # =====================================================
+# =====================================================
+# PAGE 3: Optimisation & location
+# =====================================================
 def page_optimisation():
     st.markdown("<h1 class='main-header'>3. 🚚 Optimisation & location</h1>", unsafe_allow_html=True)
     
@@ -2815,6 +2818,83 @@ def page_optimisation():
     if st.session_state.propositions is None and st.session_state.rental_processor:
         update_propositions_view()
     
+    # =====================================================
+    # NOUVEAU : DÉFINITION DES TYPES DE CAMIONS DISPONIBLES
+    # =====================================================
+    TRUCK_TYPES = {
+        "5 tonnes": {
+            "label": "5 tonnes (1 camion)",
+            "poids_max": 5000,      # kg
+            "volume_max": 20,       # m³
+            "nb_camions": 1,
+            "nb_voyages": 1,
+            "description": "Poids max 5 000 kg, Volume max 20 m³",
+            "cascade": ["5 tonnes"]
+        },
+        "10 tonnes": {
+            "label": "10 tonnes (1 camion)",
+            "poids_max": 10000,
+            "volume_max": 40,
+            "nb_camions": 1,
+            "nb_voyages": 1,
+            "description": "Poids max 10 000 kg, Volume max 40 m³",
+            "cascade": ["10 tonnes"]
+        },
+        "5 tonnes + 5 tonnes (2 camions différents)": {
+            "label": "5 tonnes + 5 tonnes (2 camions différents)",
+            "poids_max": 10000,
+            "volume_max": 40,
+            "nb_camions": 2,
+            "nb_voyages": 1,
+            "description": "2 camions 5 tonnes : Poids max 10 000 kg, Volume max 40 m³",
+            "cascade": ["5 tonnes", "5 tonnes"],
+            "is_combined": True
+        },
+        "5 tonnes × 2 (même camion, 2 voyages)": {
+            "label": "5 tonnes × 2 (même camion, 2 voyages)",
+            "poids_max": 10000,
+            "volume_max": 40,
+            "nb_camions": 1,
+            "nb_voyages": 2,
+            "description": "1 camion 5 tonnes fait 2 voyages : Poids max 10 000 kg, Volume max 40 m³",
+            "cascade": ["5 tonnes", "5 tonnes"],
+            "is_combined": True
+        },
+        "10 tonnes + 5 tonnes (2 camions différents)": {
+            "label": "10 tonnes + 5 tonnes (2 camions différents)",
+            "poids_max": 15000,
+            "volume_max": 60,
+            "nb_camions": 2,
+            "nb_voyages": 1,
+            "description": "2 camions (10t + 5t) : Poids max 15 000 kg, Volume max 60 m³",
+            "cascade": ["10 tonnes", "5 tonnes"],
+            "is_combined": True
+        },
+        "10 tonnes + 10 tonnes (même camion, 2 voyages)": {
+            "label": "10 tonnes + 10 tonnes (même camion, 2 voyages)",
+            "poids_max": 20000,
+            "volume_max": 80,
+            "nb_camions": 1,
+            "nb_voyages": 2,
+            "description": "1 camion 10 tonnes fait 2 voyages : Poids max 20 000 kg, Volume max 80 m³",
+            "cascade": ["10 tonnes", "10 tonnes"],
+            "is_combined": True
+        },
+        "10 tonnes + 10 tonnes (2 camions différents)": {
+            "label": "10 tonnes + 10 tonnes (2 camions différents)",
+            "poids_max": 20000,
+            "volume_max": 80,
+            "nb_camions": 2,
+            "nb_voyages": 1,
+            "description": "2 camions 10 tonnes : Poids max 20 000 kg, Volume max 80 m³",
+            "cascade": ["10 tonnes", "10 tonnes"],
+            "is_combined": True
+        },
+    }
+    
+    # Liste ordonnée des options pour le selectbox
+    TRUCK_OPTIONS = list(TRUCK_TYPES.keys())
+    
     # Onglets pour différentes fonctionnalités
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📋 Propositions Location", 
@@ -2906,172 +2986,111 @@ def page_optimisation():
                     st.warning("⚠️ Format de données incorrect dans les propositions.")
                     st.session_state.selected_client = None
 
-                # AJOUTER LE CHOIX DU TYPE DE CAMION AVANT LES BOUTONS
+                # AJOUTER LE CHOIX DU TYPE DE CAMION AVEC LES NOUVELLES OPTIONS
+                is_client_selected = st.session_state.selected_client != "" and st.session_state.selected_client is not None
                 
-                # =====================================================
-                # PROPOSITIONS DE LOCATION DE CAMION
-                # =====================================================
-
-                is_client_selected = (
-                    st.session_state.selected_client != ""
-                    and st.session_state.selected_client is not None
-                )
-
                 if is_client_selected:
                     st.markdown("---")
                     st.markdown("### 🚚 Type de camion à louer")
-
-                    # Configurations proposées
-                    options_camions = [
-                        "5 tonnes",
-                        "10 tonnes",
-                        "5 tonnes + 5 tonnes (2 camions différents)",
-                        "5 tonnes × 2 (1 camion, 2 voyages)",
-                        "10 tonnes + 5 tonnes (2 camions différents)",
-                        "10 tonnes + 10 tonnes (2 camions différents)"
-                    ]
-
-                    # Conserver la sélection précédente si elle existe
-                    choix_precedent = st.session_state.get("truck_type", "5 tonnes")
-
-                    if choix_precedent not in options_camions:
-                        choix_precedent = "5 tonnes"
-
-                    st.session_state.truck_type = st.selectbox(
-                        "Sélectionnez la configuration des camions :",
-                        options=options_camions,
-                        index=options_camions.index(choix_precedent),
-                        key="truck_type_select",
-                        help=(
-                            "Choisissez la capacité et le nombre de camions "
-                            "ou de voyages nécessaires."
-                        )
-                    )
-
-                    # =====================================================
-                    # CAPACITÉS SELON LA CONFIGURATION CHOISIE
-                    # =====================================================
-
                     
-                    capacites_camions = {
-                        "5 tonnes": {
-                            "poids": 5000,
-                            "volume": 20,
-                            "description": "1 camion de 5 tonnes"
-                        },
-                        "10 tonnes": {
-                            "poids": 10000,
-                            "volume": 40,
-                            "description": "1 camion de 10 tonnes"
-                        },
-                        "5 tonnes + 5 tonnes (2 camions différents)": {
-                            "poids": 10000,
-                            "volume": 40,
-                            "description": "2 camions de 5 tonnes"
-                        },
-                        "5 tonnes × 2 (1 camion, 2 voyages)": {
-                            "poids": 10000,
-                            "volume": 40,
-                            "description": "1 camion de 5 tonnes effectuant 2 voyages"
-                        },
-                        "10 tonnes + 5 tonnes (2 camions différents)": {
-                            "poids": 15000,
-                            "volume": 60,
-                            "description": "1 camion de 10 tonnes et 1 camion de 5 tonnes"
-                        },
-                        "10 tonnes × 2 (1 camion, 2 voyages)": {
-                            "poids": 20000,
-                            "volume": 80,
-                            "description": "1 camion de 10 tonnes effectuant 2 voyages"
-                        },
-                        "10 tonnes + 10 tonnes (2 camions différents)": {
-                            "poids": 20000,
-                            "volume": 80,
-                            "description": "2 camions de 10 tonnes"
-                        }
-                    }
-
-
-                    config = capacites_camions[st.session_state.truck_type]
-
-                    poids_max = config["poids"]
-                    volume_max = config["volume"]
-
-                    st.info(
-                        f"**Configuration :** {config['description']}\n\n"
-                        f"**Capacité totale théorique :** "
-                        f"{poids_max:,} kg et {volume_max} m³".replace(",", " ")
+                    # =====================================================
+                    # SÉLECTION DU TYPE DE CAMION (NOUVELLES OPTIONS)
+                    # =====================================================
+                    current_truck_type = st.session_state.get('truck_type', TRUCK_OPTIONS[0])
+                    if current_truck_type not in TRUCK_OPTIONS:
+                        current_truck_type = TRUCK_OPTIONS[0]
+                    
+                    st.session_state.truck_type = st.selectbox(
+                        "Sélectionnez le type de camion :",
+                        options=TRUCK_OPTIONS,
+                        index=TRUCK_OPTIONS.index(current_truck_type),
+                        key='truck_type_select',
+                        help="Capacité du/des camion(s) à louer. Les options combinées permettent de dépasser les limites d'un seul camion."
                     )
-
+                    
                     # =====================================================
-                    # VÉRIFICATION DE COMPATIBILITÉ
+                    # AFFICHAGE DES CAPACITÉS SELON LE TYPE SÉLECTIONNÉ
                     # =====================================================
-
+                    truck_info = TRUCK_TYPES[st.session_state.truck_type]
+                    poids_max = truck_info["poids_max"]
+                    volume_max = truck_info["volume_max"]
+                    
+                    # Info box avec les capacités
+                    if truck_info.get("is_combined"):
+                        if truck_info["nb_camions"] == 2 and truck_info["nb_voyages"] == 1:
+                            st.info(
+                                f"**{truck_info['label']}** : Poids max **{poids_max:,} kg**, "
+                                f"Volume max **{volume_max} m³** "
+                                f"(2 camions différents, 1 voyage chacun)"
+                            )
+                        elif truck_info["nb_camions"] == 1 and truck_info["nb_voyages"] == 2:
+                            st.info(
+                                f"**{truck_info['label']}** : Poids max **{poids_max:,} kg**, "
+                                f"Volume max **{volume_max} m³** "
+                                f"(1 camion, 2 voyages)"
+                            )
+                        else:
+                            st.info(
+                                f"**{truck_info['label']}** : Poids max **{poids_max:,} kg**, "
+                                f"Volume max **{volume_max} m³**"
+                            )
+                    else:
+                        st.info(f"**Capacités {st.session_state.truck_type}** : {truck_info['description']}")
+                    
+                    # --- VÉRIFICATION DE COMPATIBILITÉ AVEC AFFICHAGE CLAIR ---
                     try:
-                        import re
-
-                        resume, details_df = (
-                            st.session_state.rental_processor.get_details_client(
-                                st.session_state.selected_client
-                            )
+                        resume, details_df = st.session_state.rental_processor.get_details_client(
+                            st.session_state.selected_client
                         )
-
-                        if resume:
-                            poids_match = re.search(
-                                r"Poids total RÉEL\s*:\s*([\d.,]+)\s*kg",
-                                resume
-                            )
-
-                            volume_match = re.search(
-                                r"Volume total RÉEL\s*:\s*([\d.,]+)\s*m³",
-                                resume
-                            )
-
-                            if poids_match and volume_match:
-                                poids_reel = float(
-                                    poids_match.group(1).replace(",", ".")
-                                )
-
-                                volume_reel = float(
-                                    volume_match.group(1).replace(",", ".")
-                                )
-
+                        # Extraire le poids total du résumé
+                        if resume and "Poids total RÉEL" in resume:
+                            import re
+                            poids_match = re.search(r'Poids total RÉEL : ([\d.]+) kg', resume)
+                            volume_match = re.search(r'Volume total RÉEL : ([\d.]+) m³', resume)
+                            
+                            if poids_match:
+                                poids_reel = float(poids_match.group(1))
+                                volume_reel = float(volume_match.group(1)) if volume_match else 0
+                                
+                                # Vérifications
                                 poids_ok = poids_reel <= poids_max
                                 volume_ok = volume_reel <= volume_max
-
+                                
+                                # Afficher le statut de compatibilité
                                 if poids_ok and volume_ok:
                                     st.success(
-                                        f"✅ Capacité totale compatible avec le client.\n\n"
-                                        f"Poids : {poids_reel:.1f} / {poids_max:,} kg\n\n"
-                                        f"Volume : {volume_reel:.3f} / {volume_max} m³"
-                                        .replace(",", " ")
+                                        f"✅ Le type **{st.session_state.truck_type}** est adapté pour ce client "
+                                        f"(Poids: {poids_reel:.1f} kg / Max: {poids_max:,} kg | "
+                                        f"Volume: {volume_reel:.3f} m³ / Max: {volume_max} m³)"
                                     )
                                 else:
-                                    st.error(
-                                        "❌ La capacité totale de cette configuration "
-                                        "est insuffisante."
-                                    )
-
                                     if not poids_ok:
-                                        st.warning(
-                                            f"Poids du client : {poids_reel:.1f} kg. "
-                                            f"Capacité disponible : {poids_max:,} kg."
-                                            .replace(",", " ")
+                                        st.error(
+                                            f"❌ **Le poids total ({poids_reel:.1f} kg) dépasse la capacité "
+                                            f"de {st.session_state.truck_type} ({poids_max:,} kg).** "
+                                            f"Veuillez sélectionner une option de plus grande capacité."
                                         )
-
                                     if not volume_ok:
-                                        st.warning(
-                                            f"Volume du client : {volume_reel:.3f} m³. "
-                                            f"Capacité disponible : {volume_max} m³."
+                                        st.error(
+                                            f"❌ **Le volume total ({volume_reel:.3f} m³) dépasse la capacité "
+                                            f"de {st.session_state.truck_type} ({volume_max} m³).** "
+                                            f"Veuillez sélectionner une option de plus grande capacité."
                                         )
-
+                                    
+                                    # Suggérer le type de camion approprié (cascade)
+                                    suggestions = []
+                                    for opt_name, opt_info in TRUCK_TYPES.items():
+                                        if opt_info["poids_max"] >= poids_reel and opt_info["volume_max"] >= volume_reel:
+                                            suggestions.append(opt_name)
+                                    
+                                    if suggestions:
+                                        # Prendre la plus petite option qui convient
+                                        st.info(f"💡 Suggestion : Sélectionnez **{suggestions[0]}** pour ce client.")
                     except Exception as e:
-                        st.warning(
-                            "La vérification de compatibilité n'a pas pu être effectuée."
-                        )
-
+                        # Ignorer les erreurs de récupération des détails
+                        pass
+                    
                     st.markdown("---")
-
 
                 # Boutons d'action
                 col_btn_acc, col_btn_ref = st.columns(2)
@@ -3089,16 +3108,26 @@ def page_optimisation():
                             if resume and "Poids total RÉEL" in resume:
                                 import re
                                 poids_match = re.search(r'Poids total RÉEL : ([\d.]+) kg', resume)
+                                volume_match = re.search(r'Volume total RÉEL : ([\d.]+) m³', resume)
+                                
                                 if poids_match:
                                     poids_reel = float(poids_match.group(1))
-                                    truck_type = st.session_state.get('truck_type', '5 tonnes')
+                                    volume_reel = float(volume_match.group(1)) if volume_match else 0
+                                    truck_type = st.session_state.get('truck_type', TRUCK_OPTIONS[0])
+                                    truck_info = TRUCK_TYPES[truck_type]
                                     
-                                    if truck_type == "5 tonnes" and poids_reel > 5000:
+                                    if poids_reel > truck_info["poids_max"]:
                                         is_compatible = False
-                                        compatibility_message = "❌ Poids > 5000kg - Sélectionnez 10 tonnes"
-                                    elif truck_type == "10 tonnes" and poids_reel > 10000:
+                                        compatibility_message = (
+                                            f"❌ Poids {poids_reel:.1f} kg > {truck_info['poids_max']:,} kg "
+                                            f"- Sélectionnez une capacité supérieure"
+                                        )
+                                    elif volume_reel > truck_info["volume_max"]:
                                         is_compatible = False
-                                        compatibility_message = "❌ Poids > 10000kg"
+                                        compatibility_message = (
+                                            f"❌ Volume {volume_reel:.3f} m³ > {truck_info['volume_max']} m³ "
+                                            f"- Sélectionnez une capacité supérieure"
+                                        )
                         except:
                             pass
                     
@@ -3138,7 +3167,7 @@ def page_optimisation():
                 
                 if is_client_selected:
                     # Afficher le type de camion sélectionné s'il y a lieu
-                    truck_type_display = st.session_state.get('truck_type', '5 tonnes')
+                    truck_type_display = st.session_state.get('truck_type', TRUCK_OPTIONS[0])
                     st.info(f"**Type de camion sélectionné :** {truck_type_display}")
                     
                     try:
