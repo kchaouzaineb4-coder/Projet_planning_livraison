@@ -533,36 +533,53 @@ class TruckRentalProcessor:
         self._next_camion_num = self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE].shape[0] + 1
         self.truck_type = "5 tonnes"  # Valeur par défaut
     
-        def _get_capacites_camion(self, truck_type_str):
-        """Retourne les capacités (poids, volume) selon le type de camion."""
-        # Nettoyage de la chaîne pour éviter les erreurs d'espaces
-        truck_str = str(truck_type_str).lower().strip()
+    def _get_capacites_vehicule(self, vehicle, df):
+        """
+        Récupère les capacités (poids, volume) d'un véhicule spécifique
+        en fonction de son type.
+        """
+        # 1. Trouver la ligne du véhicule
+        veh_col = "Véhicule N°" if "Véhicule N°" in df.columns else "Camion N°"
+        mask = df[veh_col] == vehicle
         
-        # Dictionnaire des capacités
-        capacites = {
-            "5 tonnes": (5000, 20),
-            "10 tonnes": (10000, 40),
-            "5 tonnes + 5 tonnes (2 camions différents)": (10000, 40),
-            "5 tonnes × 2 (même camion, 2 voyages)": (10000, 40),
-            "10 tonnes + 5 tonnes (2 camions différents)": (15000, 60),
-            "10 tonnes + 10 tonnes (même camion, 2 voyages)": (20000, 80),
-            "10 tonnes + 10 tonnes (2 camions différents)": (20000, 80),
-        }
-        
-        if truck_str in capacites:
-            return capacites[truck_str]
+        if not mask.any():
+            return 1550, 4.608 # Valeurs par défaut si introuvable
             
-        # Fallback si le texte est légèrement différent
-        if "10 tonnes + 5 tonnes" in truck_str:
-            return 15000, 60
-        elif "10 tonnes + 10 tonnes" in truck_str:
-            return 20000, 80
-        elif "5 tonnes + 5 tonnes" in truck_str:
-            return 10000, 40
-        elif "10 tonnes" in truck_str:
-            return 10000, 40
+        row = df[mask].iloc[0]
+        
+        # 2. Vérifier si c'est un camion
+        is_camion = str(row.get("Code Véhicule", "")) == CAMION_CODE or str(vehicle).upper().startswith("C")
+        
+        if is_camion:
+            # Récupérer le type exact du camion
+            truck_type = str(row.get("Type_Camion", "5 tonnes")).strip()
+            
+            # 3. Dictionnaire des nouvelles capacités
+            capacites = {
+                "5 tonnes": (5000, 20),
+                "10 tonnes": (10000, 40),
+                "5 tonnes + 5 tonnes (2 camions différents)": (10000, 40),
+                "5 tonnes × 2 (même camion, 2 voyages)": (10000, 40),
+                "10 tonnes + 5 tonnes (2 camions différents)": (15000, 60),
+                "10 tonnes + 10 tonnes (même camion, 2 voyages)": (20000, 80),
+                "10 tonnes + 10 tonnes (2 camions différents)": (20000, 80),
+            }
+            
+            if truck_type in capacites:
+                return capacites[truck_type]
+            
+            # Fallback de sécurité si le texte diffère légèrement
+            truck_str = truck_type.lower()
+            if "10 tonnes + 5 tonnes" in truck_str: return 15000, 60
+            if "10 tonnes + 10 tonnes" in truck_str: return 20000, 80
+            if "5 tonnes + 5 tonnes" in truck_str: return 10000, 40
+            if "10 tonnes" in truck_str: return 10000, 40
+            
+            return 5000, 20 # Par défaut pour un camion
+            
         else:
-            return 5000, 20
+            # Capacités par défaut pour une estafette
+            return 1550, 4.608
         
     def _initialize_rental_columns(self, df):
         """Initialise les colonnes pour la gestion de la location."""
