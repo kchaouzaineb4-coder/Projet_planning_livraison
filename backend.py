@@ -533,11 +533,12 @@ class TruckRentalProcessor:
         self._next_camion_num = self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE].shape[0] + 1
         self.truck_type = "5 tonnes"  # Valeur par défaut
     
-    def _get_capacites_camion(self, truck_type):
-        """
-        Retourne les capacités (poids max, volume max) en fonction du type de camion sélectionné.
-        """
-        # Dictionnaire des capacités selon les nouveaux types
+        def _get_capacites_camion(self, truck_type_str):
+        """Retourne les capacités (poids, volume) selon le type de camion."""
+        # Nettoyage de la chaîne pour éviter les erreurs d'espaces
+        truck_str = str(truck_type_str).lower().strip()
+        
+        # Dictionnaire des capacités
         capacites = {
             "5 tonnes": (5000, 20),
             "10 tonnes": (10000, 40),
@@ -548,20 +549,20 @@ class TruckRentalProcessor:
             "10 tonnes + 10 tonnes (2 camions différents)": (20000, 80),
         }
         
-        # Si le type n'est pas trouvé, on cherche par mots-clés (fallback de sécurité)
-        if truck_type in capacites:
-            return capacites[truck_type]
-        
-        # Fallback au cas où le texte est légèrement différent
-        truck_str = str(truck_type).lower()
-        if "10 tonnes + 5 tonnes" in truck_str or "10 tonnes + 10 tonnes" in truck_str:
+        if truck_str in capacites:
+            return capacites[truck_str]
+            
+        # Fallback si le texte est légèrement différent
+        if "10 tonnes + 5 tonnes" in truck_str:
+            return 15000, 60
+        elif "10 tonnes + 10 tonnes" in truck_str:
             return 20000, 80
         elif "5 tonnes + 5 tonnes" in truck_str:
             return 10000, 40
         elif "10 tonnes" in truck_str:
             return 10000, 40
         else:
-            return 5000, 20 # Par défaut 5 tonnes
+            return 5000, 20
         
     def _initialize_rental_columns(self, df):
         """Initialise les colonnes pour la gestion de la location."""
