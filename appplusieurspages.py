@@ -3113,21 +3113,17 @@ def page_optimisation():
                                 if poids_match:
                                     poids_reel = float(poids_match.group(1))
                                     volume_reel = float(volume_match.group(1)) if volume_match else 0
+                                    
                                     truck_type = st.session_state.get('truck_type', TRUCK_OPTIONS[0])
                                     truck_info = TRUCK_TYPES[truck_type]
                                     
+                                    # Vérification stricte basée sur le dictionnaire TRUCK_TYPES
                                     if poids_reel > truck_info["poids_max"]:
                                         is_compatible = False
-                                        compatibility_message = (
-                                            f"❌ Poids {poids_reel:.1f} kg > {truck_info['poids_max']:,} kg "
-                                            f"- Sélectionnez une capacité supérieure"
-                                        )
+                                        compatibility_message = f"❌ Poids max dépassé ({truck_info['poids_max']:,} kg)"
                                     elif volume_reel > truck_info["volume_max"]:
                                         is_compatible = False
-                                        compatibility_message = (
-                                            f"❌ Volume {volume_reel:.3f} m³ > {truck_info['volume_max']} m³ "
-                                            f"- Sélectionnez une capacité supérieure"
-                                        )
+                                        compatibility_message = f"❌ Volume max dépassé ({truck_info['volume_max']} m³)"
                         except:
                             pass
                     
