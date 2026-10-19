@@ -1837,6 +1837,18 @@ def page_analyse():
                         )
                     )
                 )
+            # =====================================================
+            # QUANTITÉ : CONVERTIR <br> EN RETOURS À LA LIGNE EXCEL
+            # =====================================================
+            if "Quantité" in df_xl_zone.columns:
+                df_xl_zone["Quantité"] = (
+                    df_xl_zone["Quantité"]
+                    .fillna("")
+                    .astype(str)
+                    .str.replace("<br />", "\n", regex=False)
+                    .str.replace("<br/>", "\n", regex=False)
+                    .str.replace("<br>", "\n", regex=False)
+                )
 
 
         # =====================================================
@@ -1949,9 +1961,11 @@ def page_analyse():
                 wrap_columns.append("Article")
 
             for c in df_xl_zone.columns:
-
                 if "signation" in str(c):
                     wrap_columns.append(c)
+
+            if "Quantité" in df_xl_zone.columns:
+                wrap_columns.append("Quantité")
 
 
             # =================================================
@@ -1973,6 +1987,8 @@ def page_analyse():
                 "Article": 24,
 
                 "Désignation": 45,
+
+                "Quantité": 14,
 
                 "Poids total": 16,
 
