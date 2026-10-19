@@ -533,10 +533,36 @@ class TruckRentalProcessor:
         self._next_camion_num = self.df_base[self.df_base["Code Véhicule"] == CAMION_CODE].shape[0] + 1
         self.truck_type = "5 tonnes"  # Valeur par défaut
     
-    def _get_capacites_camion(self, truck_type="5 tonnes"):
-        """Retourne les capacités selon le type de camion."""
-        return get_capacite_poids_camion(truck_type), get_capacite_volume_camion(truck_type)
-    
+    def _get_capacites_camion(self, truck_type):
+        """
+        Retourne les capacités (poids max, volume max) en fonction du type de camion sélectionné.
+        """
+        # Dictionnaire des capacités selon les nouveaux types
+        capacites = {
+            "5 tonnes": (5000, 20),
+            "10 tonnes": (10000, 40),
+            "5 tonnes + 5 tonnes (2 camions différents)": (10000, 40),
+            "5 tonnes × 2 (même camion, 2 voyages)": (10000, 40),
+            "10 tonnes + 5 tonnes (2 camions différents)": (15000, 60),
+            "10 tonnes + 10 tonnes (même camion, 2 voyages)": (20000, 80),
+            "10 tonnes + 10 tonnes (2 camions différents)": (20000, 80),
+        }
+        
+        # Si le type n'est pas trouvé, on cherche par mots-clés (fallback de sécurité)
+        if truck_type in capacites:
+            return capacites[truck_type]
+        
+        # Fallback au cas où le texte est légèrement différent
+        truck_str = str(truck_type).lower()
+        if "10 tonnes + 5 tonnes" in truck_str or "10 tonnes + 10 tonnes" in truck_str:
+            return 20000, 80
+        elif "5 tonnes + 5 tonnes" in truck_str:
+            return 10000, 40
+        elif "10 tonnes" in truck_str:
+            return 10000, 40
+        else:
+            return 5000, 20 # Par défaut 5 tonnes
+        
     def _initialize_rental_columns(self, df):
         """Initialise les colonnes pour la gestion de la location."""
         df.rename(columns={
