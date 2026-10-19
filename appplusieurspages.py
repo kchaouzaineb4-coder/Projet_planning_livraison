@@ -713,9 +713,9 @@ def page_analyse():
         }
         
         /* Style pour les cellules de poids et volume - NOIR SANS GRAS */
-        .custom-table td:nth-child(6),
-        .custom-table td:nth-child(7) {
-            font-weight: normal;  /* CHANGÉ : 600 → normal */
+        .custom-table td:nth-child(8),
+        .custom-table td:nth-child(9) {
+            font-weight: normal;
             color: #000000 !important;
             vertical-align: middle;
         }
@@ -973,14 +973,15 @@ def page_analyse():
 
             largeurs_fixes = {
 
-                "No livraison": 18,
-                "Client": 18,
-                "Ville": 16,
-                "Représentant": 18,
-                "Article": 24,
-                "Désignation": 45,
-                "Poids total": 16,
-                "Volume total": 16
+                 "No livraison": 18,
+                 "Client": 18,
+                 "Ville": 16,
+                 "Représentant": 18,
+                 "Article": 24,
+                 "Désignation": 45,
+                 "Quantité": 14,
+                 "Poids total": 16,
+                 "Volume total": 16
             }
 
 
