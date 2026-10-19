@@ -756,7 +756,18 @@ def page_analyse():
                     df_liv[col] = df_liv[col].astype(str).apply(
                         lambda x: "<br>".join(d.strip() for d in x.split("||") if d.strip())
                     )
-
+            # Quantité : une quantité par ligne, comme Article et Désignation
+            if "Quantité" in df_liv.columns:
+                df_liv["Quantité"] = (
+                    df_liv["Quantité"]
+                    .fillna("")
+                    .astype(str)
+                    .apply(
+                        lambda x: "<br>".join(
+                            q.strip() for q in x.split("||") if q.strip()
+                        ) if "||" in x else x.replace("\n", "<br>")
+                    )
+                )
             # Formater les nombres - 3 chiffres après la virgule
             if "Poids total" in df_liv.columns:
                 df_liv["Poids total"] = df_liv["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
@@ -865,7 +876,20 @@ def page_analyse():
                     )
                 )
 
-
+        # =====================================================
+        # QTÉ : UNE QUANTITÉ PAR LIGNE
+        # =====================================================
+        if "Quantité" in df_xl.columns:
+            df_xl["Quantité"] = (
+                df_xl["Quantité"]
+                .fillna("")
+                .astype(str)
+                .apply(
+                    lambda x: "\n".join(
+                        q.strip() for q in x.split("<br>") if q.strip()
+                    )
+                )
+            )
         # =====================================================
         # FORMATAGE DES NOMBRES
         # =====================================================
@@ -966,6 +990,8 @@ def page_analyse():
                 if "signation" in str(c):
                     wrap_columns.append(c)
 
+            if "Quantité" in df_xl.columns:
+                wrap_columns.append("Quantité")
 
             # =================================================
             # LARGEURS DES COLONNES
@@ -979,6 +1005,7 @@ def page_analyse():
                 "Représentant": 18,
                 "Article": 24,
                 "Désignation": 45,
+                "Quantité": 14,
                 "Poids total": 16,
                 "Volume total": 16
             }

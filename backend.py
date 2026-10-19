@@ -193,22 +193,68 @@ class DeliveryProcessor:
         return pd.merge(df, df_clients[["Client", "Ville", "Représentant"]],
                        left_on="Client commande", right_on="Client", how="left")
 
+    
     def _group_data(self, df):
-        df_grouped = df.groupby(["No livraison", "Client", "Ville", "Représentant"], as_index=False).agg({
+        df = df.copy()
+
+        # Convertir les quantités en nombres
+        df["Quantité livrée US"] = pd.to_numeric(
+            df["Quantité livrée US"], errors="coerce"
+        ).fillna(0)
+
+        # Formater les quantités sans décimales inutiles
+        def formater_qte(qte):
+            qte = float(qte)
+            return str(int(qte)) if qte.is_integer() else str(qte)
+
+        # Regroupement par BL, client et ville
+        df_grouped = df.groupby(
+            ["No livraison", "Client", "Ville", "Représentant"],
+            as_index=False
+        ).agg({
+            # NE PAS MODIFIER LES ARTICLES
             "Article": lambda x: ", ".join(x.astype(str)),
+
+            # Une désignation par ligne
             "Désignation 1": lambda x: "<br>".join(
-                x.astype(str).str.replace(r"[,\r\n]+", " ", regex=True).str.strip()
+                x.astype(str)
+                .str.replace(r"[,\r\n]+", " ", regex=True)
+                .str.strip()
             ),
+
+            # Une quantité par ligne, dans le même ordre que les articles
+            "Quantité livrée US": lambda x: "<br>".join(
+                formater_qte(q) for q in x
+            ),
+
             "Poids total": "sum",
             "Volume total": "sum"
-        }).rename(columns={"Désignation 1": "Désignation"})
+        }).rename(columns={
+            "Désignation 1": "Désignation",
+            "Quantité livrée US": "Qté"
+        })
 
-        df_city = df_grouped.groupby("Ville", as_index=False).agg({
+        # Ordre des colonnes
+        colonnes = [
+            "No livraison", "Client", "Ville", "Représentant",
+            "Article", "Désignation", "Qté",
+            "Poids total", "Volume total"
+        ]
+        df_grouped = df_grouped[colonnes]
+
+        # Synthèse par ville
+        df_city = df_grouped.groupby(
+            "Ville", as_index=False
+        ).agg({
             "Poids total": "sum",
             "Volume total": "sum",
             "No livraison": "count"
-        }).rename(columns={"No livraison": "Nombre de BLs"})  # ← MODIFICATION ICI
+        }).rename(columns={
+            "No livraison": "Nombre de BLs"
+        })
+
         return df_grouped, df_city
+
 
     def _calculate_estafette_need(self, df):
         if "Poids total" in df.columns and "Volume total" in df.columns:
