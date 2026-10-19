@@ -877,18 +877,16 @@ def page_analyse():
                 )
 
         # =====================================================
-        # QTÉ : UNE QUANTITÉ PAR LIGNE
+        # QUANTITÉ : CONVERTIR <br> EN VRAIS RETOURS À LA LIGNE
         # =====================================================
         if "Quantité" in df_xl.columns:
             df_xl["Quantité"] = (
                 df_xl["Quantité"]
                 .fillna("")
                 .astype(str)
-                .apply(
-                    lambda x: "\n".join(
-                        q.strip() for q in x.split("<br>") if q.strip()
-                    )
-                )
+                .str.replace("<br>", "\n", regex=False)
+                .str.replace("<br/>", "\n", regex=False)
+                .str.replace("<br />", "\n", regex=False)
             )
         # =====================================================
         # FORMATAGE DES NOMBRES
