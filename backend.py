@@ -231,13 +231,13 @@ class DeliveryProcessor:
             "Volume total": "sum"
         }).rename(columns={
             "Désignation 1": "Désignation",
-            "Quantité livrée US": "Qté"
+            "Quantité livrée US": "Quantité"
         })
 
         # Ordre des colonnes
         colonnes = [
             "No livraison", "Client", "Ville", "Représentant",
-            "Article", "Désignation", "Qté",
+            "Article", "Désignation", "Quantité",
             "Poids total", "Volume total"
         ]
         df_grouped = df_grouped[colonnes]
