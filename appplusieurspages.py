@@ -2868,40 +2868,7 @@ def page_optimisation():
     # --- Onglet 1: Propositions de Location ---
     with tab1:
         st.subheader("Propositions de Location de Camion")
-        # DIAGNOSTIC TEMPORAIRE
-        st.write("### DEBUG LOCATION")
-
-        st.write(
-            "Propositions dans session_state :",
-            type(st.session_state.propositions).__name__
-        )
-
-        st.write(
-            "Nombre de propositions dans session_state :",
-            len(st.session_state.propositions)
-            if isinstance(st.session_state.propositions, pd.DataFrame)
-            else "Ce n'est pas un DataFrame"
-        )
-
-        if isinstance(st.session_state.propositions, pd.DataFrame):
-            st.dataframe(st.session_state.propositions)
-
-        if st.session_state.rental_processor:
-            df_debug = (
-                st.session_state.rental_processor.detecter_propositions()
-            )
-
-            st.write("### DEBUG DÉTECTION DIRECTE")
-
-            st.write("Type :", type(df_debug).__name__)
-
-            if isinstance(df_debug, pd.DataFrame):
-                st.write("Nombre de lignes :", len(df_debug))
-                st.write("Colonnes :", df_debug.columns.tolist())
-                st.dataframe(df_debug)
-
-        st.write("Seuil poids :", SEUIL_POIDS)
-        st.write("Seuil volume :", SEUIL_VOLUME)
+        
         if st.session_state.propositions is not None and not st.session_state.propositions.empty:
             col_prop, col_details = st.columns([2, 3])
             
