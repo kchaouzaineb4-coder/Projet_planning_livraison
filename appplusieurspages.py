@@ -2868,14 +2868,20 @@ def page_optimisation():
     # --- Onglet 1: Propositions de Location ---
     with tab1:
         st.subheader("Propositions de Location de Camion")
+        import pandas as pd
+        rp = st.session_state.rental_processor
         df = st.session_state.df_livraisons_original
-        st.write("Colonnes :", df.columns.tolist())
-        st.write(df[["Poids total", "Volume total"]].dtypes)
-        st.write(
-            df.groupby("Client de l'estafette")[["Poids total", "Volume total"]]
-            .sum().sort_values("Poids total", ascending=False).head(10)
-        )
-        st.write("Seuils :", SEUIL_POIDS, SEUIL_VOLUME)
+
+        st.write("dtypes :", df[["Poids total", "Volume total"]].dtypes.astype(str).to_dict())
+
+        # Appel direct, sans le try/except du backend
+        tot = (df.groupby("Client de l'estafette")[["Poids total", "Volume total"]]
+                .sum().sort_values("Poids total", ascending=False).head(10))
+        st.write("Top 10 clients :", tot)
+
+        st.write("Totaux backend :", rp._get_client_totals_from_original_data().head(10))
+        st.write("Propositions backend :", rp.detecter_propositions())
+        st.write("Déjà traités :", rp.df_base[rp.df_base["Location_proposee"]]["Client(s) inclus"].unique())
         if st.session_state.propositions is not None and not st.session_state.propositions.empty:
             col_prop, col_details = st.columns([2, 3])
             
