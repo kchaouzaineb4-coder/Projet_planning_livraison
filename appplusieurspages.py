@@ -377,8 +377,69 @@ def creer_lien_mailto(df_suspects, max_lignes=20):
         f"&body={quote(corps)}"
     )
 
+def to_excel_poids_suspects(df):
+    """Excel formaté (en-tête bleu) pour la liste des articles à poids suspect."""
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    df_xl = df.copy()
+    df_xl["Poids"] = pd.to_numeric(df_xl["Poids"], errors="coerce")
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df_xl.to_excel(writer, index=False, sheet_name="Poids à corriger")
+        ws = writer.sheets["Poids à corriger"]
+
+        bordure_fine = Side(style="thin", color="B0C4DE")
+        bordure = Border(
+            left=bordure_fine, right=bordure_fine,
+            top=bordure_fine, bottom=bordure_fine
+        )
+        centre = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        # Toutes les cellules : bordures + centrage + police
+        for ligne in ws.iter_rows():
+            for cellule in ligne:
+                cellule.border = bordure
+                cellule.alignment = centre
+                cellule.font = Font(name="Arial", size=10)
+
+        # En-tête bleu
+        for cellule in ws[1]:
+            cellule.fill = PatternFill(fill_type="solid", fgColor="0369A1")
+            cellule.font = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+        ws.row_dimensions[1].height = 30
+
+        # Colonne Poids : format 3 décimales + fond rouge clair pour attirer l'oeil
+        idx_poids = list(df_xl.columns).index("Poids") + 1
+        for r in range(2, ws.max_row + 1):
+            c = ws.cell(row=r, column=idx_poids)
+            c.number_format = "0.000"
+            c.fill = PatternFill(fill_type="solid", fgColor="FDE2E2")
+            c.font = Font(name="Arial", size=10, bold=True, color="B91C1C")
+
+        # Largeurs des colonnes
+        largeurs = {"No livraison": 22, "Article": 18, "Désignation": 50, "Poids": 14}
+        for i, nom in enumerate(df_xl.columns, start=1):
+            ws.column_dimensions[get_column_letter(i)].width = largeurs.get(nom, 18)
+
+        # Filtre, en-tête figé, impression
+        ws.auto_filter.ref = ws.dimensions
+        ws.freeze_panes = "A2"
+        ws.sheet_view.showGridLines = False
+        ws.page_setup.orientation = "landscape"
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = 0
+        ws.sheet_properties.pageSetUpPr.fitToPage = True
+        ws.print_title_rows = "1:1"
+
+    return output.getvalue()
+
+
 
 @st.dialog("⚠️ Articles avec poids suspect (0 ou 1000)", width="large")
+
+
 def popup_poids_suspects():
     df_s = st.session_state.df_poids_suspects
     nb_bl = df_s["No livraison"].nunique()
@@ -393,7 +454,7 @@ def popup_poids_suspects():
 
     st.download_button(
         "1️⃣ Télécharger la liste (Excel)",
-        data=to_excel(df_s, "Poids à corriger"),
+        data=to_excel_poids_suspects(df_s),
         file_name="articles_poids_a_corriger.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,
