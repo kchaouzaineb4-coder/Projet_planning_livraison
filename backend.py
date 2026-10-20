@@ -607,95 +607,34 @@ class TruckRentalProcessor:
 
         return df
 
-    
     def _get_client_totals_from_original_data(self):
-        """Extrait et vérifie les totaux réels par client."""
+        """Extrait les totaux réels des clients depuis le tableau 'Livraisons par Client & Ville + Zone'."""
         try:
-            print("\n========== DEBUG TOTAUX CLIENTS ==========")
-
-            df = self.df_livraisons_original
-
-            print("Type :", type(df))
-            print("Nombre de lignes :", len(df))
-            print("Colonnes disponibles :", df.columns.tolist())
-
-            required_cols = [
-                "Client de l'estafette",
-                "Poids total",
-                "Volume total"
-            ]
-
-            missing_cols = [
-                col for col in required_cols
-                if col not in df.columns
-            ]
-
+            # Vérifier que les colonnes nécessaires existent
+            required_cols = ["Client de l'estafette", "Poids total", "Volume total"]
+            missing_cols = [col for col in required_cols if col not in self.df_livraisons_original.columns]
+            
             if missing_cols:
-                print("COLONNES MANQUANTES :", missing_cols)
-                return pd.DataFrame(
-                    columns=[
-                        "Client",
-                        "Poids total (kg)",
-                        "Volume total (m³)"
-                    ]
-                )
-
-            print("\nValeurs manquantes :")
-            print(df[required_cols].isna().sum())
-
-            print("\nExemples de données originales :")
-            print(df[required_cols].head(10).to_string(index=False))
-
-            # Conversion en nombres pour vérifier les calculs
-            df = df.copy()
-            df["Poids total"] = pd.to_numeric(
-                df["Poids total"], errors="coerce"
-            )
-            df["Volume total"] = pd.to_numeric(
-                df["Volume total"], errors="coerce"
-            )
-
-            df_client_totals = (
-                df.groupby("Client de l'estafette", dropna=False)
-                .agg({
-                    "Poids total": "sum",
-                    "Volume total": "sum"
-                })
-                .reset_index()
-                .rename(columns={
-                    "Client de l'estafette": "Client",
-                    "Poids total": "Poids total (kg)",
-                    "Volume total": "Volume total (m³)"
-                })
-            )
-
-            print("\nNombre de clients calculés :", len(df_client_totals))
-            print("\nTop 20 des totaux clients :")
-            print(
-                df_client_totals.sort_values(
-                    "Poids total (kg)", ascending=False
-                ).head(20).to_string(index=False)
-            )
-
-            print("\nClients dépassant au moins un seuil :")
-            print(
-                df_client_totals[
-                    (df_client_totals["Poids total (kg)"] >= SEUIL_POIDS)
-                    | (df_client_totals["Volume total (m³)"] >= SEUIL_VOLUME)
-                ].to_string(index=False)
-            )
-
-            print("==========================================\n")
-
+                print(f"⚠️ Colonnes manquantes dans les données originales: {missing_cols}")
+                return pd.DataFrame(columns=["Client", "Poids total (kg)", "Volume total (m³)"])
+            
+            # Grouper par client pour obtenir les totaux RÉELS
+            df_client_totals = self.df_livraisons_original.groupby("Client de l'estafette").agg({
+                "Poids total": "sum",
+                "Volume total": "sum"
+            }).reset_index()
+            
+            df_client_totals = df_client_totals.rename(columns={
+                "Client de l'estafette": "Client",
+                "Poids total": "Poids total (kg)",
+                "Volume total": "Volume total (m³)"
+            })
+            
             return df_client_totals
-
+            
         except Exception as e:
-            print(f"ERREUR extraction totaux clients : {e}")
-            return pd.DataFrame(columns=[
-                "Client",
-                "Poids total (kg)",
-                "Volume total (m³)"
-            ])
+            print(f"❌ Erreur lors de l'extraction des totaux clients: {e}")
+            return pd.DataFrame(columns=["Client", "Poids total (kg)", "Volume total (m³)"])
 
     def detecter_propositions(self):
         """Détecte les propositions en utilisant les totaux RÉELS du tableau original."""

@@ -2868,7 +2868,14 @@ def page_optimisation():
     # --- Onglet 1: Propositions de Location ---
     with tab1:
         st.subheader("Propositions de Location de Camion")
-        
+        df = st.session_state.df_livraisons_original
+        st.write("Colonnes :", df.columns.tolist())
+        st.write(df[["Poids total", "Volume total"]].dtypes)
+        st.write(
+            df.groupby("Client de l'estafette")[["Poids total", "Volume total"]]
+            .sum().sort_values("Poids total", ascending=False).head(10)
+        )
+        st.write("Seuils :", SEUIL_POIDS, SEUIL_VOLUME)
         if st.session_state.propositions is not None and not st.session_state.propositions.empty:
             col_prop, col_details = st.columns([2, 3])
             
