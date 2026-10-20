@@ -2868,7 +2868,11 @@ def page_optimisation():
     # --- Onglet 1: Propositions de Location ---
     with tab1:
         st.subheader("Propositions de Location de Camion")
-        
+        st.write("DEBUG propositions :", st.session_state.propositions)
+        if st.session_state.rental_processor:
+            test = st.session_state.rental_processor.detecter_propositions()
+            st.write("DEBUG détection directe :", test)
+            st.write("Seuils :", SEUIL_POIDS, SEUIL_VOLUME)
         if st.session_state.propositions is not None and not st.session_state.propositions.empty:
             col_prop, col_details = st.columns([2, 3])
             
