@@ -342,35 +342,40 @@ def detecter_poids_suspects(df_liv_raw, df_art_raw):
     return suspects[["No livraison", "Article", "Désignation", "Poids"]] \
         .drop_duplicates().reset_index(drop=True)
 
+EMAIL_DE = "Zaineb.KCHAOU@sopal.com"
+EMAIL_A = "Malek.ABDELLAOUI@sopal.com"
+EMAIL_CC = [
+    "Taha.BOUAZIZ@sopal.com",
+    "Nadhem.KESKES@sopal.com",
+    "Bechir.KHEMAKHEM@sopal.com",
+]
 
-def envoyer_email_poids(df_suspects):
-    """Envoie les articles à corriger par SMTP (config dans st.secrets['email'])."""
-    buffer = BytesIO()
-    df_suspects.to_excel(buffer, index=False, sheet_name="Poids à corriger")
+def creer_lien_mailto(df_suspects, max_lignes=20):
+    """Construit un lien mailto: avec la liste des articles dans le corps."""
+    lignes = []
+    for _, r in df_suspects.head(max_lignes).iterrows():
+        lignes.append(
+            f"- BL {r['No livraison']} | Article {r['Article']} | "
+            f"{r['Désignation']} | Poids : {r['Poids']}"
+        )
+    suite = ""
+    if len(df_suspects) > max_lignes:
+        suite = f"\n... et {len(df_suspects) - max_lignes} autre(s) article(s) (voir fichier joint)."
 
-    msg = EmailMessage()
-    msg["Subject"] = "Articles avec poids à corriger (0 ou 1000)"
-    msg["From"] = st.secrets["email"]["sender"]
-    msg["To"] = st.secrets["email"]["recipient"]
-    cc = list(st.secrets["email"].get("cc", []))
-    if cc:
-        msg["Cc"] = ", ".join(cc)
-    msg.set_content(
+    corps = (
         "Bonjour,\n\n"
-        f"{len(df_suspects)} article(s) ont un poids égal à 0 ou 1000.\n"
-        "Merci de corriger leur poids (liste en pièce jointe).\n\n"
-        "Cordialement"
+        f"{len(df_suspects)} article(s) ont un poids égal à 0 ou 1000. "
+        "Merci de corriger leur poids :\n\n"
+        + "\n".join(lignes) + suite +
+        "\n\nCordialement,\nZaineb KCHAOU"
     )
-    msg.add_attachment(
-        buffer.getvalue(),
-        maintype="application",
-        subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename="articles_poids_a_corriger.xlsx",
+    sujet = "Articles avec poids à corriger (0 ou 1000)"
+    return (
+        f"mailto:{EMAIL_A}"
+        f"?cc={quote(','.join(EMAIL_CC))}"
+        f"&subject={quote(sujet)}"
+        f"&body={quote(corps)}"
     )
-    with smtplib.SMTP(st.secrets["email"]["host"], int(st.secrets["email"]["port"])) as s:
-        s.starttls()
-        s.login(st.secrets["email"]["sender"], st.secrets["email"]["password"])
-        s.send_message(msg)   # envoie automatiquement au To + Cc
 
 
 @st.dialog("⚠️ Articles avec poids suspect (0 ou 1000)", width="large")
@@ -379,11 +384,15 @@ def popup_poids_suspects():
     nb_bl = df_s["No livraison"].nunique()
     st.warning(f"**{len(df_s)} article(s)** dans **{nb_bl} BL** ont un poids égal à 0 ou 1000.")
 
-    st.dataframe(df_s, use_container_width=True, hide_index=True,
-                 column_config={"Poids": st.column_config.NumberColumn("Poids", format="%.3f")})
+    st.dataframe(
+        df_s,
+        use_container_width=True,
+        hide_index=True,
+        column_config={"Poids": st.column_config.NumberColumn("Poids", format="%.3f")},
+    )
 
     st.download_button(
-        "💾 Télécharger la liste (Excel)",
+        "1️⃣ Télécharger la liste (Excel)",
         data=to_excel(df_s, "Poids à corriger"),
         file_name="articles_poids_a_corriger.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -392,15 +401,15 @@ def popup_poids_suspects():
 
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("📧 Envoyer par email pour correction", use_container_width=True):
-            try:
-                envoyer_email_poids(df_s)
-                st.success("✅ Email envoyé.")
-            except Exception as e:
-                st.error(f"❌ Échec de l'envoi : {e}")
+        st.link_button(
+            "2️⃣ 📧 Ouvrir l'email dans Outlook",
+            creer_lien_mailto(df_s),
+            use_container_width=True,
+        )
     with c2:
         if st.button("➡️ Continuer l'analyse", type="primary", use_container_width=True):
-            st.rerun()   # ferme la pop-up
+            st.rerun()
+
 
 # =====================================================
 # INITIALISATION SESSION STATE
@@ -633,7 +642,7 @@ def page_analyse():
     df_susp = st.session_state.get("df_poids_suspects")
     if df_susp is not None and not df_susp.empty and not st.session_state.get("popup_poids_vu", False):
         st.session_state.popup_poids_vu = True
-        popup_poids_suspects()
+        
 
     # CSS PERSONNALISÉ POUR LES ONGLETS
     st.markdown("""
