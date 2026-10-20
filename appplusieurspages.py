@@ -406,7 +406,7 @@ def popup_poids_suspects():
             creer_lien_mailto(df_s),
             use_container_width=True,
         )
-     with c2:
+    with c2:
         if st.button("➡️ Continuer l'analyse", type="primary", use_container_width=True):
             st.session_state.popup_poids_vu = True
             st.rerun()
