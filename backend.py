@@ -228,7 +228,7 @@ class DeliveryProcessor:
         ZONE_7_NORD = "Zone 7_Nord - Sfax Nord"
 
         zones = {
-            "Zone 1 - Tunis Centre": ["BARDO", "TUNIS", "ZAHROUNI"],
+            "Zone 1 - Tunis Centre": ["BARDO", "TUNIS", "ZAHROUNI", "MANOUBA"],
             "Zone 2 - Ben Arous": ["BEN AROUS"],
             "Zone 3 - Ariana": ["ARIANA", "SOUKRA", "AOUINA", "CHARGUIA"],
             "Zone 4 - Sousse-Kairouan": ["MSAKEN", "SOUSSE", "KAIROUAN", "KAIROUAN SUD"],
