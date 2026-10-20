@@ -351,7 +351,7 @@ def envoyer_email_poids(df_suspects):
     msg = EmailMessage()
     msg["Subject"] = "Articles avec poids à corriger (0 ou 1000)"
     msg["From"] = st.secrets["email"]["sender"]
-     msg["To"] = st.secrets["email"]["recipient"]
+    msg["To"] = st.secrets["email"]["recipient"]
     cc = list(st.secrets["email"].get("cc", []))
     if cc:
         msg["Cc"] = ", ".join(cc)
