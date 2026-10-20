@@ -5984,7 +5984,7 @@ def page_optimisation():
                     clients_exclus_rapport = {
                         "AMECAP", "SANA", "SOPAL", "SOPALGAZ", "SOPALSERV", "SOPALTEC",
                         "SOPALALG", "AQUAPLAST", "WINOX", "QUIVEM", "SANISTONE",
-                        "SOPAMAR", "SOPALAFR", "SOPALINTER", "PERSOGSO"
+                        "SOPAMAR", "SOPALAFR", "SOPALINTER", "PERSOGSO", "SIAM"
                     }
 
                     # Filtrer AVANT de construire la liste déroulante
