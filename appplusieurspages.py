@@ -756,18 +756,7 @@ def page_analyse():
                     df_liv[col] = df_liv[col].astype(str).apply(
                         lambda x: "<br>".join(d.strip() for d in x.split("||") if d.strip())
                     )
-            # Quantité : une quantité par ligne, comme Article et Désignation
-            if "Quantité" in df_liv.columns:
-                df_liv["Quantité"] = (
-                    df_liv["Quantité"]
-                    .fillna("")
-                    .astype(str)
-                    .apply(
-                        lambda x: "<br>".join(
-                            q.strip() for q in x.split("||") if q.strip()
-                        ) if "||" in x else x.replace("\n", "<br>")
-                    )
-                )
+
             # Formater les nombres - 3 chiffres après la virgule
             if "Poids total" in df_liv.columns:
                 df_liv["Poids total"] = df_liv["Poids total"].map(lambda x: f"{x:.3f} kg" if pd.notna(x) else "")
@@ -876,18 +865,7 @@ def page_analyse():
                     )
                 )
 
-        # =====================================================
-        # QUANTITÉ : CONVERTIR <br> EN VRAIS RETOURS À LA LIGNE
-        # =====================================================
-        if "Quantité" in df_xl.columns:
-            df_xl["Quantité"] = (
-                df_xl["Quantité"]
-                .fillna("")
-                .astype(str)
-                .str.replace("<br>", "\n", regex=False)
-                .str.replace("<br/>", "\n", regex=False)
-                .str.replace("<br />", "\n", regex=False)
-            )
+
         # =====================================================
         # FORMATAGE DES NOMBRES
         # =====================================================
@@ -988,8 +966,6 @@ def page_analyse():
                 if "signation" in str(c):
                     wrap_columns.append(c)
 
-            if "Quantité" in df_xl.columns:
-                wrap_columns.append("Quantité")
 
             # =================================================
             # LARGEURS DES COLONNES
@@ -1003,7 +979,6 @@ def page_analyse():
                 "Représentant": 18,
                 "Article": 24,
                 "Désignation": 45,
-                "Quantité": 14,
                 "Poids total": 16,
                 "Volume total": 16
             }
@@ -1837,18 +1812,6 @@ def page_analyse():
                         )
                     )
                 )
-            # =====================================================
-            # QUANTITÉ : CONVERTIR <br> EN RETOURS À LA LIGNE EXCEL
-            # =====================================================
-            if "Quantité" in df_xl_zone.columns:
-                df_xl_zone["Quantité"] = (
-                    df_xl_zone["Quantité"]
-                    .fillna("")
-                    .astype(str)
-                    .str.replace("<br />", "\n", regex=False)
-                    .str.replace("<br/>", "\n", regex=False)
-                    .str.replace("<br>", "\n", regex=False)
-                )
 
 
         # =====================================================
@@ -1961,11 +1924,9 @@ def page_analyse():
                 wrap_columns.append("Article")
 
             for c in df_xl_zone.columns:
+
                 if "signation" in str(c):
                     wrap_columns.append(c)
-
-            if "Quantité" in df_xl_zone.columns:
-                wrap_columns.append("Quantité")
 
 
             # =================================================
@@ -1987,8 +1948,6 @@ def page_analyse():
                 "Article": 24,
 
                 "Désignation": 45,
-
-                "Quantité": 14,
 
                 "Poids total": 16,
 
@@ -2868,20 +2827,7 @@ def page_optimisation():
     # --- Onglet 1: Propositions de Location ---
     with tab1:
         st.subheader("Propositions de Location de Camion")
-        import pandas as pd
-        rp = st.session_state.rental_processor
-        df = st.session_state.df_livraisons_original
-
-        st.write("dtypes :", df[["Poids total", "Volume total"]].dtypes.astype(str).to_dict())
-
-        # Appel direct, sans le try/except du backend
-        tot = (df.groupby("Client de l'estafette")[["Poids total", "Volume total"]]
-                .sum().sort_values("Poids total", ascending=False).head(10))
-        st.write("Top 10 clients :", tot)
-
-        st.write("Totaux backend :", rp._get_client_totals_from_original_data().head(10))
-        st.write("Propositions backend :", rp.detecter_propositions())
-        st.write("Déjà traités :", rp.df_base[rp.df_base["Location_proposee"]]["Client(s) inclus"].unique())
+        
         if st.session_state.propositions is not None and not st.session_state.propositions.empty:
             col_prop, col_details = st.columns([2, 3])
             
