@@ -406,8 +406,9 @@ def popup_poids_suspects():
             creer_lien_mailto(df_s),
             use_container_width=True,
         )
-    with c2:
+     with c2:
         if st.button("➡️ Continuer l'analyse", type="primary", use_container_width=True):
+            st.session_state.popup_poids_vu = True
             st.rerun()
 
 
@@ -638,10 +639,12 @@ def page_analyse():
             st.rerun()
         return
 
-    # --- Pop-up poids suspects : affichée une seule fois avant la lecture des tableaux ---
+    # --- Pop-up poids suspects : affichée tant que l'utilisateur n'a pas cliqué "Continuer" ---
     df_susp = st.session_state.get("df_poids_suspects")
+    st.caption(f"🔎 Debug : suspects = {None if df_susp is None else len(df_susp)} | vu = {st.session_state.get('popup_poids_vu')}")
+
     if df_susp is not None and not df_susp.empty and not st.session_state.get("popup_poids_vu", False):
-        st.session_state.popup_poids_vu = True
+        popup_poids_suspects()
         
 
     # CSS PERSONNALISÉ POUR LES ONGLETS
