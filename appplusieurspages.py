@@ -360,50 +360,84 @@ EMAIL_CC = [
 
 import html as html_lib
 
+import html as html_lib
+
 def creer_email_eml(df_suspects):
-    """Génère un fichier .eml (brouillon Outlook) avec tableau HTML + Excel en pièce jointe."""
+    """Génère un .eml (brouillon Outlook) : tableau HTML compatible Outlook + Excel joint."""
+    nb_articles = len(df_suspects)
+    nb_bl = df_suspects["No livraison"].nunique()
+
+    # --- Lignes du tableau (fond alterné) ---
     lignes_html = ""
-    for _, r in df_suspects.iterrows():
+    for i, (_, r) in enumerate(df_suspects.iterrows()):
+        fond = "#FFFFFF" if i % 2 == 0 else "#F0F7FD"
         poids = pd.to_numeric(r["Poids"], errors="coerce")
-        poids_txt = "" if pd.isna(poids) else f"{poids:.3f}"
+        poids_txt = "" if pd.isna(poids) else f"{poids:,.3f}".replace(",", " ")
+        cellule = (
+            "border:1px solid #B0C4DE;padding:7px 10px;"
+            "font-family:Calibri,Arial,sans-serif;font-size:10.5pt;"
+        )
         lignes_html += (
-            "<tr>"
-            f"<td style='border:1px solid #B0C4DE;padding:6px 10px;text-align:center;'>{html_lib.escape(str(r['No livraison']))}</td>"
-            f"<td style='border:1px solid #B0C4DE;padding:6px 10px;text-align:center;'>{html_lib.escape(str(r['Article']))}</td>"
-            f"<td style='border:1px solid #B0C4DE;padding:6px 10px;text-align:left;'>{html_lib.escape(str(r['Désignation']))}</td>"
-            f"<td style='border:1px solid #B0C4DE;padding:6px 10px;text-align:center;color:#B91C1C;font-weight:bold;'>{poids_txt}</td>"
-            "</tr>"
+            f'<tr bgcolor="{fond}">\n'
+            f'<td width="150" align="center" bgcolor="{fond}" style="{cellule}text-align:center;">'
+            f'{html_lib.escape(str(r["No livraison"]))}</td>\n'
+            f'<td width="120" align="center" bgcolor="{fond}" style="{cellule}text-align:center;">'
+            f'{html_lib.escape(str(r["Article"]))}</td>\n'
+            f'<td width="380" align="left" bgcolor="{fond}" style="{cellule}text-align:left;">'
+            f'{html_lib.escape(str(r["Désignation"]))}</td>\n'
+            f'<td width="90" align="center" bgcolor="{fond}" style="{cellule}text-align:center;">'
+            f'<font color="#B91C1C"><b>{poids_txt}</b></font></td>\n'
+            "</tr>\n"
         )
 
+    # --- En-tête bleu (attributs bgcolor + font pour Outlook) ---
+    style_th = (
+        "border:1px solid #B0C4DE;padding:8px 10px;text-align:center;"
+        "font-family:Calibri,Arial,sans-serif;font-size:10.5pt;"
+    )
+    largeurs = {"No livraison": 150, "Article": 120, "Désignation": 380, "Poids": 90}
     entete = "".join(
-        f"<th style='background-color:#0369A1;color:#FFFFFF;border:1px solid #B0C4DE;"
-        f"padding:8px 10px;text-align:center;'>{h}</th>"
+        f'<td width="{largeurs[h]}" align="center" bgcolor="#0369A1" style="background-color:#0369A1;{style_th}">'
+        f'<font color="#FFFFFF"><b>{h}</b></font></td>\n'
         for h in ["No livraison", "Article", "Désignation", "Poids"]
     )
 
-    corps_html = f"""
-    <html><body style="font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#000;">
-      <p>Bonjour,</p>
-      <p><b>{len(df_suspects)} article(s)</b> ont un poids égal à 0 ou 1000.<br>
-         Merci de corriger leur poids :</p>
-      <table style="border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:10.5pt;">
-        <thead><tr>{entete}</tr></thead>
-        <tbody>{lignes_html}</tbody>
-      </table>
-      <p>Cordialement,<br>Zaineb KCHAOU</p>
-    </body></html>
-    """
+    corps_html = f"""<html>
+<head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"></head>
+<body style="font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#000000;">
+<p>Bonjour,</p>
+
+<p>Lors du contrôle des livraisons, <b>{nb_articles} article(s)</b> répartis sur
+<b>{nb_bl} BL</b> ont été détectés avec un <b>poids égal à 0 ou 1000</b>.<br>
+Merci de vérifier et de corriger le poids de ces articles dans la fiche article :</p>
+
+<table width="740" cellpadding="0" cellspacing="0" border="0"
+       style="border-collapse:collapse;width:740px;">
+<tr bgcolor="#0369A1">
+{entete}</tr>
+{lignes_html}</table>
+
+<p>Le fichier Excel de cette liste est joint à ce message.<br>
+Merci de me confirmer une fois les corrections effectuées afin que je relance le planning.</p>
+
+<p>Cordialement,<br>
+<b>Zaineb KCHAOU</b><br>
+SOPAL</p>
+</body></html>"""
 
     msg = EmailMessage()
     msg["To"] = EMAIL_A
     msg["Cc"] = ", ".join(EMAIL_CC)
-    msg["Subject"] = "Articles avec poids à corriger (0 ou 1000)"
-    msg["X-Unsent"] = "1"   # Outlook ouvre le fichier comme un brouillon à envoyer
+    msg["Subject"] = f"Articles avec poids à corriger (0 ou 1000) - {nb_articles} article(s)"
+    msg["X-Unsent"] = "1"   # s'ouvre comme brouillon dans Outlook
+
+    # base64 : évite la corruption (=26, =DE...) causée par quoted-printable
     msg.set_content(
-        f"Bonjour,\n\n{len(df_suspects)} article(s) ont un poids égal à 0 ou 1000. "
-        "Merci de corriger leur poids (voir pièce jointe).\n\nCordialement,\nZaineb KCHAOU"
+        f"Bonjour,\n\n{nb_articles} article(s) ont un poids égal à 0 ou 1000. "
+        "Merci de corriger leur poids (voir pièce jointe).\n\nCordialement,\nZaineb KCHAOU",
+        cte="base64",
     )
-    msg.add_alternative(corps_html, subtype="html")
+    msg.add_alternative(corps_html, subtype="html", cte="base64")
     msg.add_attachment(
         to_excel_poids_suspects(df_suspects),
         maintype="application",
