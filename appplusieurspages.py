@@ -350,32 +350,59 @@ EMAIL_CC = [
     "Bechir.KHEMAKHEM@sopal.com",
 ]
 
-def creer_lien_mailto(df_suspects, max_lignes=20):
-    """Construit un lien mailto: avec la liste des articles dans le corps."""
-    lignes = []
-    for _, r in df_suspects.head(max_lignes).iterrows():
-        lignes.append(
-            f"- BL {r['No livraison']} | Article {r['Article']} | "
-            f"{r['Désignation']} | Poids : {r['Poids']}"
-        )
-    suite = ""
-    if len(df_suspects) > max_lignes:
-        suite = f"\n... et {len(df_suspects) - max_lignes} autre(s) article(s) (voir fichier joint)."
+import html as html_lib
 
-    corps = (
-        "Bonjour,\n\n"
-        f"{len(df_suspects)} article(s) ont un poids égal à 0 ou 1000. "
-        "Merci de corriger leur poids :\n\n"
-        + "\n".join(lignes) + suite +
-        "\n\nCdt,\nZaineb KCHAOU"
+def creer_email_eml(df_suspects):
+    """Génère un fichier .eml (brouillon Outlook) avec tableau HTML + Excel en pièce jointe."""
+    lignes_html = ""
+    for _, r in df_suspects.iterrows():
+        poids = pd.to_numeric(r["Poids"], errors="coerce")
+        poids_txt = "" if pd.isna(poids) else f"{poids:.3f}"
+        lignes_html += (
+            "<tr>"
+            f"<td style='border:1px solid #B0C4DE;padding:6px 10px;text-align:center;'>{html_lib.escape(str(r['No livraison']))}</td>"
+            f"<td style='border:1px solid #B0C4DE;padding:6px 10px;text-align:center;'>{html_lib.escape(str(r['Article']))}</td>"
+            f"<td style='border:1px solid #B0C4DE;padding:6px 10px;text-align:left;'>{html_lib.escape(str(r['Désignation']))}</td>"
+            f"<td style='border:1px solid #B0C4DE;padding:6px 10px;text-align:center;color:#B91C1C;font-weight:bold;'>{poids_txt}</td>"
+            "</tr>"
+        )
+
+    entete = "".join(
+        f"<th style='background-color:#0369A1;color:#FFFFFF;border:1px solid #B0C4DE;"
+        f"padding:8px 10px;text-align:center;'>{h}</th>"
+        for h in ["No livraison", "Article", "Désignation", "Poids"]
     )
-    sujet = "Articles avec poids à corriger (0 ou 1000)"
-    return (
-        f"mailto:{EMAIL_A}"
-        f"?cc={quote(','.join(EMAIL_CC))}"
-        f"&subject={quote(sujet)}"
-        f"&body={quote(corps)}"
+
+    corps_html = f"""
+    <html><body style="font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#000;">
+      <p>Bonjour,</p>
+      <p><b>{len(df_suspects)} article(s)</b> ont un poids égal à 0 ou 1000.<br>
+         Merci de corriger leur poids :</p>
+      <table style="border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:10.5pt;">
+        <thead><tr>{entete}</tr></thead>
+        <tbody>{lignes_html}</tbody>
+      </table>
+      <p>Cordialement,<br>Zaineb KCHAOU</p>
+    </body></html>
+    """
+
+    msg = EmailMessage()
+    msg["To"] = EMAIL_A
+    msg["Cc"] = ", ".join(EMAIL_CC)
+    msg["Subject"] = "Articles avec poids à corriger (0 ou 1000)"
+    msg["X-Unsent"] = "1"   # Outlook ouvre le fichier comme un brouillon à envoyer
+    msg.set_content(
+        f"Bonjour,\n\n{len(df_suspects)} article(s) ont un poids égal à 0 ou 1000. "
+        "Merci de corriger leur poids (voir pièce jointe).\n\nCordialement,\nZaineb KCHAOU"
     )
+    msg.add_alternative(corps_html, subtype="html")
+    msg.add_attachment(
+        to_excel_poids_suspects(df_suspects),
+        maintype="application",
+        subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename="articles_poids_a_corriger.xlsx",
+    )
+    return bytes(msg)
 
 def to_excel_poids_suspects(df):
     """Excel formaté (en-tête bleu) pour la liste des articles à poids suspect."""
@@ -438,8 +465,6 @@ def to_excel_poids_suspects(df):
 
 
 @st.dialog("⚠️ Articles avec poids suspect (0 ou 1000)", width="large")
-
-
 def popup_poids_suspects():
     df_s = st.session_state.df_poids_suspects
     nb_bl = df_s["No livraison"].nunique()
@@ -453,22 +478,25 @@ def popup_poids_suspects():
     )
 
     st.download_button(
-        "1️⃣ Télécharger la liste (Excel)",
-        data=to_excel_poids_suspects(df_s),
-        file_name="articles_poids_a_corriger.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "📧 Télécharger l'email (à ouvrir avec Outlook)",
+        data=creer_email_eml(df_s),
+        file_name="Email_poids_a_corriger.eml",
+        mime="message/rfc822",
         use_container_width=True,
+        type="primary",
     )
 
     c1, c2 = st.columns(2)
     with c1:
-        st.link_button(
-            "2️⃣ 📧 Ouvrir l'email dans Outlook",
-            creer_lien_mailto(df_s),
+        st.download_button(
+            "💾 Télécharger la liste (Excel)",
+            data=to_excel_poids_suspects(df_s),
+            file_name="articles_poids_a_corriger.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
         )
     with c2:
-        if st.button("➡️ Continuer l'analyse", type="primary", use_container_width=True):
+        if st.button("➡️ Continuer l'analyse", use_container_width=True):
             st.session_state.popup_poids_vu = True
             st.rerun()
 
