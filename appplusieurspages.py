@@ -318,16 +318,24 @@ from urllib.parse import quote
 
 POIDS_SUSPECTS = [0, 1000]
 
+CLIENTS_INTERNES = {"QUIVEM", "SOPALTHYNA", "SOPAL", "SANA"}
+
 def detecter_poids_suspects(df_liv_raw, df_art_raw):
-    """Retourne les lignes dont 'Poids de l'US' vaut 0 ou 1000
-    avec : No livraison, Article, Désignation, Poids."""
+    """Lignes dont 'Poids de l'US' vaut 0 ou 1000, hors BLs des clients internes.
+    Retourne : No livraison, Article, Désignation, Poids."""
     df = df_liv_raw.copy()
     df["Poids de l'US"] = pd.to_numeric(df["Poids de l'US"], errors="coerce")
+
+    # --- Exclure les BLs des clients internes ---
+    if "Client commande" in df.columns:
+        client_norm = df["Client commande"].astype(str).str.strip().str.upper()
+        df = df[~client_norm.isin(CLIENTS_INTERNES)]
+
     suspects = df[df["Poids de l'US"].isin(POIDS_SUSPECTS)][
         ["No livraison", "Article", "Poids de l'US"]
     ].copy()
 
-    # Désignation depuis le fichier Articles
+    # --- Désignation depuis le fichier Articles ---
     col_design = next((c for c in df_art_raw.columns if "signation" in str(c)), None)
     if col_design is not None and "Article" in df_art_raw.columns:
         art = df_art_raw[["Article", col_design]].drop_duplicates(subset="Article")
