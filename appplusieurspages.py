@@ -367,7 +367,7 @@ def creer_lien_mailto(df_suspects, max_lignes=20):
         f"{len(df_suspects)} article(s) ont un poids égal à 0 ou 1000. "
         "Merci de corriger leur poids :\n\n"
         + "\n".join(lignes) + suite +
-        "\n\nCordialement,\nZaineb KCHAOU"
+        "\n\nCdt,\nZaineb KCHAOU"
     )
     sujet = "Articles avec poids à corriger (0 ou 1000)"
     return (
