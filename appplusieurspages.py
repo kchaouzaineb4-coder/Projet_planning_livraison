@@ -422,7 +422,7 @@ Merci de me confirmer une fois les corrections effectuées afin que je relance l
 
 <p>Cordialement,<br>
 <b>Zaineb KCHAOU</b><br>
-SOPAL</p>
+</p>
 </body></html>"""
 
     msg = EmailMessage()
