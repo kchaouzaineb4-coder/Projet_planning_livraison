@@ -504,7 +504,118 @@ def to_excel_poids_suspects(df):
 
     return output.getvalue()
 
+SITES_VOLUME = {"SA1", "AP1", "SO1", "TC1", "SO2"}
+CLIENTS_EXCLUS_VOLUME = {
+    "AMECAP", "SANA", "SOPAL", "SOPALGAZ", "SOPALSERV", "SOPALTEC",
+    "SOPALALG", "AQUAPLAST", "WINOX", "QUIVEM", "SANISTONE",
+    "SOPAMAR", "SOPALAFR", "SOPALINTER", "PERSOGSO", "SOPALTHYNA"
+}
 
+def detecter_volumes_nuls(df_liv_raw, df_art_raw):
+    """Articles (sites SA1/AP1/SO1/TC1/SO2, hors SDC et clients internes)
+    dont le volume est nul ou absent du fichier Volumes.
+    Retourne : Article, Désignation, Volume, Nb BL."""
+    df = df_liv_raw.copy()
+
+    # --- mêmes filtres que _filter_initial_data ---
+    sites = df["Site vente"].astype(str).str.strip().str.upper()
+    df = df[sites.isin(SITES_VOLUME)]
+    df = df[df["Type livraison"].astype(str).str.strip().str.upper() != "SDC"]
+    clients = df["Client commande"].astype(str).str.strip().str.upper()
+    df = df[~clients.isin(CLIENTS_EXCLUS_VOLUME)]
+
+    df["Article"] = df["Article"].astype(str).str.strip()
+    articles = (
+        df.groupby("Article")["No livraison"].nunique()
+        .reset_index(name="Nb BL")
+    )
+
+    # --- fichier Volumes : colonnes volume et désignation ---
+    art = df_art_raw.copy()
+    col_vol = next((c for c in art.columns if "olume" in str(c)), None)
+    col_des = next((c for c in art.columns if "signation" in str(c)), None)
+    if col_vol is None:
+        raise ValueError(f"Colonne volume introuvable. Colonnes : {list(art.columns)}")
+
+    art["Article"] = art["Article"].astype(str).str.strip()
+    art["_vol"] = pd.to_numeric(art[col_vol], errors="coerce")
+    agg = {"_vol": "max"}
+    if col_des is not None:
+        agg[col_des] = "first"
+    art = art.groupby("Article", as_index=False).agg(agg)
+
+    res = articles.merge(art, on="Article", how="left")
+    res = res.rename(columns={"_vol": "Volume"})
+    if col_des is not None:
+        res = res.rename(columns={col_des: "Désignation"})
+    else:
+        res["Désignation"] = ""
+
+    # volume nul = 0 ou article absent / vide dans le fichier Volumes
+    res = res[res["Volume"].isna() | (res["Volume"] == 0)]
+    return res[["Article", "Désignation", "Volume", "Nb BL"]] \
+        .sort_values("Article").reset_index(drop=True)
+
+
+def to_excel_volumes_nuls(df):
+    """Excel formaté (en-tête bleu) pour les articles à volume nul."""
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Volumes à corriger")
+        ws = writer.sheets["Volumes à corriger"]
+
+        cote = Side(style="thin", color="B0C4DE")
+        bordure = Border(left=cote, right=cote, top=cote, bottom=cote)
+        centre = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        for ligne in ws.iter_rows():
+            for c in ligne:
+                c.border = bordure
+                c.alignment = centre
+                c.font = Font(name="Arial", size=10)
+        for c in ws[1]:
+            c.fill = PatternFill(fill_type="solid", fgColor="0369A1")
+            c.font = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+        ws.row_dimensions[1].height = 30
+
+        largeurs = {"Article": 18, "Désignation": 55, "Volume": 14, "Nb BL": 10}
+        for i, nom in enumerate(df.columns, start=1):
+            ws.column_dimensions[get_column_letter(i)].width = largeurs.get(nom, 18)
+
+        ws.auto_filter.ref = ws.dimensions
+        ws.freeze_panes = "A2"
+        ws.sheet_view.showGridLines = False
+    return output.getvalue()
+
+
+@st.dialog("📦 Articles avec volume nul", width="large")
+def popup_volumes_nuls():
+    df_v = st.session_state.df_volumes_nuls
+    st.warning(f"**{len(df_v)} article(s)** ont un volume nul ou absent du fichier Volumes.")
+
+    st.dataframe(
+        df_v,
+        use_container_width=True,
+        hide_index=True,
+        column_config={"Volume": st.column_config.NumberColumn("Volume", format="%.3f")},
+    )
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.download_button(
+            "💾 Télécharger la liste (Excel)",
+            data=to_excel_volumes_nuls(df_v),
+            file_name="articles_volume_nul.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+        )
+    with c2:
+        if st.button("➡️ Continuer l'analyse", type="primary", use_container_width=True):
+            st.session_state.popup_volume_vu = True
+            st.rerun()
 
 @st.dialog("⚠️ Articles avec poids suspect (0 ou 1000)", width="large")
 def popup_poids_suspects():
@@ -714,6 +825,8 @@ def page_import():
                     df_art_raw = pd.read_excel(ydlogist_file)
                     st.session_state.df_poids_suspects = detecter_poids_suspects(df_liv_raw, df_art_raw)
                     st.session_state.popup_poids_vu = False   # réarmer la pop-up
+                    st.session_state.df_volumes_nuls = detecter_volumes_nuls(df_liv_raw, df_art_raw)
+                    st.session_state.popup_volume_vu = False
 
                     st.markdown("""
                 <div style="text-align: center; padding: 10px; margin-top: 20px;">
@@ -772,10 +885,12 @@ def page_analyse():
 
     # --- Pop-up poids suspects : affichée tant que l'utilisateur n'a pas cliqué "Continuer" ---
     df_susp = st.session_state.get("df_poids_suspects")
-    st.caption(f"🔎 Debug : suspects = {None if df_susp is None else len(df_susp)} | vu = {st.session_state.get('popup_poids_vu')}")
+    df_vol = st.session_state.get("df_volumes_nuls")
 
     if df_susp is not None and not df_susp.empty and not st.session_state.get("popup_poids_vu", False):
         popup_poids_suspects()
+    elif df_vol is not None and not df_vol.empty and not st.session_state.get("popup_volume_vu", False):
+        popup_volumes_nuls()
         
 
     # CSS PERSONNALISÉ POUR LES ONGLETS
