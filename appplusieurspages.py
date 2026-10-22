@@ -590,6 +590,86 @@ def to_excel_volumes_nuls(df):
         ws.sheet_view.showGridLines = False
     return output.getvalue()
 
+def creer_email_eml_volumes(df_vol):
+    """Génère un .eml (brouillon Outlook) : tableau HTML + Excel joint, pour les volumes nuls."""
+    nb_articles = len(df_vol)
+
+    cellule = (
+        "border:1px solid #B0C4DE;padding:7px 10px;"
+        "font-family:Calibri,Arial,sans-serif;font-size:10.5pt;"
+    )
+    largeurs = {"Article": 130, "Désignation": 420, "Volume": 100, "Nb BL": 80}
+
+    lignes_html = ""
+    for i, (_, r) in enumerate(df_vol.iterrows()):
+        fond = "#FFFFFF" if i % 2 == 0 else "#F0F7FD"
+        vol = pd.to_numeric(r["Volume"], errors="coerce")
+        vol_txt = "Non renseigné" if pd.isna(vol) else f"{vol:.3f}"
+        lignes_html += (
+            f'<tr bgcolor="{fond}">\n'
+            f'<td width="{largeurs["Article"]}" align="center" bgcolor="{fond}" style="{cellule}text-align:center;">'
+            f'{html_lib.escape(str(r["Article"]))}</td>\n'
+            f'<td width="{largeurs["Désignation"]}" align="left" bgcolor="{fond}" style="{cellule}text-align:left;">'
+            f'{html_lib.escape(str(r["Désignation"]))}</td>\n'
+            f'<td width="{largeurs["Volume"]}" align="center" bgcolor="{fond}" style="{cellule}text-align:center;">'
+            f'<font color="#B91C1C"><b>{vol_txt}</b></font></td>\n'
+            f'<td width="{largeurs["Nb BL"]}" align="center" bgcolor="{fond}" style="{cellule}text-align:center;">'
+            f'{int(r["Nb BL"])}</td>\n'
+            "</tr>\n"
+        )
+
+    style_th = (
+        "border:1px solid #B0C4DE;padding:8px 10px;text-align:center;"
+        "font-family:Calibri,Arial,sans-serif;font-size:10.5pt;"
+    )
+    entete = "".join(
+        f'<td width="{largeurs[h]}" align="center" bgcolor="#0369A1" style="background-color:#0369A1;{style_th}">'
+        f'<font color="#FFFFFF"><b>{h}</b></font></td>\n'
+        for h in ["Article", "Désignation", "Volume", "Nb BL"]
+    )
+    largeur_totale = sum(largeurs.values())
+
+    corps_html = f"""<html>
+<head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"></head>
+<body style="font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#000000;">
+<p>Bonjour,</p>
+
+<p>Lors du contrôle des livraisons, <b>{nb_articles} article(s)</b> ont été détectés avec un
+<b>volume nul ou non renseigné</b>.<br>
+Merci de vérifier et de corriger le volume de ces articles dans la fiche article :</p>
+
+<table width="{largeur_totale}" cellpadding="0" cellspacing="0" border="0"
+       style="border-collapse:collapse;width:{largeur_totale}px;">
+<tr bgcolor="#0369A1">
+{entete}</tr>
+{lignes_html}</table>
+
+<p>Le fichier Excel de cette liste est joint à ce message.<br>
+Merci de me confirmer une fois les corrections effectuées afin que je relance le planning.</p>
+
+<p>Cordialement,<br>
+<b>Zaineb KCHAOU</b><br>
+SOPAL</p>
+</body></html>"""
+
+    msg = EmailMessage()
+    msg["To"] = EMAIL_A
+    msg["Cc"] = ", ".join(EMAIL_CC)
+    msg["Subject"] = f"Articles avec volume nul à corriger - {nb_articles} article(s)"
+    msg["X-Unsent"] = "1"
+    msg.set_content(
+        f"Bonjour,\n\n{nb_articles} article(s) ont un volume nul ou non renseigné. "
+        "Merci de corriger leur volume (voir pièce jointe).\n\nCordialement,\nZaineb KCHAOU",
+        cte="base64",
+    )
+    msg.add_alternative(corps_html, subtype="html", cte="base64")
+    msg.add_attachment(
+        to_excel_volumes_nuls(df_vol),
+        maintype="application",
+        subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename="articles_volume_nul.xlsx",
+    )
+    return bytes(msg)
 
 @st.dialog("📦 Articles avec volume nul", width="large")
 def popup_volumes_nuls():
@@ -603,6 +683,15 @@ def popup_volumes_nuls():
         column_config={"Volume": st.column_config.NumberColumn("Volume", format="%.3f")},
     )
 
+    st.download_button(
+        "📧 Télécharger l'email (à ouvrir avec Outlook)",
+        data=creer_email_eml_volumes(df_v),
+        file_name="Email_volume_a_corriger.eml",
+        mime="message/rfc822",
+        use_container_width=True,
+        type="primary",
+    )
+
     c1, c2 = st.columns(2)
     with c1:
         st.download_button(
@@ -613,7 +702,7 @@ def popup_volumes_nuls():
             use_container_width=True,
         )
     with c2:
-        if st.button("➡️ Continuer l'analyse", type="primary", use_container_width=True):
+        if st.button("➡️ Continuer l'analyse", use_container_width=True):
             st.session_state.popup_volume_vu = True
             st.rerun()
 
