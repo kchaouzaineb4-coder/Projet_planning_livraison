@@ -5029,29 +5029,132 @@ def page_optimisation():
                     else:
                         _vus_chauf.add(c_)
 
-            # --- Style du tableau (en-tête bleu, défilement horizontal si l'écran est étroit) ---
+            # --- Style du tableau : cadre, en-tête continu, séparateurs, lignes alternées ---
             st.markdown("""
             <style>
+            /* Cadre général (défilement horizontal si l'écran est étroit) */
+            .st-key-table_voyages_attr {
+                border: 1.5px solid #0369A1;
+                border-radius: 10px;
+                overflow-x: auto;
+                background: #FFFFFF;
+                box-shadow: 0 2px 8px rgba(3, 105, 161, 0.15);
+            }
+            .st-key-table_voyages_attr [data-testid="stHorizontalBlock"] {
+                min-width: 1800px;
+                gap: 0 !important;
+                align-items: stretch;
+            }
+            .st-key-hdr_voy_row, [class*="st-key-row_voy_"] { min-width: 1800px; }
+
+            /* Séparateurs verticaux entre colonnes */
+            .st-key-table_voyages_attr [data-testid="stColumn"],
+            .st-key-table_voyages_attr [data-testid="column"] {
+                border-right: 1px solid #D5E3F0;
+                padding: 8px 8px;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+            }
+            .st-key-table_voyages_attr [data-testid="stColumn"]:last-child,
+            .st-key-table_voyages_attr [data-testid="column"]:last-child { border-right: none; }
+
+            /* En-tête : bandeau bleu continu */
+            .st-key-hdr_voy_row {
+                background: linear-gradient(180deg, #0B7AB8 0%, #0369A1 55%, #02537F 100%);
+                border-bottom: 3px solid #02446A;
+            }
+            .st-key-hdr_voy_row [data-testid="stColumn"],
+            .st-key-hdr_voy_row [data-testid="column"] {
+                border-right: 1px solid rgba(255, 255, 255, 0.28);
+                padding: 12px 6px;
+            }
             .hdr-voy {
-                background: #0369A1; color: white; font-weight: 700; font-size: 13px;
-                text-align: center; padding: 8px 4px; border-radius: 4px; min-height: 48px;
-                display: flex; align-items: center; justify-content: center;
+                color: #FFFFFF; font-weight: 700; font-size: 13px; text-align: center;
+                line-height: 1.3; letter-spacing: 0.2px;
             }
+
+            /* Lignes : alternance de couleurs + ligne validée en vert clair */
+            [class*="st-key-row_voy_"] { border-bottom: 1px solid #C5D8E8; transition: background 0.15s; }
+            [class*="st-key-row_voy_pair"]   { background: #FFFFFF; }
+            [class*="st-key-row_voy_impair"] { background: #F2F8FD; }
+            [class*="st-key-row_voy_valide"] { background: #E6F4EA; }
+            [class*="st-key-row_voy_"]:hover { background: #FFF8E1; }
+
+            /* Cellules de texte */
             .cell-voy {
-                font-size: 13px; text-align: center; line-height: 1.4;
-                white-space: nowrap; padding-top: 8px;
+                font-size: 13px; text-align: center; line-height: 1.5;
+                white-space: nowrap; color: #1F2D3D;
             }
-            .st-key-table_voyages_attr { overflow-x: auto; padding-bottom: 6px; }
-            .st-key-table_voyages_attr [data-testid="stHorizontalBlock"] { min-width: 1650px; }
-            .st-key-table_voyages_attr hr { min-width: 1650px; margin: 4px 0; border-color: #B0C4DE; }
+            .st-key-table_voyages_attr [data-testid="stCheckbox"] { display: flex; justify-content: center; }
+
+            /* Pastille véhicule (camion / estafette) */
+            .veh-badge {
+                display: inline-flex; align-items: center; gap: 6px;
+                padding: 3px 10px; border-radius: 16px; font-weight: 700; font-size: 14px;
+            }
+            .veh-badge .ico { font-size: 22px; line-height: 1; }
+            .veh-camion    { background: #FFF1E0; border: 1px solid #EF8F00; color: #8A4B00; }
+            .veh-estafette { background: #E3F2FD; border: 1px solid #0369A1; color: #02446A; }
+
+            /* Taux d'occupation : barre colorée + pourcentage */
+            .occ-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+            .occ-bar  { width: 88%; height: 10px; background: #E3EAF1; border-radius: 6px; overflow: hidden; }
+            .occ-fill { height: 100%; border-radius: 6px; }
+            .occ-txt  { font-size: 13px; font-weight: 700; }
+            .occ-tag  { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+
+            /* Légende */
+            .leg-voy { font-size: 12.5px; color: #44546A; margin: 2px 0 8px 0; }
+            .leg-voy .pt { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin: 0 4px 0 12px; vertical-align: middle; }
             </style>
             """, unsafe_allow_html=True)
 
-            largeurs = [0.7, 1.5, 0.9, 1.1, 1.1, 1.5, 1.0, 1.7, 1.0, 1.0, 1.7, 2.3]
-            entetes = ["Valider", "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé",
-                       "Client(s) inclus", "Représentant(s) inclus", "BL inclus",
-                       "Taux occupation poids (%)", "Taux occupation volume (%)",
-                       "Véhicule attribué", "Chauffeur"]
+            def _couleur_taux(t):
+                if pd.isna(t):
+                    return "#78909C", ""
+                if t > 100:
+                    return "#C62828", "surcharge"
+                if t >= 80:
+                    return "#2E7D32", "bon"
+                if t >= 50:
+                    return "#EF8F00", "moyen"
+                return "#78909C", "faible"
+
+            def _html_taux(t):
+                couleur, etiquette = _couleur_taux(t)
+                if pd.isna(t):
+                    return "<div class='cell-voy'>-</div>"
+                largeur = min(max(float(t), 0), 100)
+                tag = f"<span class='occ-tag' style='color:{couleur}'>{etiquette}</span>" if etiquette in ("surcharge", "faible") else ""
+                return (
+                    f"<div class='occ-wrap'>"
+                    f"<span class='occ-txt' style='color:{couleur}'>{t:.1f}%</span>"
+                    f"<div class='occ-bar'><div class='occ-fill' style='width:{largeur}%;background:{couleur}'></div></div>"
+                    f"{tag}</div>"
+                )
+
+            st.markdown(
+                "<div class='leg-voy'><b>Taux d'occupation :</b>"
+                "<span class='pt' style='background:#C62828'></span>supérieur à 100 % (surcharge)"
+                "<span class='pt' style='background:#2E7D32'></span>80 – 100 % (bon remplissage)"
+                "<span class='pt' style='background:#EF8F00'></span>50 – 80 % (moyen)"
+                "<span class='pt' style='background:#78909C'></span>moins de 50 % (faible)"
+                "&nbsp;&nbsp;|&nbsp;&nbsp;🚚 camion&nbsp;&nbsp;🚐 estafette</div>",
+                unsafe_allow_html=True
+            )
+
+            largeurs = [0.7, 1.5, 1.1, 1.2, 1.2, 1.8, 2.4, 1.1, 1.1, 1.5, 1.0, 1.7]
+            entetes = ["Valider", "Zone", "Véhicule N°", "Taux occupation poids (%)", "Taux occupation volume (%)",
+                       "Véhicule attribué", "Chauffeur", "Poids total chargé", "Volume total chargé",
+                       "Client(s) inclus", "Représentant(s) inclus", "BL inclus"]
+
+            def _conteneur(cle):
+                try:
+                    return st.container(key=cle)
+                except TypeError:
+                    return st.container()
 
             try:
                 zone_tableau = st.container(key="table_voyages_attr")
@@ -5059,10 +5162,11 @@ def page_optimisation():
                 zone_tableau = st.container()
 
             with zone_tableau:
-                for col_h, titre in zip(st.columns(largeurs), entetes):
-                    col_h.markdown(f"<div class='hdr-voy'>{titre}</div>", unsafe_allow_html=True)
+                with _conteneur("hdr_voy_row"):
+                    for col_h, titre in zip(st.columns(largeurs), entetes):
+                        col_h.markdown(f"<div class='hdr-voy'>{titre}</div>", unsafe_allow_html=True)
 
-                for k, (_, r) in zip(cles, base_voyages.iterrows()):
+                for i_ligne, (k, (_, r)) in enumerate(zip(cles, base_voyages.iterrows())):
 
                     # Véhicules / chauffeurs déjà pris par les AUTRES voyages (ils n'apparaissent plus dans la liste)
                     pris_veh = {st.session_state.get(_cw("veh", o)) for o in cles if o != k} - {None, VEHICULE_GENERIQUE}
@@ -5081,27 +5185,37 @@ def page_optimisation():
                     taux_p_aff = pd.to_numeric(r.get("Taux occupation poids (%)"), errors="coerce")
                     taux_v_aff = pd.to_numeric(r.get("Taux occupation volume (%)"), errors="coerce")
 
-                    cc = st.columns(largeurs)
-                    with cc[0]:
-                        valide = st.checkbox("Valider", key=_cw("valider", k), label_visibility="collapsed")
-                    cc[1].markdown(f"<div class='cell-voy'>{r['Zone']}</div>", unsafe_allow_html=True)
-                    cc[2].markdown(f"<div class='cell-voy'>{r['Véhicule N°']}</div>", unsafe_allow_html=True)
-                    cc[3].markdown(f"<div class='cell-voy'>{poids_aff:.3f} kg</div>", unsafe_allow_html=True)
-                    cc[4].markdown(f"<div class='cell-voy'>{volume_aff:.3f} m³</div>", unsafe_allow_html=True)
-                    cc[5].markdown(f"<div class='cell-voy'>{_html_multiligne(r.get('Client(s) inclus'))}</div>", unsafe_allow_html=True)
-                    cc[6].markdown(f"<div class='cell-voy'>{_html_multiligne(r.get('Représentant(s) inclus'))}</div>", unsafe_allow_html=True)
-                    cc[7].markdown(f"<div class='cell-voy'>{_html_multiligne(r.get('BL inclus'))}</div>", unsafe_allow_html=True)
-                    cc[8].markdown(f"<div class='cell-voy'>{taux_p_aff:.3f}%</div>", unsafe_allow_html=True)
-                    cc[9].markdown(f"<div class='cell-voy'>{taux_v_aff:.3f}%</div>", unsafe_allow_html=True)
-                    with cc[10]:
-                        veh_choisi = st.selectbox("Véhicule attribué", options_veh, index=None,
-                                                  placeholder="Choisir...", key=_cw("veh", k),
-                                                  label_visibility="collapsed")
-                    with cc[11]:
-                        chauf_choisi = st.selectbox("Chauffeur", options_chauf, index=None,
-                                                    placeholder="Choisir...", key=_cw("chauf", k),
-                                                    label_visibility="collapsed")
-                    st.markdown("<hr>", unsafe_allow_html=True)
+                    if _est_camion(r):
+                        badge_vehicule = f"<span class='veh-badge veh-camion'><span class='ico'>🚚</span>{r['Véhicule N°']}</span>"
+                    else:
+                        badge_vehicule = f"<span class='veh-badge veh-estafette'><span class='ico'>🚐</span>{r['Véhicule N°']}</span>"
+
+                    if st.session_state.get(_cw("valider", k)):
+                        etat_ligne = "valide"
+                    else:
+                        etat_ligne = "pair" if i_ligne % 2 == 0 else "impair"
+
+                    with _conteneur(f"row_voy_{etat_ligne}_{i_ligne}"):
+                        cc = st.columns(largeurs)
+                        with cc[0]:
+                            valide = st.checkbox("Valider", key=_cw("valider", k), label_visibility="collapsed")
+                        cc[1].markdown(f"<div class='cell-voy'>{r['Zone']}</div>", unsafe_allow_html=True)
+                        cc[2].markdown(f"<div class='cell-voy'>{badge_vehicule}</div>", unsafe_allow_html=True)
+                        cc[3].markdown(_html_taux(taux_p_aff), unsafe_allow_html=True)
+                        cc[4].markdown(_html_taux(taux_v_aff), unsafe_allow_html=True)
+                        with cc[5]:
+                            veh_choisi = st.selectbox("Véhicule attribué", options_veh, index=None,
+                                                      placeholder="Choisir...", key=_cw("veh", k),
+                                                      label_visibility="collapsed")
+                        with cc[6]:
+                            chauf_choisi = st.selectbox("Chauffeur", options_chauf, index=None,
+                                                        placeholder="Choisir...", key=_cw("chauf", k),
+                                                        label_visibility="collapsed")
+                        cc[7].markdown(f"<div class='cell-voy'>{poids_aff:.3f} kg</div>", unsafe_allow_html=True)
+                        cc[8].markdown(f"<div class='cell-voy'>{volume_aff:.3f} m³</div>", unsafe_allow_html=True)
+                        cc[9].markdown(f"<div class='cell-voy'>{_html_multiligne(r.get('Client(s) inclus'))}</div>", unsafe_allow_html=True)
+                        cc[10].markdown(f"<div class='cell-voy'>{_html_multiligne(r.get('Représentant(s) inclus'))}</div>", unsafe_allow_html=True)
+                        cc[11].markdown(f"<div class='cell-voy'>{_html_multiligne(r.get('BL inclus'))}</div>", unsafe_allow_html=True)
 
                     # Mémoriser les choix
                     choix[k] = {
