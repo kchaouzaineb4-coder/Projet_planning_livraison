@@ -3266,8 +3266,9 @@ def page_optimisation():
         update_propositions_view()
     
     # Onglets pour différentes fonctionnalités
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab_voyages, tab2, tab3, tab4, tab5 = st.tabs([
         "📋 Propositions Location", 
+        "🚐 Voyages par Estafette Optimisé", 
         "🔄 Transfert BLs", 
         "📦 Ajout Objets",
         "✅ VALIDATION DES VOYAGES APRÈS TRANSFERT",
@@ -3651,6 +3652,8 @@ def page_optimisation():
                         update_propositions_view()
                     st.rerun()
 
+    # --- Onglet : Voyages par Estafette Optimisé ---
+    with tab_voyages:
         # =====================================================
         # 4. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 4 - Résultat final)
         # =====================================================
