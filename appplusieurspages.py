@@ -1187,6 +1187,43 @@ def page_analyse():
         .custom-table tr:hover td {
             background-color: #F0F8FF !important;
         }
+        
+        /* Défilement vertical (curseur à droite) pour ce tableau uniquement */
+        .table-container-scroll-ville {
+            max-height: 600px;
+            overflow-y: auto;
+            overflow-x: auto;
+        }
+        .table-container-scroll-ville .custom-table {
+            overflow: visible;
+        }
+        /* En-tête figé pendant le défilement */
+        .table-container-scroll-ville .custom-table th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            box-shadow: 0 2px 0 #4682B4;
+        }
+        /* Barre de défilement bien visible */
+        .table-container-scroll-ville::-webkit-scrollbar {
+            width: 14px;
+            height: 14px;
+        }
+        .table-container-scroll-ville::-webkit-scrollbar-track {
+            background: #E3EEF7;
+            border-radius: 8px;
+        }
+        .table-container-scroll-ville::-webkit-scrollbar-thumb {
+            background: #0369A1;
+            border-radius: 8px;
+            border: 2px solid #E3EEF7;
+        }
+        .table-container-scroll-ville::-webkit-scrollbar-thumb:hover {
+            background: #02537F;
+        }
+        .table-container-scroll-ville {
+            scrollbar-color: #0369A1 #E3EEF7;
+        }
         </style>
         """, unsafe_allow_html=True)
         
@@ -1222,7 +1259,7 @@ def page_analyse():
             )
             
             st.markdown(f"""
-            <div class="table-container">
+            <div class="table-container table-container-scroll-ville">
                 {html_table}
             </div>
             """, unsafe_allow_html=True)
