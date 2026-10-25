@@ -963,7 +963,7 @@ def page_import():
 # PAGE 2: Analyse détaillée 
 # =====================================================
 def page_analyse():
-    st.markdown("<h1 class='main-header'>2. 🔍 Analyse détaillée</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-header'>2. 🔍 Analyse des BLs</h1>", unsafe_allow_html=True)
     
     if not st.session_state.data_processed:
         st.warning("⚠️ Veuillez d'abord importer les données dans la page 1.")
@@ -7865,7 +7865,7 @@ def main():
         # Boutons de navigation avec icônes
         page_options = {
             "import": {"icon": "📥", "label": "Importation Données"},
-            "analyse": {"icon": "🔍", "label": "Analyse Détaillée"},
+            "analyse": {"icon": "🔍", "label": "Analyse des BLs"},
             "optimisation": {"icon": "🚚", "label": "Optimisation"},
             "finalisation": {"icon": "📊", "label": "Planning et KPIs"}
         }
