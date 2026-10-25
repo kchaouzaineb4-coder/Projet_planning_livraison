@@ -3266,10 +3266,9 @@ def page_optimisation():
         update_propositions_view()
     
     # Onglets pour différentes fonctionnalités
-    tab1, tab_voyages, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab_voyages, tab3, tab4, tab5 = st.tabs([
         "📋 Propositions Location", 
         "🚐 Voyages par Estafette Optimisé", 
-        "🔄 Transfert BLs", 
         "📦 Ajout Objets",
         "✅ VALIDATION DES VOYAGES APRÈS TRANSFERT",
         "🚛 Attribution des véhicules et chauffeurs"
@@ -3652,12 +3651,839 @@ def page_optimisation():
                         update_propositions_view()
                     st.rerun()
 
+    # --- Fenêtre pop-up : Transfert BLs ---
+    try:
+        _deco_dialog = st.dialog("🔁 Transfert de BLs entre véhicules", width="large", on_dismiss="rerun")
+    except TypeError:
+        try:
+            _deco_dialog = st.dialog("🔁 Transfert de BLs entre véhicules", width="large")
+        except AttributeError:
+            _deco_dialog = st.experimental_dialog("🔁 Transfert de BLs entre véhicules", width="large")
+
+    @_deco_dialog
+    def dialog_transfert_bls():
+        #st.info("Réorganisez les livraisons entre estafettes/camions")
+        
+        MAX_POIDS = 1550  # kg
+        MAX_VOLUME = 4.608  # m³
+        
+        if st.session_state.df_voyages is None and st.session_state.rental_processor:
+            # Générer les voyages optimisés si pas encore fait
+            df_optimized = st.session_state.rental_processor.get_df_result()
+            st.session_state.df_voyages = df_optimized
+        
+        if st.session_state.df_voyages is not None and st.session_state.df_livraisons is not None:
+            df_voyages = st.session_state.df_voyages.copy()
+            df_livraisons = st.session_state.df_livraisons.copy()
+            
+            colonnes_requises = ["Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]
+            
+            if not all(col in df_voyages.columns for col in colonnes_requises):
+                st.error(f"❌ Le DataFrame ne contient pas toutes les colonnes nécessaires : {', '.join(colonnes_requises)}")
+            else:
+                zones_disponibles = sorted(df_voyages["Zone"].dropna().unique().tolist())
+                zone_selectionnee = st.selectbox("🌍 Sélectionner une zone", zones_disponibles)
+                
+                if zone_selectionnee:
+                    df_zone = df_voyages[df_voyages["Zone"] == zone_selectionnee]
+                    vehicules = sorted(df_zone["Véhicule N°"].dropna().unique().tolist())
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        source = st.selectbox("🚐 Estafette / Camion source", vehicules)
+                    with col2:
+                        cible = st.selectbox("🎯 Estafette / Camion cible", [v for v in vehicules if v != source])
+                    
+                    if source and cible:
+                        df_source = df_zone[df_zone["Véhicule N°"] == source]
+                        if df_source.empty or df_source["BL inclus"].isna().all():
+                            st.warning("⚠️ Aucun BL trouvé pour ce véhicule source.")
+                        else:
+                            st.subheader(f"📦 BLs actuellement assignés à {source}")
+                            
+                            # --- NOUVEAU : Créer un mapping BL → Client ---
+                            bls_avec_clients = []
+                            bls_simples = df_source["BL inclus"].iloc[0].split(";")
+                            
+                            for bl in bls_simples:
+                                # Trouver le client correspondant à ce BL
+                                client_info = df_livraisons[df_livraisons["No livraison"] == bl]
+                                if not client_info.empty:
+                                    client_nom = client_info["Client de l'estafette"].iloc[0]
+                                    bl_affichage = f"{bl} - {client_nom}"
+                                else:
+                                    bl_affichage = f"{bl} - Client non trouvé"
+                                bls_avec_clients.append(bl_affichage)
+                            
+                            # Affichage formaté avec clients
+                            df_source_display = df_source[["Véhicule N°", "Poids total chargé", "Volume total chargé"]].copy()
+                            df_source_display["BL inclus (avec clients)"] = "<br>".join(bls_avec_clients)
+                            
+                            df_source_display["Poids total chargé"] = df_source_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
+                            df_source_display["Volume total chargé"] = df_source_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+                            
+                            # CSS AMÉLIORÉ pour un tableau plus visible et bien centré
+                            st.markdown("""
+                            <style>
+                            .centered-table {
+                                margin-left: auto;
+                                margin-right: auto;
+                                display: table;
+                                width: 100%;
+                            }
+                            .centered-table table {
+                                margin: 0 auto;
+                                border-collapse: collapse;
+                                width: 100%;
+                                font-family: Arial, sans-serif;
+                                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                            }
+                            .centered-table th {
+                                background-color: #0369A1;
+                                color: white;
+                                padding: 12px 8px;
+                                text-align: center;
+                                border: 2px solid #555;
+                                font-weight: bold;
+                                font-size: 14px;
+                                vertical-align: middle;
+                            }
+                            .centered-table td {
+                                padding: 10px 8px;
+                                text-align: center;
+                                border: 2px solid #555;
+                                background-color: #f9f9f9;
+                                color: #333;
+                                vertical-align: middle;
+                            }
+                            .centered-table tr:nth-child(even) td {
+                                background-color: #f0f0f0;
+                            }
+                            .centered-table tr:hover td {
+                                background-color: #e6f3ff;
+                            }
+                            </style>
+                            """, unsafe_allow_html=True)
+                            
+                            # CSS SPÉCIFIQUE POUR LE MULTISELECT - VERSION GRIS
+                            st.markdown("""
+                            <style>
+                            .stMultiSelect > div > div {
+                                background-color: #F8FAFC !important;
+                                border: 2px solid #CBD5E1 !important;
+                                border-radius: 8px !important;
+                            }
+                            div[data-baseweb="select"] > div {
+                                background-color: #F8FAFC !important;
+                                border: 2px solid #CBD5E1 !important;
+                                border-radius: 8px !important;
+                            }
+                            div[data-baseweb="select"] span[data-baseweb="tag"] {
+                                background-color: #0369A1 !important;
+                                color: white !important;
+                                border-radius: 12px !important;
+                                font-weight: bold;
+                            }
+                            div[role="listbox"] {
+                                background-color: white !important;
+                                border: 2px solid #CBD5E1 !important;
+                            }
+                            div[role="option"][aria-selected="true"] {
+                                background-color: #F1F5F9 !important;
+                                color: #475569 !important;
+                            }
+                            div[role="option"]:hover {
+                                background-color: #E2E8F0 !important;
+                            }
+                            </style>
+                            """, unsafe_allow_html=True)
+                            
+                            # Afficher le tableau avec CSS
+                            html_content = f"""
+                            <div class="centered-table">
+                            {df_source_display.to_html(escape=False, index=False)}
+                            </div>
+                            """
+                            st.markdown(html_content, unsafe_allow_html=True)
+                            
+                            # --- Sélection des BLs avec client, poids et volume ---
+                            st.subheader("📋 Sélectionner les BLs à transférer")
+
+                            options_transfert = []
+                            mapping_bl_original = {}
+
+                            for bl in bls_simples:
+
+                                # Nettoyer le numéro du BL
+                                bl = str(bl).strip()
+
+                                # Rechercher les informations du BL
+                                client_info = df_livraisons[
+                                    df_livraisons["No livraison"].astype(str).str.strip() == bl
+                                ]
+
+                                if not client_info.empty:
+
+                                    ligne_bl = client_info.iloc[0]
+
+                                    # Récupérer le client
+                                    client_nom = str(
+                                        ligne_bl["Client de l'estafette"]
+                                    ).strip()
+
+                                    # Récupérer le poids et le volume du BL
+                                    poids_bl = pd.to_numeric(
+                                        ligne_bl["Poids total"],
+                                        errors="coerce"
+                                    )
+
+                                    volume_bl = pd.to_numeric(
+                                        ligne_bl["Volume total"],
+                                        errors="coerce"
+                                    )
+
+                                    poids_bl = 0 if pd.isna(poids_bl) else poids_bl
+                                    volume_bl = 0 if pd.isna(volume_bl) else volume_bl
+
+                                else:
+                                    client_nom = "Client non trouvé"
+                                    poids_bl = 0
+                                    volume_bl = 0
+
+                                # Construire le libellé affiché
+                                option_affichage = (
+                                    f"{bl} - {client_nom} - "
+                                    f"{poids_bl:.2f} kg - {volume_bl:.2f} m³"
+                                )
+
+                                options_transfert.append(option_affichage)
+
+                                # Conserver le numéro original pour le transfert
+                                mapping_bl_original[option_affichage] = bl
+
+                            
+                            # Multiselect avec clients
+                            bls_selectionnes_affichage = st.multiselect(
+                                "Sélectionnez les BLs à transférer (avec clients) :", 
+                                options_transfert,
+                                format_func=lambda x: x
+                            )
+                            
+                            # Convertir la sélection en BLs simples pour le traitement
+                            bls_selectionnes = [mapping_bl_original[bl_affichage] for bl_affichage in bls_selectionnes_affichage]
+                            
+                            if bls_selectionnes and st.button("🔁 Exécuter le transfert"):
+                                df_bls_selection = df_livraisons[df_livraisons["No livraison"].isin(bls_selectionnes)]
+                                poids_bls = df_bls_selection["Poids total"].sum()
+                                volume_bls = df_bls_selection["Volume total"].sum()
+                                
+                                df_cible = df_zone[df_zone["Véhicule N°"] == cible]
+                                poids_cible = df_cible["Poids total chargé"].sum()
+                                volume_cible = df_cible["Volume total chargé"].sum()
+                                
+                                # Sauvegarder les BLs ORIGINAUX pour le debug
+                                bls_source_avant = bls_simples.copy()  # BLs de la source avant transfert
+                                
+                                # Récupérer les BLs de la cible AVANT transfert
+                                bls_cible_avant = []
+                                if not df_cible.empty and "BL inclus" in df_cible.columns:
+                                    bls_str = df_cible.iloc[0]["BL inclus"]
+                                    if pd.notna(bls_str):
+                                        bls_cible_avant = [b.strip() for b in bls_str.split(";") if b.strip()]
+                                
+                                if (poids_cible + poids_bls) > MAX_POIDS or (volume_cible + volume_bls) > MAX_VOLUME:
+                                    st.warning("⚠️ Le transfert dépasse les limites de poids ou volume du véhicule cible.")
+                                else:
+                                    def transfer_bl(row):
+                                        bls = row["BL inclus"].split(";") if pd.notna(row["BL inclus"]) else []
+                                        
+                                        if row["Véhicule N°"] == source:
+                                            # RETIRER les BLs transférés de la source
+                                            new_bls = [b for b in bls if b not in bls_selectionnes]
+                                            row["BL inclus"] = ";".join(new_bls) if new_bls else ""
+                                            row["Poids total chargé"] = max(0, row["Poids total chargé"] - poids_bls)
+                                            row["Volume total chargé"] = max(0, row["Volume total chargé"] - volume_bls)
+                                        
+                                        elif row["Véhicule N°"] == cible:
+                                            # AJOUTER les BLs transférés à la cible
+                                            # Combiner BLs existants + BLs transférés
+                                            all_bls = bls + bls_selectionnes
+                                            # Supprimer les doublons
+                                            all_bls = list(dict.fromkeys(all_bls))
+                                            row["BL inclus"] = ";".join(all_bls) if all_bls else ""
+                                            row["Poids total chargé"] = row["Poids total chargé"] + poids_bls
+                                            row["Volume total chargé"] = row["Volume total chargé"] + volume_bls
+                                        
+                                        return row
+                                    
+                                    df_voyages = df_voyages.apply(transfer_bl, axis=1)
+                                    st.session_state.df_voyages = df_voyages
+                                    
+                                    # Synchroniser le gestionnaire et le processeur pour que le transfert
+                                    # soit conservé lors de l'actualisation de la page
+                                    try:
+                                        if st.session_state.get("transfer_manager") is not None:
+                                            st.session_state.transfer_manager.df_voyages = df_voyages.copy()
+                                        if st.session_state.get("rental_processor"):
+                                            st.session_state.rental_processor.df_base = df_voyages.copy()
+                                    except Exception as e:
+                                        st.warning(f"⚠️ Synchronisation partielle du processeur : {str(e)}")
+                                    st.session_state.transfert_bl_effectue = True
+                                    
+                                    # Afficher un résumé du transfert avec clients
+                                    clients_transferes = df_bls_selection["Client de l'estafette"].unique()
+                                    st.success(f"""
+                                    ✅ Transfert réussi !
+                                    - **{len(bls_selectionnes)} BL(s)** déplacé(s) de **{source}** vers **{cible}**
+                                    - **Clients concernés :** {', '.join(clients_transferes)}
+                                    - **Poids transféré :** {poids_bls:.1f} kg
+                                    - **Volume transféré :** {volume_bls:.3f} m³
+                                    """)
+                                    
+                                    # --- VÉRIFICATION DÉTAILLÉE ---
+                                    st.markdown("---")
+                                   #st.subheader("🔍 Vérification du transfert")
+                                    
+                                    # Récupérer les données APRÈS transfert
+                                    df_source_apres = df_voyages[df_voyages["Véhicule N°"] == source]
+                                    df_cible_apres = df_voyages[df_voyages["Véhicule N°"] == cible]
+                                    
+                                    # BLs de la source APRÈS transfert
+                                    bls_source_apres = []
+                                    if not df_source_apres.empty and "BL inclus" in df_source_apres.columns:
+                                        bls_str = df_source_apres.iloc[0]["BL inclus"]
+                                        if pd.notna(bls_str):
+                                            bls_source_apres = [b.strip() for b in bls_str.split(";") if b.strip()]
+                                    
+                                    # BLs de la cible APRÈS transfert  
+                                    bls_cible_apres = []
+                                    if not df_cible_apres.empty and "BL inclus" in df_cible_apres.columns:
+                                        bls_str = df_cible_apres.iloc[0]["BL inclus"]
+                                        if pd.notna(bls_str):
+                                            bls_cible_apres = [b.strip() for b in bls_str.split(";") if b.strip()]
+                                    
+                                    # Afficher la vérification
+                                   #col_verif1, col_verif2 = st.columns(2)
+                                    
+                                  # with col_verif1:
+                                    #   st.markdown(f"""
+                                     #  **✅ Vérification Source ({source}):**
+                                      # - BLs avant: {', '.join(bls_source_avant) if bls_source_avant else 'Aucun'}
+                                      # - BLs transférés: {', '.join(bls_selectionnes)}
+                                      # - BLs après: {', '.join(bls_source_apres) if bls_source_apres else 'Aucun'}
+                                      # - BLs retirés avec succès: {'✅ OUI' if all(bl not in bls_source_apres for bl in bls_selectionnes) else '❌ NON'}
+                                     #  """)
+                                    
+                                   #with col_verif2:
+                                    #   st.markdown(f"""
+                                     #  **✅ Vérification Cible ({cible}):**
+                                     #  - BLs avant: {', '.join(bls_cible_avant) if bls_cible_avant else 'Aucun'}
+                                     #  - BLs ajoutés: {', '.join(bls_selectionnes)}
+                                      # - BLs après: {', '.join(bls_cible_apres) if bls_cible_apres else 'Aucun'}
+                                      # - BLs ajoutés avec succès: {'✅ OUI' if all(bl in bls_cible_apres for bl in bls_selectionnes) else '❌ NON'}
+                                       #""")
+                                    
+                                    # --- AFFICHAGE DU TABLEAU COMPLET ---
+                                   #st.markdown("---")
+                                    st.subheader("📊 Voyages après transfert (toutes les zones)")
+
+                                    # =====================================================
+                                    # CALCUL DES TAUX D'OCCUPATION POIDS ET VOLUME
+                                    # =====================================================
+
+                                    def calculer_taux_occupation(row):
+
+                                        poids = pd.to_numeric(row["Poids total chargé"], errors="coerce")
+                                        volume = pd.to_numeric(row["Volume total chargé"], errors="coerce")
+
+                                        # Capacités selon le véhicule
+                                        if str(row.get("Code Véhicule", "")).strip() == "CAMION-LOUE":
+                                            capacite_poids = 3000
+                                            capacite_volume = 9.216
+                                        else:
+                                            capacite_poids = 1550
+                                            capacite_volume = 4.608
+
+                                        taux_poids = (
+                                            poids / capacite_poids * 100
+                                            if pd.notna(poids) else 0
+                                        )
+
+                                        taux_volume = (
+                                            volume / capacite_volume * 100
+                                            if pd.notna(volume) else 0
+                                        )
+
+                                        return pd.Series({
+                                            "Taux occupation poids (%)": taux_poids,
+                                            "Taux occupation volume (%)": taux_volume
+                                        })
+
+                                    # Supprimer l'ancien taux maximum
+                                    df_voyages = df_voyages.drop(
+                                        columns=["Taux d'occupation (%)"],
+                                        errors="ignore"
+                                    )
+
+                                    # Calculer les deux taux à partir des charges après transfert
+                                    df_voyages[
+                                        ["Taux occupation poids (%)", "Taux occupation volume (%)"]
+                                    ] = df_voyages.apply(calculer_taux_occupation, axis=1)
+
+                                    # =====================================================
+                                    # ✅ RÉORDONNANCEMENT DES COLONNES
+                                    # =====================================================
+                                    ordre_colonnes = [
+                                        "Zone",
+                                        "Véhicule N°",
+                                        "Poids total chargé",
+                                        "Volume total chargé",
+                                        "Client(s) inclus",
+                                        "Représentant(s) inclus",
+                                        "BL inclus",
+                                        "Taux occupation poids (%)",
+                                        "Taux occupation volume (%)",
+                                        "Location_camion",
+                                        "Location_proposee",
+                                        "Code Véhicule"
+                                    ]
+
+                                    # Garder uniquement les colonnes existantes dans cet ordre
+                                    colonnes_existantes = [c for c in ordre_colonnes if c in df_voyages.columns]
+                                    # Ajouter à la fin les éventuelles colonnes non listées (sécurité)
+                                    autres_colonnes = [c for c in df_voyages.columns if c not in colonnes_existantes]
+                                    df_voyages = df_voyages[colonnes_existantes + autres_colonnes]
+
+                                    # =====================================================
+                                    # PRÉPARATION DE L'AFFICHAGE
+                                    # =====================================================
+                                    df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
+
+                                    # Formater pour l'affichage HTML
+                                    if "BL inclus" in df_display.columns:
+                                        df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
+                                            lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" and x != "" else "Aucun BL"
+                                        )
+
+                                    df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
+                                    df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
+
+                                    # Formater les deux taux d'occupation
+                                    for col_taux in ["Taux occupation poids (%)", "Taux occupation volume (%)"]:
+                                        if col_taux in df_display.columns:
+                                            df_display[col_taux] = df_display[col_taux].map(lambda x: f"{x:.3f}%")
+
+                                    # CSS pour mettre en évidence
+                                    st.markdown("""
+                                    <style>
+                                    .highlight-source {
+                                        border-left: 5px solid #FF6B6B !important;
+                                    }
+                                    .highlight-target {
+                                        border-left: 5px solid #51CF66 !important;
+                                    }
+                                    </style>
+                                    """, unsafe_allow_html=True)
+
+                                    # Ajouter des classes CSS pour les lignes modifiées
+                                    html_table = df_display.to_html(escape=False, index=False, classes="custom-table-voyages", border=0)
+
+                                    # Modifier le HTML pour ajouter des classes
+                                    # Remplacer toute la boucle for + les replace par ceci :
+
+                                    import re
+
+                                    html_table = df_display.to_html(escape=False, index=False, classes="custom-table-voyages", border=0)
+
+                                    # Séparer l'en-tête et les lignes de données
+                                    parties = html_table.split("<tbody>")
+                                    tbody_lignes = parties[1].split("<tr>")   # [0] = vide avant le premier <tr>
+
+                                    nouvelles_lignes = [tbody_lignes[0]]
+                                    for (i, row), contenu in zip(df_display.iterrows(), tbody_lignes[1:]):
+                                        if row["Véhicule N°"] == source:
+                                            nouvelles_lignes.append(f'<tr class="highlight-source">{contenu}')
+                                        elif row["Véhicule N°"] == cible:
+                                            nouvelles_lignes.append(f'<tr class="highlight-target">{contenu}')
+                                        else:
+                                            nouvelles_lignes.append(f'<tr>{contenu}')
+
+                                    html_table = parties[0] + "<tbody>" + "".join(nouvelles_lignes)
+
+                                    st.markdown(f"""
+                                            <div class="table-container-voyages">
+                                                {html_table}
+                                            </div>
+                                            """, unsafe_allow_html=True)
+                                    
+                                    
+                                    # =====================================================
+                                    # EXPORT EXCEL : VOYAGES APRÈS TRANSFERT
+                                    # =====================================================
+
+                                    import re
+                                    from io import BytesIO
+                                    import openpyxl
+                                    from openpyxl.styles import (
+                                        Font,
+                                        PatternFill,
+                                        Alignment,
+                                        Border,
+                                        Side
+                                    )
+                                    from openpyxl.utils import get_column_letter
+
+                                    # Copier les données mises à jour après transfert
+                                    df_export = df_voyages.copy()
+
+                                    # =====================================================
+                                    # 1. TRIER LES DONNÉES PAR ZONE ET VÉHICULE
+                                    # =====================================================
+
+                                    if "Zone" in df_export.columns:
+                                        df_export["_Zone_Num"] = pd.to_numeric(
+                                            df_export["Zone"]
+                                            .astype(str)
+                                            .str.extract(r"(\d+)")[0],
+                                            errors="coerce"
+                                        )
+
+                                        df_export = df_export.sort_values(
+                                            by=["_Zone_Num", "Véhicule N°"]
+                                            if "Véhicule N°" in df_export.columns
+                                            else ["_Zone_Num"],
+                                            na_position="last"
+                                        ).drop(columns=["_Zone_Num"])
+
+                                    # =====================================================
+                                    # 2. ORGANISER LES COLONNES
+                                    # =====================================================
+
+                                    ordre_colonnes = [
+                                        "Zone",
+                                        "Véhicule N°",
+                                        "Poids total chargé",
+                                        "Volume total chargé",
+                                        "Client(s) inclus",
+                                        "Représentant(s) inclus",
+                                        "BL inclus",
+                                        "Taux occupation poids (%)",
+                                        "Taux occupation volume (%)",
+                                        "Location_camion",
+                                        "Location_proposee",
+                                        "Code Véhicule"
+                                    ]
+
+                                    colonnes_existantes = [
+                                        col for col in ordre_colonnes
+                                        if col in df_export.columns
+                                    ]
+
+                                    autres_colonnes = [
+                                        col for col in df_export.columns
+                                        if col not in colonnes_existantes
+                                    ]
+
+                                    df_export = df_export[
+                                        colonnes_existantes + autres_colonnes
+                                    ].copy()
+
+                                    # =====================================================
+                                    # 3. PRÉPARER LES COLONNES MULTILIGNES
+                                    # =====================================================
+
+                                    colonnes_multilignes = [
+                                        "Client(s) inclus",
+                                        "Représentant(s) inclus",
+                                        "BL inclus"
+                                    ]
+
+                                    def vers_retours_ligne(valeur):
+                                        if pd.isna(valeur):
+                                            return ""
+
+                                        texte = str(valeur).strip()
+
+                                        if texte.lower() in ("", "nan", "none"):
+                                            return ""
+
+                                        elements = [
+                                            element.strip()
+                                            for element in re.split(r"[;,]", texte)
+                                            if element.strip()
+                                        ]
+
+                                        return "\n".join(elements)
+
+                                    for col in colonnes_multilignes:
+                                        if col in df_export.columns:
+                                            df_export[col] = df_export[col].apply(
+                                                vers_retours_ligne
+                                            )
+
+                                    # =====================================================
+                                    # 4. FORMATER LES VALEURS NUMÉRIQUES
+                                    # =====================================================
+
+                                    for col in [
+                                        "Poids total chargé",
+                                        "Volume total chargé",
+                                        "Taux occupation poids (%)",
+                                        "Taux occupation volume (%)"
+                                    ]:
+                                        if col in df_export.columns:
+                                            df_export[col] = pd.to_numeric(
+                                                df_export[col],
+                                                errors="coerce"
+                                            ).round(3)
+
+                                    # =====================================================
+                                    # 5. CRÉER LE FICHIER EXCEL
+                                    # =====================================================
+
+                                    excel_buffer = BytesIO()
+
+                                    with pd.ExcelWriter(
+                                        excel_buffer,
+                                        engine="openpyxl"
+                                    ) as writer:
+
+                                        df_export.to_excel(
+                                            writer,
+                                            index=False,
+                                            sheet_name="Voyages après transfert"
+                                        )
+
+                                        workbook = writer.book
+                                        worksheet = writer.sheets[
+                                            "Voyages après transfert"
+                                        ]
+
+                                        # =====================================================
+                                        # 6. STYLE DE L'EN-TÊTE
+                                        # =====================================================
+
+                                        header_fill = PatternFill(
+                                            fill_type="solid",
+                                            fgColor="0369A1"
+                                        )
+
+                                        header_font = Font(
+                                            name="Arial",
+                                            bold=True,
+                                            color="FFFFFF",
+                                            size=10
+                                        )
+
+                                        header_alignment = Alignment(
+                                            horizontal="center",
+                                            vertical="center",
+                                            wrap_text=True
+                                        )
+
+                                        # =====================================================
+                                        # 7. BORDURES ET ALIGNEMENT
+                                        # =====================================================
+
+                                        thin_border = Border(
+                                            left=Side(
+                                                style="thin",
+                                                color="B0C4DE"
+                                            ),
+                                            right=Side(
+                                                style="thin",
+                                                color="B0C4DE"
+                                            ),
+                                            top=Side(
+                                                style="thin",
+                                                color="B0C4DE"
+                                            ),
+                                            bottom=Side(
+                                                style="thin",
+                                                color="B0C4DE"
+                                            )
+                                        )
+
+                                        cell_alignment = Alignment(
+                                            horizontal="center",
+                                            vertical="center",
+                                            wrap_text=True
+                                        )
+
+                                        for row in worksheet.iter_rows():
+                                            for cell in row:
+                                                cell.border = thin_border
+                                                cell.alignment = cell_alignment
+                                                cell.font = Font(
+                                                    name="Arial",
+                                                    size=10
+                                                )
+
+                                                if cell.row == 1:
+                                                    cell.fill = header_fill
+                                                    cell.font = header_font
+                                                    cell.alignment = header_alignment
+
+                                        worksheet.row_dimensions[1].height = 35
+
+                                        # =====================================================
+                                        # 8. FORMATS NUMÉRIQUES EXCEL
+                                        # =====================================================
+
+                                        formats_numeriques = {
+                                            "Poids total chargé": "0.000",
+                                            "Volume total chargé": "0.000",
+                                            "Taux occupation poids (%)": '0.000"%"',
+                                            "Taux occupation volume (%)": '0.000"%"'
+                                        }
+
+                                        for col_idx, col_name in enumerate(
+                                            df_export.columns,
+                                            start=1
+                                        ):
+                                            if col_name in formats_numeriques:
+                                                for row_idx in range(
+                                                    2,
+                                                    worksheet.max_row + 1
+                                                ):
+                                                    worksheet.cell(
+                                                        row=row_idx,
+                                                        column=col_idx
+                                                    ).number_format = (
+                                                        formats_numeriques[col_name]
+                                                    )
+
+                                        # =====================================================
+                                        # 9. LARGEURS DES COLONNES
+                                        # =====================================================
+
+                                        largeurs_fixes = {
+                                            "Zone": 12,
+                                            "Véhicule N°": 15,
+                                            "Poids total chargé": 20,
+                                            "Volume total chargé": 21,
+                                            "Client(s) inclus": 32,
+                                            "Représentant(s) inclus": 30,
+                                            "BL inclus": 35,
+                                            "Taux occupation poids (%)": 23,
+                                            "Taux occupation volume (%)": 25,
+                                            "Location_camion": 20,
+                                            "Location_proposee": 22,
+                                            "Code Véhicule": 20
+                                        }
+
+                                        for col_idx, col_name in enumerate(
+                                            df_export.columns,
+                                            start=1
+                                        ):
+                                            col_letter = get_column_letter(col_idx)
+
+                                            worksheet.column_dimensions[
+                                                col_letter
+                                            ].width = largeurs_fixes.get(
+                                                col_name,
+                                                18
+                                            )
+
+                                        # =====================================================
+                                        # 10. AJUSTER LA HAUTEUR DES LIGNES
+                                        # =====================================================
+
+                                        for row_idx in range(
+                                            2,
+                                            worksheet.max_row + 1
+                                        ):
+                                            max_lines = 1
+
+                                            for col_idx, col_name in enumerate(
+                                                df_export.columns,
+                                                start=1
+                                            ):
+                                                if col_name in colonnes_multilignes:
+                                                    valeur = worksheet.cell(
+                                                        row=row_idx,
+                                                        column=col_idx
+                                                    ).value
+
+                                                    if valeur:
+                                                        nb_lignes = (
+                                                            str(valeur).count("\n") + 1
+                                                        )
+                                                        max_lines = max(
+                                                            max_lines,
+                                                            nb_lignes
+                                                        )
+
+                                            worksheet.row_dimensions[
+                                                row_idx
+                                            ].height = min(
+                                                max(22, max_lines * 18),
+                                                120
+                                            )
+
+                                        # =====================================================
+                                        # 11. FILTRE, EN-TÊTE FIGÉ ET AFFICHAGE
+                                        # =====================================================
+
+                                        worksheet.auto_filter.ref = (
+                                            worksheet.dimensions
+                                        )
+                                        worksheet.freeze_panes = "A2"
+                                        worksheet.sheet_view.showGridLines = False
+
+                                        # =====================================================
+                                        # 12. MISE EN PAGE POUR IMPRESSION
+                                        # =====================================================
+
+                                        worksheet.page_setup.orientation = "landscape"
+                                        worksheet.page_setup.fitToWidth = 1
+                                        worksheet.page_setup.fitToHeight = 0
+
+                                        worksheet.sheet_properties.pageSetUpPr.fitToPage = True
+                                        worksheet.print_title_rows = "1:1"
+
+                                    excel_buffer.seek(0)
+
+                                    
+                                    # =====================================================
+                                    # BOUTON DE TÉLÉCHARGEMENT CENTRÉ
+                                    # =====================================================
+
+                                    col_gauche_xlsx, col_centre_xlsx, col_droite_xlsx = st.columns([1, 2, 1])
+
+                                    with col_centre_xlsx:
+                                        st.download_button(
+                                            label="💾 Télécharger le tableau mis à jour (XLSX)",
+                                            data=excel_buffer,
+                                            file_name="voyages_apres_transfert.xlsx",
+                                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                            use_container_width=True
+                                        )
+
+
+                            #else:
+                                #st.info("ℹ️ Générez d'abord les voyages optimisés dans l'onglet 1")
+
+        # Bouton pour fermer la fenêtre et actualiser les tableaux de l'application
+        if st.session_state.get("transfert_bl_effectue"):
+            st.markdown("---")
+            if st.button("✅ Fermer et actualiser les tableaux", key="btn_fermer_transfert_bls", type="primary", use_container_width=True):
+                st.session_state.transfert_bl_effectue = False
+                st.rerun()
+
     # --- Onglet : Voyages par Estafette Optimisé ---
     with tab_voyages:
         # =====================================================
         # 4. VOYAGES PAR ESTAFETTE OPTIMISÉ (Section 4 - Résultat final)
         # =====================================================
         st.header("4. 🚐 Voyages par Estafette Optimisé (Inclut Camions Loués)")
+
+        # Bouton d'ouverture de la fenêtre de transfert de BLs
+        col_btn_transfert, _col_vide_transfert = st.columns([1, 3])
+        with col_btn_transfert:
+            if st.button("🔁 Transfert BLs", key="btn_ouvrir_transfert_bls", use_container_width=True):
+                st.session_state.transfert_bl_effectue = False
+                dialog_transfert_bls()
 
         try:
             # Récupération sécurisée du DataFrame
@@ -4250,802 +5076,7 @@ def page_optimisation():
             st.write("Données brutes pour debug:")
             if st.session_state.rental_processor:
                 st.write("Colonnes du df_base:", list(st.session_state.rental_processor.df_base.columns))
-    # --- Onglet 2: Transfert BLs ---
-    with tab2:
-        st.subheader("🔁 Transfert de BLs entre véhicules")
-        #st.info("Réorganisez les livraisons entre estafettes/camions")
-        
-        MAX_POIDS = 1550  # kg
-        MAX_VOLUME = 4.608  # m³
-        
-        if st.session_state.df_voyages is None and st.session_state.rental_processor:
-            # Générer les voyages optimisés si pas encore fait
-            df_optimized = st.session_state.rental_processor.get_df_result()
-            st.session_state.df_voyages = df_optimized
-        
-        if st.session_state.df_voyages is not None and st.session_state.df_livraisons is not None:
-            df_voyages = st.session_state.df_voyages.copy()
-            df_livraisons = st.session_state.df_livraisons.copy()
-            
-            colonnes_requises = ["Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé", "BL inclus"]
-            
-            if not all(col in df_voyages.columns for col in colonnes_requises):
-                st.error(f"❌ Le DataFrame ne contient pas toutes les colonnes nécessaires : {', '.join(colonnes_requises)}")
-            else:
-                zones_disponibles = sorted(df_voyages["Zone"].dropna().unique().tolist())
-                zone_selectionnee = st.selectbox("🌍 Sélectionner une zone", zones_disponibles)
-                
-                if zone_selectionnee:
-                    df_zone = df_voyages[df_voyages["Zone"] == zone_selectionnee]
-                    vehicules = sorted(df_zone["Véhicule N°"].dropna().unique().tolist())
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        source = st.selectbox("🚐 Estafette / Camion source", vehicules)
-                    with col2:
-                        cible = st.selectbox("🎯 Estafette / Camion cible", [v for v in vehicules if v != source])
-                    
-                    if source and cible:
-                        df_source = df_zone[df_zone["Véhicule N°"] == source]
-                        if df_source.empty or df_source["BL inclus"].isna().all():
-                            st.warning("⚠️ Aucun BL trouvé pour ce véhicule source.")
-                        else:
-                            st.subheader(f"📦 BLs actuellement assignés à {source}")
-                            
-                            # --- NOUVEAU : Créer un mapping BL → Client ---
-                            bls_avec_clients = []
-                            bls_simples = df_source["BL inclus"].iloc[0].split(";")
-                            
-                            for bl in bls_simples:
-                                # Trouver le client correspondant à ce BL
-                                client_info = df_livraisons[df_livraisons["No livraison"] == bl]
-                                if not client_info.empty:
-                                    client_nom = client_info["Client de l'estafette"].iloc[0]
-                                    bl_affichage = f"{bl} - {client_nom}"
-                                else:
-                                    bl_affichage = f"{bl} - Client non trouvé"
-                                bls_avec_clients.append(bl_affichage)
-                            
-                            # Affichage formaté avec clients
-                            df_source_display = df_source[["Véhicule N°", "Poids total chargé", "Volume total chargé"]].copy()
-                            df_source_display["BL inclus (avec clients)"] = "<br>".join(bls_avec_clients)
-                            
-                            df_source_display["Poids total chargé"] = df_source_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-                            df_source_display["Volume total chargé"] = df_source_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-                            
-                            # CSS AMÉLIORÉ pour un tableau plus visible et bien centré
-                            st.markdown("""
-                            <style>
-                            .centered-table {
-                                margin-left: auto;
-                                margin-right: auto;
-                                display: table;
-                                width: 100%;
-                            }
-                            .centered-table table {
-                                margin: 0 auto;
-                                border-collapse: collapse;
-                                width: 100%;
-                                font-family: Arial, sans-serif;
-                                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                            }
-                            .centered-table th {
-                                background-color: #0369A1;
-                                color: white;
-                                padding: 12px 8px;
-                                text-align: center;
-                                border: 2px solid #555;
-                                font-weight: bold;
-                                font-size: 14px;
-                                vertical-align: middle;
-                            }
-                            .centered-table td {
-                                padding: 10px 8px;
-                                text-align: center;
-                                border: 2px solid #555;
-                                background-color: #f9f9f9;
-                                color: #333;
-                                vertical-align: middle;
-                            }
-                            .centered-table tr:nth-child(even) td {
-                                background-color: #f0f0f0;
-                            }
-                            .centered-table tr:hover td {
-                                background-color: #e6f3ff;
-                            }
-                            </style>
-                            """, unsafe_allow_html=True)
-                            
-                            # CSS SPÉCIFIQUE POUR LE MULTISELECT - VERSION GRIS
-                            st.markdown("""
-                            <style>
-                            .stMultiSelect > div > div {
-                                background-color: #F8FAFC !important;
-                                border: 2px solid #CBD5E1 !important;
-                                border-radius: 8px !important;
-                            }
-                            div[data-baseweb="select"] > div {
-                                background-color: #F8FAFC !important;
-                                border: 2px solid #CBD5E1 !important;
-                                border-radius: 8px !important;
-                            }
-                            div[data-baseweb="select"] span[data-baseweb="tag"] {
-                                background-color: #0369A1 !important;
-                                color: white !important;
-                                border-radius: 12px !important;
-                                font-weight: bold;
-                            }
-                            div[role="listbox"] {
-                                background-color: white !important;
-                                border: 2px solid #CBD5E1 !important;
-                            }
-                            div[role="option"][aria-selected="true"] {
-                                background-color: #F1F5F9 !important;
-                                color: #475569 !important;
-                            }
-                            div[role="option"]:hover {
-                                background-color: #E2E8F0 !important;
-                            }
-                            </style>
-                            """, unsafe_allow_html=True)
-                            
-                            # Afficher le tableau avec CSS
-                            html_content = f"""
-                            <div class="centered-table">
-                            {df_source_display.to_html(escape=False, index=False)}
-                            </div>
-                            """
-                            st.markdown(html_content, unsafe_allow_html=True)
-                            
-                            # --- Sélection des BLs avec client, poids et volume ---
-                            st.subheader("📋 Sélectionner les BLs à transférer")
-
-                            options_transfert = []
-                            mapping_bl_original = {}
-
-                            for bl in bls_simples:
-
-                                # Nettoyer le numéro du BL
-                                bl = str(bl).strip()
-
-                                # Rechercher les informations du BL
-                                client_info = df_livraisons[
-                                    df_livraisons["No livraison"].astype(str).str.strip() == bl
-                                ]
-
-                                if not client_info.empty:
-
-                                    ligne_bl = client_info.iloc[0]
-
-                                    # Récupérer le client
-                                    client_nom = str(
-                                        ligne_bl["Client de l'estafette"]
-                                    ).strip()
-
-                                    # Récupérer le poids et le volume du BL
-                                    poids_bl = pd.to_numeric(
-                                        ligne_bl["Poids total"],
-                                        errors="coerce"
-                                    )
-
-                                    volume_bl = pd.to_numeric(
-                                        ligne_bl["Volume total"],
-                                        errors="coerce"
-                                    )
-
-                                    poids_bl = 0 if pd.isna(poids_bl) else poids_bl
-                                    volume_bl = 0 if pd.isna(volume_bl) else volume_bl
-
-                                else:
-                                    client_nom = "Client non trouvé"
-                                    poids_bl = 0
-                                    volume_bl = 0
-
-                                # Construire le libellé affiché
-                                option_affichage = (
-                                    f"{bl} - {client_nom} - "
-                                    f"{poids_bl:.2f} kg - {volume_bl:.2f} m³"
-                                )
-
-                                options_transfert.append(option_affichage)
-
-                                # Conserver le numéro original pour le transfert
-                                mapping_bl_original[option_affichage] = bl
-
-                            
-                            # Multiselect avec clients
-                            bls_selectionnes_affichage = st.multiselect(
-                                "Sélectionnez les BLs à transférer (avec clients) :", 
-                                options_transfert,
-                                format_func=lambda x: x
-                            )
-                            
-                            # Convertir la sélection en BLs simples pour le traitement
-                            bls_selectionnes = [mapping_bl_original[bl_affichage] for bl_affichage in bls_selectionnes_affichage]
-                            
-                            if bls_selectionnes and st.button("🔁 Exécuter le transfert"):
-                                df_bls_selection = df_livraisons[df_livraisons["No livraison"].isin(bls_selectionnes)]
-                                poids_bls = df_bls_selection["Poids total"].sum()
-                                volume_bls = df_bls_selection["Volume total"].sum()
-                                
-                                df_cible = df_zone[df_zone["Véhicule N°"] == cible]
-                                poids_cible = df_cible["Poids total chargé"].sum()
-                                volume_cible = df_cible["Volume total chargé"].sum()
-                                
-                                # Sauvegarder les BLs ORIGINAUX pour le debug
-                                bls_source_avant = bls_simples.copy()  # BLs de la source avant transfert
-                                
-                                # Récupérer les BLs de la cible AVANT transfert
-                                bls_cible_avant = []
-                                if not df_cible.empty and "BL inclus" in df_cible.columns:
-                                    bls_str = df_cible.iloc[0]["BL inclus"]
-                                    if pd.notna(bls_str):
-                                        bls_cible_avant = [b.strip() for b in bls_str.split(";") if b.strip()]
-                                
-                                if (poids_cible + poids_bls) > MAX_POIDS or (volume_cible + volume_bls) > MAX_VOLUME:
-                                    st.warning("⚠️ Le transfert dépasse les limites de poids ou volume du véhicule cible.")
-                                else:
-                                    def transfer_bl(row):
-                                        bls = row["BL inclus"].split(";") if pd.notna(row["BL inclus"]) else []
-                                        
-                                        if row["Véhicule N°"] == source:
-                                            # RETIRER les BLs transférés de la source
-                                            new_bls = [b for b in bls if b not in bls_selectionnes]
-                                            row["BL inclus"] = ";".join(new_bls) if new_bls else ""
-                                            row["Poids total chargé"] = max(0, row["Poids total chargé"] - poids_bls)
-                                            row["Volume total chargé"] = max(0, row["Volume total chargé"] - volume_bls)
-                                        
-                                        elif row["Véhicule N°"] == cible:
-                                            # AJOUTER les BLs transférés à la cible
-                                            # Combiner BLs existants + BLs transférés
-                                            all_bls = bls + bls_selectionnes
-                                            # Supprimer les doublons
-                                            all_bls = list(dict.fromkeys(all_bls))
-                                            row["BL inclus"] = ";".join(all_bls) if all_bls else ""
-                                            row["Poids total chargé"] = row["Poids total chargé"] + poids_bls
-                                            row["Volume total chargé"] = row["Volume total chargé"] + volume_bls
-                                        
-                                        return row
-                                    
-                                    df_voyages = df_voyages.apply(transfer_bl, axis=1)
-                                    st.session_state.df_voyages = df_voyages
-                                    
-                                    # Afficher un résumé du transfert avec clients
-                                    clients_transferes = df_bls_selection["Client de l'estafette"].unique()
-                                    st.success(f"""
-                                    ✅ Transfert réussi !
-                                    - **{len(bls_selectionnes)} BL(s)** déplacé(s) de **{source}** vers **{cible}**
-                                    - **Clients concernés :** {', '.join(clients_transferes)}
-                                    - **Poids transféré :** {poids_bls:.1f} kg
-                                    - **Volume transféré :** {volume_bls:.3f} m³
-                                    """)
-                                    
-                                    # --- VÉRIFICATION DÉTAILLÉE ---
-                                    st.markdown("---")
-                                   #st.subheader("🔍 Vérification du transfert")
-                                    
-                                    # Récupérer les données APRÈS transfert
-                                    df_source_apres = df_voyages[df_voyages["Véhicule N°"] == source]
-                                    df_cible_apres = df_voyages[df_voyages["Véhicule N°"] == cible]
-                                    
-                                    # BLs de la source APRÈS transfert
-                                    bls_source_apres = []
-                                    if not df_source_apres.empty and "BL inclus" in df_source_apres.columns:
-                                        bls_str = df_source_apres.iloc[0]["BL inclus"]
-                                        if pd.notna(bls_str):
-                                            bls_source_apres = [b.strip() for b in bls_str.split(";") if b.strip()]
-                                    
-                                    # BLs de la cible APRÈS transfert  
-                                    bls_cible_apres = []
-                                    if not df_cible_apres.empty and "BL inclus" in df_cible_apres.columns:
-                                        bls_str = df_cible_apres.iloc[0]["BL inclus"]
-                                        if pd.notna(bls_str):
-                                            bls_cible_apres = [b.strip() for b in bls_str.split(";") if b.strip()]
-                                    
-                                    # Afficher la vérification
-                                   #col_verif1, col_verif2 = st.columns(2)
-                                    
-                                  # with col_verif1:
-                                    #   st.markdown(f"""
-                                     #  **✅ Vérification Source ({source}):**
-                                      # - BLs avant: {', '.join(bls_source_avant) if bls_source_avant else 'Aucun'}
-                                      # - BLs transférés: {', '.join(bls_selectionnes)}
-                                      # - BLs après: {', '.join(bls_source_apres) if bls_source_apres else 'Aucun'}
-                                      # - BLs retirés avec succès: {'✅ OUI' if all(bl not in bls_source_apres for bl in bls_selectionnes) else '❌ NON'}
-                                     #  """)
-                                    
-                                   #with col_verif2:
-                                    #   st.markdown(f"""
-                                     #  **✅ Vérification Cible ({cible}):**
-                                     #  - BLs avant: {', '.join(bls_cible_avant) if bls_cible_avant else 'Aucun'}
-                                     #  - BLs ajoutés: {', '.join(bls_selectionnes)}
-                                      # - BLs après: {', '.join(bls_cible_apres) if bls_cible_apres else 'Aucun'}
-                                      # - BLs ajoutés avec succès: {'✅ OUI' if all(bl in bls_cible_apres for bl in bls_selectionnes) else '❌ NON'}
-                                       #""")
-                                    
-                                    # --- AFFICHAGE DU TABLEAU COMPLET ---
-                                   #st.markdown("---")
-                                    st.subheader("📊 Voyages après transfert (toutes les zones)")
-
-                                    # =====================================================
-                                    # CALCUL DES TAUX D'OCCUPATION POIDS ET VOLUME
-                                    # =====================================================
-
-                                    def calculer_taux_occupation(row):
-
-                                        poids = pd.to_numeric(row["Poids total chargé"], errors="coerce")
-                                        volume = pd.to_numeric(row["Volume total chargé"], errors="coerce")
-
-                                        # Capacités selon le véhicule
-                                        if str(row.get("Code Véhicule", "")).strip() == "CAMION-LOUE":
-                                            capacite_poids = 3000
-                                            capacite_volume = 9.216
-                                        else:
-                                            capacite_poids = 1550
-                                            capacite_volume = 4.608
-
-                                        taux_poids = (
-                                            poids / capacite_poids * 100
-                                            if pd.notna(poids) else 0
-                                        )
-
-                                        taux_volume = (
-                                            volume / capacite_volume * 100
-                                            if pd.notna(volume) else 0
-                                        )
-
-                                        return pd.Series({
-                                            "Taux occupation poids (%)": taux_poids,
-                                            "Taux occupation volume (%)": taux_volume
-                                        })
-
-                                    # Supprimer l'ancien taux maximum
-                                    df_voyages = df_voyages.drop(
-                                        columns=["Taux d'occupation (%)"],
-                                        errors="ignore"
-                                    )
-
-                                    # Calculer les deux taux à partir des charges après transfert
-                                    df_voyages[
-                                        ["Taux occupation poids (%)", "Taux occupation volume (%)"]
-                                    ] = df_voyages.apply(calculer_taux_occupation, axis=1)
-
-                                    # =====================================================
-                                    # ✅ RÉORDONNANCEMENT DES COLONNES
-                                    # =====================================================
-                                    ordre_colonnes = [
-                                        "Zone",
-                                        "Véhicule N°",
-                                        "Poids total chargé",
-                                        "Volume total chargé",
-                                        "Client(s) inclus",
-                                        "Représentant(s) inclus",
-                                        "BL inclus",
-                                        "Taux occupation poids (%)",
-                                        "Taux occupation volume (%)",
-                                        "Location_camion",
-                                        "Location_proposee",
-                                        "Code Véhicule"
-                                    ]
-
-                                    # Garder uniquement les colonnes existantes dans cet ordre
-                                    colonnes_existantes = [c for c in ordre_colonnes if c in df_voyages.columns]
-                                    # Ajouter à la fin les éventuelles colonnes non listées (sécurité)
-                                    autres_colonnes = [c for c in df_voyages.columns if c not in colonnes_existantes]
-                                    df_voyages = df_voyages[colonnes_existantes + autres_colonnes]
-
-                                    # =====================================================
-                                    # PRÉPARATION DE L'AFFICHAGE
-                                    # =====================================================
-                                    df_display = df_voyages.sort_values(by=["Zone", "Véhicule N°"]).copy()
-
-                                    # Formater pour l'affichage HTML
-                                    if "BL inclus" in df_display.columns:
-                                        df_display["BL inclus"] = df_display["BL inclus"].astype(str).apply(
-                                            lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if x != "nan" and x != "" else "Aucun BL"
-                                        )
-
-                                    df_display["Poids total chargé"] = df_display["Poids total chargé"].map(lambda x: f"{x:.3f} kg")
-                                    df_display["Volume total chargé"] = df_display["Volume total chargé"].map(lambda x: f"{x:.3f} m³")
-
-                                    # Formater les deux taux d'occupation
-                                    for col_taux in ["Taux occupation poids (%)", "Taux occupation volume (%)"]:
-                                        if col_taux in df_display.columns:
-                                            df_display[col_taux] = df_display[col_taux].map(lambda x: f"{x:.3f}%")
-
-                                    # CSS pour mettre en évidence
-                                    st.markdown("""
-                                    <style>
-                                    .highlight-source {
-                                        border-left: 5px solid #FF6B6B !important;
-                                    }
-                                    .highlight-target {
-                                        border-left: 5px solid #51CF66 !important;
-                                    }
-                                    </style>
-                                    """, unsafe_allow_html=True)
-
-                                    # Ajouter des classes CSS pour les lignes modifiées
-                                    html_table = df_display.to_html(escape=False, index=False, classes="custom-table-voyages", border=0)
-
-                                    # Modifier le HTML pour ajouter des classes
-                                    # Remplacer toute la boucle for + les replace par ceci :
-
-                                    import re
-
-                                    html_table = df_display.to_html(escape=False, index=False, classes="custom-table-voyages", border=0)
-
-                                    # Séparer l'en-tête et les lignes de données
-                                    parties = html_table.split("<tbody>")
-                                    tbody_lignes = parties[1].split("<tr>")   # [0] = vide avant le premier <tr>
-
-                                    nouvelles_lignes = [tbody_lignes[0]]
-                                    for (i, row), contenu in zip(df_display.iterrows(), tbody_lignes[1:]):
-                                        if row["Véhicule N°"] == source:
-                                            nouvelles_lignes.append(f'<tr class="highlight-source">{contenu}')
-                                        elif row["Véhicule N°"] == cible:
-                                            nouvelles_lignes.append(f'<tr class="highlight-target">{contenu}')
-                                        else:
-                                            nouvelles_lignes.append(f'<tr>{contenu}')
-
-                                    html_table = parties[0] + "<tbody>" + "".join(nouvelles_lignes)
-
-                                    st.markdown(f"""
-                                            <div class="table-container-voyages">
-                                                {html_table}
-                                            </div>
-                                            """, unsafe_allow_html=True)
-                                    
-                                    
-                                    # =====================================================
-                                    # EXPORT EXCEL : VOYAGES APRÈS TRANSFERT
-                                    # =====================================================
-
-                                    import re
-                                    from io import BytesIO
-                                    import openpyxl
-                                    from openpyxl.styles import (
-                                        Font,
-                                        PatternFill,
-                                        Alignment,
-                                        Border,
-                                        Side
-                                    )
-                                    from openpyxl.utils import get_column_letter
-
-                                    # Copier les données mises à jour après transfert
-                                    df_export = df_voyages.copy()
-
-                                    # =====================================================
-                                    # 1. TRIER LES DONNÉES PAR ZONE ET VÉHICULE
-                                    # =====================================================
-
-                                    if "Zone" in df_export.columns:
-                                        df_export["_Zone_Num"] = pd.to_numeric(
-                                            df_export["Zone"]
-                                            .astype(str)
-                                            .str.extract(r"(\d+)")[0],
-                                            errors="coerce"
-                                        )
-
-                                        df_export = df_export.sort_values(
-                                            by=["_Zone_Num", "Véhicule N°"]
-                                            if "Véhicule N°" in df_export.columns
-                                            else ["_Zone_Num"],
-                                            na_position="last"
-                                        ).drop(columns=["_Zone_Num"])
-
-                                    # =====================================================
-                                    # 2. ORGANISER LES COLONNES
-                                    # =====================================================
-
-                                    ordre_colonnes = [
-                                        "Zone",
-                                        "Véhicule N°",
-                                        "Poids total chargé",
-                                        "Volume total chargé",
-                                        "Client(s) inclus",
-                                        "Représentant(s) inclus",
-                                        "BL inclus",
-                                        "Taux occupation poids (%)",
-                                        "Taux occupation volume (%)",
-                                        "Location_camion",
-                                        "Location_proposee",
-                                        "Code Véhicule"
-                                    ]
-
-                                    colonnes_existantes = [
-                                        col for col in ordre_colonnes
-                                        if col in df_export.columns
-                                    ]
-
-                                    autres_colonnes = [
-                                        col for col in df_export.columns
-                                        if col not in colonnes_existantes
-                                    ]
-
-                                    df_export = df_export[
-                                        colonnes_existantes + autres_colonnes
-                                    ].copy()
-
-                                    # =====================================================
-                                    # 3. PRÉPARER LES COLONNES MULTILIGNES
-                                    # =====================================================
-
-                                    colonnes_multilignes = [
-                                        "Client(s) inclus",
-                                        "Représentant(s) inclus",
-                                        "BL inclus"
-                                    ]
-
-                                    def vers_retours_ligne(valeur):
-                                        if pd.isna(valeur):
-                                            return ""
-
-                                        texte = str(valeur).strip()
-
-                                        if texte.lower() in ("", "nan", "none"):
-                                            return ""
-
-                                        elements = [
-                                            element.strip()
-                                            for element in re.split(r"[;,]", texte)
-                                            if element.strip()
-                                        ]
-
-                                        return "\n".join(elements)
-
-                                    for col in colonnes_multilignes:
-                                        if col in df_export.columns:
-                                            df_export[col] = df_export[col].apply(
-                                                vers_retours_ligne
-                                            )
-
-                                    # =====================================================
-                                    # 4. FORMATER LES VALEURS NUMÉRIQUES
-                                    # =====================================================
-
-                                    for col in [
-                                        "Poids total chargé",
-                                        "Volume total chargé",
-                                        "Taux occupation poids (%)",
-                                        "Taux occupation volume (%)"
-                                    ]:
-                                        if col in df_export.columns:
-                                            df_export[col] = pd.to_numeric(
-                                                df_export[col],
-                                                errors="coerce"
-                                            ).round(3)
-
-                                    # =====================================================
-                                    # 5. CRÉER LE FICHIER EXCEL
-                                    # =====================================================
-
-                                    excel_buffer = BytesIO()
-
-                                    with pd.ExcelWriter(
-                                        excel_buffer,
-                                        engine="openpyxl"
-                                    ) as writer:
-
-                                        df_export.to_excel(
-                                            writer,
-                                            index=False,
-                                            sheet_name="Voyages après transfert"
-                                        )
-
-                                        workbook = writer.book
-                                        worksheet = writer.sheets[
-                                            "Voyages après transfert"
-                                        ]
-
-                                        # =====================================================
-                                        # 6. STYLE DE L'EN-TÊTE
-                                        # =====================================================
-
-                                        header_fill = PatternFill(
-                                            fill_type="solid",
-                                            fgColor="0369A1"
-                                        )
-
-                                        header_font = Font(
-                                            name="Arial",
-                                            bold=True,
-                                            color="FFFFFF",
-                                            size=10
-                                        )
-
-                                        header_alignment = Alignment(
-                                            horizontal="center",
-                                            vertical="center",
-                                            wrap_text=True
-                                        )
-
-                                        # =====================================================
-                                        # 7. BORDURES ET ALIGNEMENT
-                                        # =====================================================
-
-                                        thin_border = Border(
-                                            left=Side(
-                                                style="thin",
-                                                color="B0C4DE"
-                                            ),
-                                            right=Side(
-                                                style="thin",
-                                                color="B0C4DE"
-                                            ),
-                                            top=Side(
-                                                style="thin",
-                                                color="B0C4DE"
-                                            ),
-                                            bottom=Side(
-                                                style="thin",
-                                                color="B0C4DE"
-                                            )
-                                        )
-
-                                        cell_alignment = Alignment(
-                                            horizontal="center",
-                                            vertical="center",
-                                            wrap_text=True
-                                        )
-
-                                        for row in worksheet.iter_rows():
-                                            for cell in row:
-                                                cell.border = thin_border
-                                                cell.alignment = cell_alignment
-                                                cell.font = Font(
-                                                    name="Arial",
-                                                    size=10
-                                                )
-
-                                                if cell.row == 1:
-                                                    cell.fill = header_fill
-                                                    cell.font = header_font
-                                                    cell.alignment = header_alignment
-
-                                        worksheet.row_dimensions[1].height = 35
-
-                                        # =====================================================
-                                        # 8. FORMATS NUMÉRIQUES EXCEL
-                                        # =====================================================
-
-                                        formats_numeriques = {
-                                            "Poids total chargé": "0.000",
-                                            "Volume total chargé": "0.000",
-                                            "Taux occupation poids (%)": '0.000"%"',
-                                            "Taux occupation volume (%)": '0.000"%"'
-                                        }
-
-                                        for col_idx, col_name in enumerate(
-                                            df_export.columns,
-                                            start=1
-                                        ):
-                                            if col_name in formats_numeriques:
-                                                for row_idx in range(
-                                                    2,
-                                                    worksheet.max_row + 1
-                                                ):
-                                                    worksheet.cell(
-                                                        row=row_idx,
-                                                        column=col_idx
-                                                    ).number_format = (
-                                                        formats_numeriques[col_name]
-                                                    )
-
-                                        # =====================================================
-                                        # 9. LARGEURS DES COLONNES
-                                        # =====================================================
-
-                                        largeurs_fixes = {
-                                            "Zone": 12,
-                                            "Véhicule N°": 15,
-                                            "Poids total chargé": 20,
-                                            "Volume total chargé": 21,
-                                            "Client(s) inclus": 32,
-                                            "Représentant(s) inclus": 30,
-                                            "BL inclus": 35,
-                                            "Taux occupation poids (%)": 23,
-                                            "Taux occupation volume (%)": 25,
-                                            "Location_camion": 20,
-                                            "Location_proposee": 22,
-                                            "Code Véhicule": 20
-                                        }
-
-                                        for col_idx, col_name in enumerate(
-                                            df_export.columns,
-                                            start=1
-                                        ):
-                                            col_letter = get_column_letter(col_idx)
-
-                                            worksheet.column_dimensions[
-                                                col_letter
-                                            ].width = largeurs_fixes.get(
-                                                col_name,
-                                                18
-                                            )
-
-                                        # =====================================================
-                                        # 10. AJUSTER LA HAUTEUR DES LIGNES
-                                        # =====================================================
-
-                                        for row_idx in range(
-                                            2,
-                                            worksheet.max_row + 1
-                                        ):
-                                            max_lines = 1
-
-                                            for col_idx, col_name in enumerate(
-                                                df_export.columns,
-                                                start=1
-                                            ):
-                                                if col_name in colonnes_multilignes:
-                                                    valeur = worksheet.cell(
-                                                        row=row_idx,
-                                                        column=col_idx
-                                                    ).value
-
-                                                    if valeur:
-                                                        nb_lignes = (
-                                                            str(valeur).count("\n") + 1
-                                                        )
-                                                        max_lines = max(
-                                                            max_lines,
-                                                            nb_lignes
-                                                        )
-
-                                            worksheet.row_dimensions[
-                                                row_idx
-                                            ].height = min(
-                                                max(22, max_lines * 18),
-                                                120
-                                            )
-
-                                        # =====================================================
-                                        # 11. FILTRE, EN-TÊTE FIGÉ ET AFFICHAGE
-                                        # =====================================================
-
-                                        worksheet.auto_filter.ref = (
-                                            worksheet.dimensions
-                                        )
-                                        worksheet.freeze_panes = "A2"
-                                        worksheet.sheet_view.showGridLines = False
-
-                                        # =====================================================
-                                        # 12. MISE EN PAGE POUR IMPRESSION
-                                        # =====================================================
-
-                                        worksheet.page_setup.orientation = "landscape"
-                                        worksheet.page_setup.fitToWidth = 1
-                                        worksheet.page_setup.fitToHeight = 0
-
-                                        worksheet.sheet_properties.pageSetUpPr.fitToPage = True
-                                        worksheet.print_title_rows = "1:1"
-
-                                    excel_buffer.seek(0)
-
-                                    
-                                    # =====================================================
-                                    # BOUTON DE TÉLÉCHARGEMENT CENTRÉ
-                                    # =====================================================
-
-                                    col_gauche_xlsx, col_centre_xlsx, col_droite_xlsx = st.columns([1, 2, 1])
-
-                                    with col_centre_xlsx:
-                                        st.download_button(
-                                            label="💾 Télécharger le tableau mis à jour (XLSX)",
-                                            data=excel_buffer,
-                                            file_name="voyages_apres_transfert.xlsx",
-                                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                            use_container_width=True
-                                        )
-
-
-                            #else:
-                                #st.info("ℹ️ Générez d'abord les voyages optimisés dans l'onglet 1")
-    
-# --- Onglet 3: Attribution véhicules/chauffeurs ---donne moi le code complet de l'app
-
+    # --- Onglet : Ajout Objets ---
     with tab3:
         # =====================================================
         # 6️⃣ AJOUT D'OBJETS MANUELS AUX VÉHICULES (CORRIGÉ AVEC HISTORIQUE)
