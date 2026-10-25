@@ -5372,10 +5372,7 @@ def page_optimisation():
                 "Représentant(s) inclus",
                 "BL inclus",
                 "Taux occupation poids (%)",
-                "Taux occupation volume (%)",
-                "Location_camion",
-                "Location_proposee",
-                "Code Véhicule"
+                "Taux occupation volume (%)"
             ]
 
             # Garder uniquement les colonnes existantes, dans le bon ordre
@@ -5565,10 +5562,7 @@ def page_optimisation():
                     "Représentant(s) inclus": 30,
                     "BL inclus": 35,
                     "Taux occupation poids (%)": 22,
-                    "Taux occupation volume (%)": 24,
-                    "Location_camion": 20,
-                    "Location_proposee": 22,
-                    "Code Véhicule": 20
+                    "Taux occupation volume (%)": 24
                 }
 
                 for col_idx, col_name in enumerate(df_export.columns, start=1):
