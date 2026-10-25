@@ -3304,6 +3304,31 @@ def page_optimisation():
         /* Légende */
         .leg-voy { font-size: 12.5px; color: #44546A; margin: 2px 0 8px 0; }
         .leg-voy .pt { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin: 0 4px 0 12px; vertical-align: middle; }
+        
+        /* Boutons de décision : Accepter = vert, Refuser = rouge */
+        div.st-key-btn_accepter_location button:not(:disabled) {
+            background-color: #2E7D32 !important;
+            border: 1px solid #2E7D32 !important;
+            color: #FFFFFF !important;
+        }
+        div.st-key-btn_accepter_location button:not(:disabled) * { color: #FFFFFF !important; }
+        div.st-key-btn_accepter_location button:not(:disabled):hover {
+            background-color: #FFFFFF !important;
+            border: 1px solid #2E7D32 !important;
+        }
+        div.st-key-btn_accepter_location button:not(:disabled):hover * { color: #2E7D32 !important; }
+        
+        div.st-key-btn_refuser_location button:not(:disabled) {
+            background-color: #C62828 !important;
+            border: 1px solid #C62828 !important;
+            color: #FFFFFF !important;
+        }
+        div.st-key-btn_refuser_location button:not(:disabled) * { color: #FFFFFF !important; }
+        div.st-key-btn_refuser_location button:not(:disabled):hover {
+            background-color: #FFFFFF !important;
+            border: 1px solid #C62828 !important;
+        }
+        div.st-key-btn_refuser_location button:not(:disabled):hover * { color: #C62828 !important; }
     </style>
     """, unsafe_allow_html=True)
     
@@ -3502,6 +3527,7 @@ def page_optimisation():
                     
                     st.button(
                         "✅ Accepter la location", 
+                        key="btn_accepter_location",
                         on_click=accept_location_callback, 
                         disabled=not is_client_selected or not is_compatible,
                         use_container_width=True,
@@ -3515,6 +3541,7 @@ def page_optimisation():
                 with col_btn_ref:
                     st.button(
                         "❌ Refuser la proposition", 
+                        key="btn_refuser_location",
                         on_click=refuse_location_callback, 
                         disabled=not is_client_selected,
                         use_container_width=True,
