@@ -3266,10 +3266,9 @@ def page_optimisation():
         update_propositions_view()
     
     # Onglets pour différentes fonctionnalités
-    tab1, tab_voyages, tab5 = st.tabs([
+    tab1, tab_voyages = st.tabs([
         "📋 Propositions Location", 
-        "🚐 Voyages par Estafette Optimisé", 
-        "📋 Rapports & Codes voyage"
+        "🚐 Voyages par Estafette Optimisé"
     ])
     
     # --- Onglet 1: Propositions de Location ---
@@ -6116,151 +6115,6 @@ def page_optimisation():
                 st.success("✅ Attributions appliquées avec succès !")
                 
 
-    # --- Onglet : Rapports & Codes voyage ---
-    with tab5:
-        
-        # =====================================================
-        # SECTION: 📋Rapports et analyses avancés
-        # =====================================================
-        st.markdown("---")
-        st.markdown("## 📋 Rapports et analyses avancés")
-        
-        if "df_voyages" in st.session_state and "df_livraisons_original" in st.session_state:
-            
-            try:
-                from backend import AdvancedReportGenerator
-                report_generator = AdvancedReportGenerator(
-                    st.session_state.df_voyages, 
-                    st.session_state.df_livraisons_original
-                )
-                
-                tab_analytics1, tab_analytics2, tab_analytics3, tab_analytics4 = st.tabs([
-                    "📈 Rapport Analytique", 
-                    "👤 Rapport Client", 
-                    "💰 Analyse Coûts", 
-                    "✅ Validation Données"
-                ])
-                
-                with tab_analytics1:
-                    st.subheader("Rapport Analytique Complet")
-                    if st.button("🔄 Générer le rapport analytique", key="btn_rapport_analytique"):
-                        with st.spinner("Génération du rapport en cours..."):
-                            rapport = report_generator.generer_rapport_analytique()
-                            st.text_area("Rapport détaillé", rapport, height=400, key="text_rapport_analytique")
-                
-                with tab_analytics2:
-                    st.subheader("Rapport Spécifique Client")
-                    # Liste des clients à exclure (même liste que dans le backend)
-                    clients_exclus_rapport = {
-                        "AMECAP", "SANA", "SOPAL", "SOPALGAZ", "SOPALSERV", "SOPALTEC",
-                        "SOPALALG", "AQUAPLAST", "WINOX", "QUIVEM", "SANISTONE",
-                        "SOPAMAR", "SOPALAFR", "SOPALINTER", "PERSOGSO", "SIAM"
-                    }
-
-                    # Filtrer AVANT de construire la liste déroulante
-                    df_rapport = st.session_state.df_livraisons_original.copy()
-
-                    # Exclusion sur "Client de l'estafette" (colonne affichée dans la liste)
-                    df_rapport = df_rapport[
-                        ~df_rapport["Client de l'estafette"].astype(str).str.strip().str.upper()
-                        .isin(clients_exclus_rapport)
-                    ]
-
-                    # Exclusion aussi sur "Client commande" (colonne utilisée par le backend)
-                    if "Client commande" in df_rapport.columns:
-                        df_rapport = df_rapport[
-                            ~df_rapport["Client commande"].astype(str).str.strip().str.upper()
-                            .isin(clients_exclus_rapport)
-                        ]
-
-                    clients_disponibles = sorted(df_rapport["Client de l'estafette"].dropna().unique())
-
-                    client_rapport = st.selectbox(
-                        "Sélectionner un client", clients_disponibles, key="select_client_rapport"
-                    )
-
-                    if st.button("📋 Générer rapport client", key="btn_rapport_client"):
-                        with st.spinner("Génération du rapport client..."):
-                            rapport_client = report_generator.generer_rapport_client(client_rapport)
-                            st.text_area(
-                                f"Rapport pour {client_rapport}", rapport_client,
-                                height=300, key="text_rapport_client"
-                            )
-                
-                with tab_analytics3:
-                    st.subheader("Analyse des Coûts")
-                    col_cost1, col_cost2 = st.columns(2)
-                    
-                    with col_cost1:
-                        cout_estafette = st.number_input("Coût unitaire estafette (TND)", value=150, min_value=50, max_value=500, key="cout_estafette")
-                    with col_cost2:
-                        cout_camion = st.number_input("Coût unitaire camion (TND)", value=800, min_value=300, max_value=2000, key="cout_camion")
-                    
-                    if st.button("💰 Calculer les coûts", key="btn_calcul_couts"):
-                        try:
-                            from backend import calculer_couts_estimation
-                            couts = calculer_couts_estimation(
-                                st.session_state.df_voyages, 
-                                cout_estafette, 
-                                cout_camion
-                            )
-                            
-                            if 'erreur' not in couts:
-                                st.success(couts['cout_estimation'])
-                                
-                                # Graphique des coûts
-                                import plotly.express as px
-                                df_couts = pd.DataFrame({
-                                    'Type': ['Estafettes', 'Camions'],
-                                    'Coût Total (TND)': [
-                                        couts['estafettes'] * couts['cout_estafette_unitaire'],
-                                        couts['camions'] * couts['cout_camion_unitaire']
-                                    ]
-                                })
-                                
-                                fig = px.pie(df_couts, values='Coût Total (TND)', names='Type', 
-                                            title='Répartition des coûts par type de véhicule')
-                                st.plotly_chart(fig, use_container_width=True)
-                            else:
-                                st.error(couts['erreur'])
-                        except ImportError:
-                            st.error("❌ La fonction 'calculer_couts_estimation' n'est pas disponible dans le backend")
-                        except Exception as e:
-                            st.error(f"❌ Erreur lors du calcul des coûts : {str(e)}")
-                
-                with tab_analytics4:
-                    st.subheader("Validation d'Intégrité des Données")
-                    if st.button("🔍 Vérifier l'intégrité des données", key="btn_verif_integrite"):
-                        try:
-                            from backend import verifier_integrite_donnees
-                            resultat_validation = verifier_integrite_donnees(
-                                st.session_state.df_voyages,
-                                st.session_state.df_livraisons_original
-                            )
-                            
-                            if "✅" in resultat_validation:
-                                st.success(resultat_validation)
-                            else:
-                                st.warning(resultat_validation)
-                        except ImportError:
-                            st.error("❌ La fonction 'verifier_integrite_donnees' n'est pas disponible dans le backend")
-                        except Exception as e:
-                            st.error(f"❌ Erreur lors de la validation : {str(e)}")
-            
-            except ImportError:
-                st.error("❌ La classe 'AdvancedReportGenerator' n'est pas disponible dans le backend")
-                st.info("""
-                ℹ️ Pour utiliser les rapports avancés, assurez-vous que :
-                1. Le fichier 'backend.py' existe
-                2. Il contient la classe 'AdvancedReportGenerator'
-                3. Les fonctions nécessaires sont implémentées
-                """)
-            except Exception as e:
-                st.error(f"❌ Erreur lors de l'initialisation du générateur de rapports : {str(e)}")
-
-        else:
-            st.warning("⚠️ Vous devez d'abord traiter les données dans la page d'importation.")
-        
         # =====================================================
         # SECTION: 🏷️ GÉNÉRATION DES CODES VOYAGE
         # =====================================================
@@ -7512,6 +7366,149 @@ def page_finalisation():
         else:
             st.warning("⚠️ Le planning n'est pas encore généré.")
         
+        # =====================================================
+        # SECTION: 📋Rapports et analyses avancés
+        # =====================================================
+        st.markdown("---")
+        st.markdown("## 📋 Rapports et analyses avancés")
+        
+        if "df_voyages" in st.session_state and "df_livraisons_original" in st.session_state:
+            
+            try:
+                from backend import AdvancedReportGenerator
+                report_generator = AdvancedReportGenerator(
+                    st.session_state.df_voyages, 
+                    st.session_state.df_livraisons_original
+                )
+                
+                tab_analytics1, tab_analytics2, tab_analytics3, tab_analytics4 = st.tabs([
+                    "📈 Rapport Analytique", 
+                    "👤 Rapport Client", 
+                    "💰 Analyse Coûts", 
+                    "✅ Validation Données"
+                ])
+                
+                with tab_analytics1:
+                    st.subheader("Rapport Analytique Complet")
+                    if st.button("🔄 Générer le rapport analytique", key="btn_rapport_analytique"):
+                        with st.spinner("Génération du rapport en cours..."):
+                            rapport = report_generator.generer_rapport_analytique()
+                            st.text_area("Rapport détaillé", rapport, height=400, key="text_rapport_analytique")
+                
+                with tab_analytics2:
+                    st.subheader("Rapport Spécifique Client")
+                    # Liste des clients à exclure (même liste que dans le backend)
+                    clients_exclus_rapport = {
+                        "AMECAP", "SANA", "SOPAL", "SOPALGAZ", "SOPALSERV", "SOPALTEC",
+                        "SOPALALG", "AQUAPLAST", "WINOX", "QUIVEM", "SANISTONE",
+                        "SOPAMAR", "SOPALAFR", "SOPALINTER", "PERSOGSO", "SIAM"
+                    }
+
+                    # Filtrer AVANT de construire la liste déroulante
+                    df_rapport = st.session_state.df_livraisons_original.copy()
+
+                    # Exclusion sur "Client de l'estafette" (colonne affichée dans la liste)
+                    df_rapport = df_rapport[
+                        ~df_rapport["Client de l'estafette"].astype(str).str.strip().str.upper()
+                        .isin(clients_exclus_rapport)
+                    ]
+
+                    # Exclusion aussi sur "Client commande" (colonne utilisée par le backend)
+                    if "Client commande" in df_rapport.columns:
+                        df_rapport = df_rapport[
+                            ~df_rapport["Client commande"].astype(str).str.strip().str.upper()
+                            .isin(clients_exclus_rapport)
+                        ]
+
+                    clients_disponibles = sorted(df_rapport["Client de l'estafette"].dropna().unique())
+
+                    client_rapport = st.selectbox(
+                        "Sélectionner un client", clients_disponibles, key="select_client_rapport"
+                    )
+
+                    if st.button("📋 Générer rapport client", key="btn_rapport_client"):
+                        with st.spinner("Génération du rapport client..."):
+                            rapport_client = report_generator.generer_rapport_client(client_rapport)
+                            st.text_area(
+                                f"Rapport pour {client_rapport}", rapport_client,
+                                height=300, key="text_rapport_client"
+                            )
+                
+                with tab_analytics3:
+                    st.subheader("Analyse des Coûts")
+                    col_cost1, col_cost2 = st.columns(2)
+                    
+                    with col_cost1:
+                        cout_estafette = st.number_input("Coût unitaire estafette (TND)", value=150, min_value=50, max_value=500, key="cout_estafette")
+                    with col_cost2:
+                        cout_camion = st.number_input("Coût unitaire camion (TND)", value=800, min_value=300, max_value=2000, key="cout_camion")
+                    
+                    if st.button("💰 Calculer les coûts", key="btn_calcul_couts"):
+                        try:
+                            from backend import calculer_couts_estimation
+                            couts = calculer_couts_estimation(
+                                st.session_state.df_voyages, 
+                                cout_estafette, 
+                                cout_camion
+                            )
+                            
+                            if 'erreur' not in couts:
+                                st.success(couts['cout_estimation'])
+                                
+                                # Graphique des coûts
+                                import plotly.express as _px
+                                df_couts = pd.DataFrame({
+                                    'Type': ['Estafettes', 'Camions'],
+                                    'Coût Total (TND)': [
+                                        couts['estafettes'] * couts['cout_estafette_unitaire'],
+                                        couts['camions'] * couts['cout_camion_unitaire']
+                                    ]
+                                })
+                                
+                                fig = _px.pie(df_couts, values='Coût Total (TND)', names='Type', 
+                                            title='Répartition des coûts par type de véhicule')
+                                st.plotly_chart(fig, use_container_width=True)
+                            else:
+                                st.error(couts['erreur'])
+                        except ImportError:
+                            st.error("❌ La fonction 'calculer_couts_estimation' n'est pas disponible dans le backend")
+                        except Exception as e:
+                            st.error(f"❌ Erreur lors du calcul des coûts : {str(e)}")
+                
+                with tab_analytics4:
+                    st.subheader("Validation d'Intégrité des Données")
+                    if st.button("🔍 Vérifier l'intégrité des données", key="btn_verif_integrite"):
+                        try:
+                            from backend import verifier_integrite_donnees
+                            resultat_validation = verifier_integrite_donnees(
+                                st.session_state.df_voyages,
+                                st.session_state.df_livraisons_original
+                            )
+                            
+                            if "✅" in resultat_validation:
+                                st.success(resultat_validation)
+                            else:
+                                st.warning(resultat_validation)
+                        except ImportError:
+                            st.error("❌ La fonction 'verifier_integrite_donnees' n'est pas disponible dans le backend")
+                        except Exception as e:
+                            st.error(f"❌ Erreur lors de la validation : {str(e)}")
+            
+            except ImportError:
+                st.error("❌ La classe 'AdvancedReportGenerator' n'est pas disponible dans le backend")
+                st.info("""
+                ℹ️ Pour utiliser les rapports avancés, assurez-vous que :
+                1. Le fichier 'backend.py' existe
+                2. Il contient la classe 'AdvancedReportGenerator'
+                3. Les fonctions nécessaires sont implémentées
+                """)
+            except Exception as e:
+                st.error(f"❌ Erreur lors de l'initialisation du générateur de rapports : {str(e)}")
+
+        else:
+            st.warning("⚠️ Vous devez d'abord traiter les données dans la page d'importation.")
+        
+
         # =====================================================
         # NAVIGATION ENTRE PAGES
         # =====================================================
