@@ -3266,11 +3266,10 @@ def page_optimisation():
         update_propositions_view()
     
     # Onglets pour différentes fonctionnalités
-    tab1, tab_voyages, tab4, tab5 = st.tabs([
+    tab1, tab_voyages, tab5 = st.tabs([
         "📋 Propositions Location", 
         "🚐 Voyages par Estafette Optimisé", 
-        "✅ VALIDATION DES VOYAGES APRÈS TRANSFERT",
-        "🚛 Attribution des véhicules et chauffeurs"
+        "✅ Validation & Attribution"
     ])
     
     # --- Onglet 1: Propositions de Location ---
@@ -5327,671 +5326,150 @@ def page_optimisation():
             st.write("Données brutes pour debug:")
             if st.session_state.rental_processor:
                 st.write("Colonnes du df_base:", list(st.session_state.rental_processor.df_base.columns))
-    # --- Onglet : Validation des voyages ---
-    with tab4:
-        st.subheader("✅ VALIDATION DES VOYAGES APRÈS TRANSFERT")
-
-        # =====================================================
-        # 7️⃣ VALIDATION DES VOYAGES APRÈS TRANSFERT
-        # =====================================================
-        
-        from io import BytesIO
-
-        # --- Fonction pour exporter DataFrame en Excel avec arrondi ---
-        def to_excel(df, sheet_name="Voyages Validés"):
-
-            df_export = df.copy()
-            if "Poids total chargé" in df_export.columns:
-                df_export["Poids total chargé"] = df_export["Poids total chargé"].round(3)
-            if "Volume total chargé" in df_export.columns:
-                df_export["Volume total chargé"] = df_export["Volume total chargé"].round(3)
-
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df_export.to_excel(writer, index=False, sheet_name=sheet_name)
-            return output.getvalue()
-
-        # --- CSS pour améliorer l'apparence ---
-        st.markdown("""
-        <style>
-        .voyage-card {
-            border: 1px solid #e0e0e0;
-            border-radius: 10px;
-            padding: 20px;
-            margin: 10px 0;
-            background: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .voyage-header {
-            background: #0369A1;  /* CHANGÉ : bleu royal au lieu du dégradé mauve */
-            color: white;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-        }
-        .metric-card {
-            background: #f8f9fa;
-            border-left: 4px solid #0369A1;  /* CHANGÉ : bleu royal */
-            padding: 12px;
-            margin: 8px 0;
-            border-radius: 5px;
-        }
-        .bl-list {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            border-radius: 5px;
-            padding: 10px;
-            margin: 10px 0;
-            max-height: 150px;
-            overflow-y: auto;
-        }
-        .validation-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
-        # --- Création du DataFrame de validation à partir du df_voyages ---
-        if "df_voyages" in st.session_state:
-            voyages_apres_transfert = st.session_state.df_voyages.copy()
-            df_validation = voyages_apres_transfert.copy()
-
-            if "validations" not in st.session_state:
-                st.session_state.validations = {}
-
-            # --- Affichage amélioré des voyages ---
-            st.markdown("### 📋 Liste des Voyages à Valider")
-            
-            for idx, row in df_validation.iterrows():
-                # Création d'une carte pour chaque voyage
-                with st.container():
-                    st.markdown(f"""
-                    <div class="voyage-card">
-                        <div class="voyage-header">
-                            <h4>🚚 Voyage {row['Véhicule N°']} | Zone: {row['Zone']}</h4>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Métriques principales
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        st.markdown(f"""
-                        <div class="metric-card">
-                            <strong>⚖️ Poids Total</strong><br>
-                            {row['Poids total chargé']:.3f} kg
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with col2:
-                        st.markdown(f"""
-                        <div class="metric-card">
-                            <strong>📏 Volume Total</strong><br>
-                            {row['Volume total chargé']:.3f} m³
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with col3:
-                        taux_occupation = row.get('Taux d\'occupation (%)', 'N/A')
-                        if taux_occupation != 'N/A':
-                            taux_text = f"{taux_occupation:.1f}%"
-                        else:
-                            taux_text = "N/A"
-                        st.markdown(f"""
-                        <div class="metric-card">
-                            <strong>📊 Taux d'Occupation</strong><br>
-                            {taux_text}
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    # Informations détaillées
-                    col4, col5 = st.columns(2)
-                    
-                    with col4:
-                        clients = row.get('Client(s) inclus', '')
-                        if clients:
-                            st.markdown(f"**👥 Clients:** {clients}")
-                        
-                        representants = row.get('Représentant(s) inclus', '')
-                        if representants:
-                            st.markdown(f"**👨‍💼 Représentants:** {representants}")
-                    
-                    with col5:
-                        location = "✅ Oui" if row.get('Location_camion') else "❌ Non"
-                        st.markdown(f"**🚛 Location:** {location}")
-                        
-                        code_vehicule = row.get('Code Véhicule', 'N/A')
-                        st.markdown(f"**🔧 Code Véhicule:** {code_vehicule}")
-                    
-                    # Liste des BL avec défilement
-                    bls = row.get('BL inclus', '')
-                    if bls:
-                        bls_list = bls.split(';')
-                        bls_html = "<br>".join([f"• {bl.strip()}" for bl in bls_list])
-                        st.markdown(f"""
-                        <div class="bl-list">
-                            <strong>📋 BLs Inclus ({len(bls_list)}):</strong><br>
-                            {bls_html}
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    # Boutons de validation côte à côte
-                    st.markdown("**✅ Validation du voyage:**")
-                    col_oui, col_non = st.columns(2)
-                    
-                    with col_oui:
-                        if st.button(f"✅ Valider {row['Véhicule N°']}", key=f"btn_oui_{idx}", 
-                                use_container_width=True, type="primary" if st.session_state.validations.get(idx) == "Oui" else "secondary"):
-                            st.session_state.validations[idx] = "Oui"
-                            st.rerun()
-                    
-                    with col_non:
-                        if st.button(f"❌ Rejeter {row['Véhicule N°']}", key=f"btn_non_{idx}",
-                                use_container_width=True, type="primary" if st.session_state.validations.get(idx) == "Non" else "secondary"):
-                            st.session_state.validations[idx] = "Non"
-                            st.rerun()
-                    
-                    # Afficher le statut actuel
-                    statut = st.session_state.validations.get(idx)
-                    if statut == "Oui":
-                        st.success(f"✅ Voyage {row['Véhicule N°']} validé")
-                    elif statut == "Non":
-                        st.error(f"❌ Voyage {row['Véhicule N°']} rejeté")
-                    else:
-                        st.info("⏳ En attente de validation")
-                    
-                    st.markdown("</div>", unsafe_allow_html=True)
-                    st.markdown("---")
-
-            # --- Résumé des validations ---
-            st.markdown("### 📊 Résumé des Validations")
-            total_voyages = len(df_validation)
-            valides = sum(1 for v in st.session_state.validations.values() if v == "Oui")
-            rejetes = sum(1 for v in st.session_state.validations.values() if v == "Non")
-
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
-                st.metric("Total Voyages", total_voyages)
-            with col2:
-                st.metric("✅ Validés", valides)
-            with col3:
-                st.metric("❌ Rejetés", rejetes)
-
-            # Information supplémentaire sur l'état des validations
-            if valides + rejetes < total_voyages:
-                st.info(f"ℹ️ {total_voyages - (valides + rejetes)} voyage(s) n'ont pas encore été validés")
-
-            # --- Bouton pour appliquer les validations ---
-            if st.button("🚀 Finaliser la Validation", type="primary", use_container_width=True):
-                valid_indexes = [i for i, v in st.session_state.validations.items() if v == "Oui"]
-                valid_indexes = [i for i in valid_indexes if i in df_validation.index]
-
-                if valid_indexes:
-                    df_voyages_valides = df_validation.loc[valid_indexes].reset_index(drop=True)
-                    st.session_state.df_voyages_valides = df_voyages_valides
-
-                    st.success(f"✅ {len(df_voyages_valides)} voyage(s) validé(s) avec succès!")
-                    
-                    # Affichage des voyages validés
-                    st.markdown("### 🎉 Voyages Validés - Résumé Final")
-                    
-                    for idx, row_valide in df_voyages_valides.iterrows():
-                        with st.expander(f"🚚 {row_valide['Véhicule N°']} - Zone {row_valide['Zone']}", expanded=True):
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.metric("Poids", f"{row_valide['Poids total chargé']:.3f} kg")
-                                st.metric("Clients", row_valide.get('Client(s) inclus', 'N/A'))
-                            with col2:
-                                st.metric("Volume", f"{row_valide['Volume total chargé']:.3f} m³")
-                                st.metric("Représentants", row_valide.get('Représentant(s) inclus', 'N/A'))
-
-                    
-                    
-                    # =====================================================
-                    # EXPORT EXCEL : VOYAGES VALIDÉS
-                    # =====================================================
-
-                    import re
-                    from io import BytesIO
-                    from openpyxl.styles import (
-                        Font,
-                        PatternFill,
-                        Alignment,
-                        Border,
-                        Side
-                    )
-                    from openpyxl.utils import get_column_letter
-
-                    df_export_valides = df_voyages_valides.copy()
-
-                    # =====================================================
-                    # 1. ORGANISER LES COLONNES
-                    # =====================================================
-
-                    ordre_colonnes = [
-                        "Zone",
-                        "Véhicule N°",
-                        "Poids total chargé",
-                        "Volume total chargé",
-                        "Client(s) inclus",
-                        "Représentant(s) inclus",
-                        "BL inclus",
-                        "Taux occupation poids (%)",
-                        "Taux occupation volume (%)",
-                        "Location_camion",
-                        "Location_proposee",
-                        "Code Véhicule",
-                    ]
-
-                    colonnes_existantes = [
-                        c for c in ordre_colonnes
-                        if c in df_export_valides.columns
-                    ]
-
-                    df_export_valides = df_export_valides[
-                        colonnes_existantes
-                    ].copy()
-
-                    # =====================================================
-                    # 2. TRIER PAR ZONE ET PAR VÉHICULE
-                    # =====================================================
-
-                    if "Zone" in df_export_valides.columns:
-
-                        df_export_valides["_Zone_Num"] = pd.to_numeric(
-                            df_export_valides["Zone"]
-                            .astype(str)
-                            .str.extract(r"(\d+)")[0],
-                            errors="coerce"
-                        )
-
-                        colonnes_tri = ["_Zone_Num"]
-
-                        if "Véhicule N°" in df_export_valides.columns:
-                            colonnes_tri.append("Véhicule N°")
-
-                        df_export_valides = (
-                            df_export_valides
-                            .sort_values(
-                                by=colonnes_tri,
-                                na_position="last"
-                            )
-                            .drop(columns=["_Zone_Num"])
-                        )
-
-                    # =====================================================
-                    # 3. PRÉPARER LES COLONNES MULTILIGNES
-                    # =====================================================
-
-                    colonnes_multilignes = [
-                        "Client(s) inclus",
-                        "Représentant(s) inclus",
-                        "BL inclus"
-                    ]
-
-                    def vers_retours_ligne(valeur):
-                        if pd.isna(valeur):
-                            return ""
-
-                        texte = str(valeur).strip()
-
-                        if texte.lower() in ("", "nan", "none"):
-                            return ""
-
-                        elements = [
-                            e.strip()
-                            for e in re.split(r"[;,]", texte)
-                            if e.strip()
-                        ]
-
-                        return "\n".join(elements)
-
-                    for col in colonnes_multilignes:
-                        if col in df_export_valides.columns:
-                            df_export_valides[col] = (
-                                df_export_valides[col]
-                                .apply(vers_retours_ligne)
-                            )
-
-                    # =====================================================
-                    # 4. FORMATER LES VALEURS NUMÉRIQUES
-                    # =====================================================
-
-                    for col in [
-                        "Poids total chargé",
-                        "Volume total chargé",
-                        "Taux occupation poids (%)",
-                        "Taux occupation volume (%)"
-                    ]:
-                        if col in df_export_valides.columns:
-                            df_export_valides[col] = pd.to_numeric(
-                                df_export_valides[col],
-                                errors="coerce"
-                            ).round(3)
-
-                    # =====================================================
-                    # 5. CRÉER LE FICHIER EXCEL
-                    # =====================================================
-
-                    excel_buffer = BytesIO()
-
-                    with pd.ExcelWriter(
-                        excel_buffer,
-                        engine="openpyxl"
-                    ) as writer:
-
-                        df_export_valides.to_excel(
-                            writer,
-                            index=False,
-                            sheet_name="Voyages validés"
-                        )
-
-                        workbook = writer.book
-                        worksheet = writer.sheets["Voyages validés"]
-
-                        # =====================================================
-                        # 6. STYLE DE L'EN-TÊTE
-                        # =====================================================
-
-                        header_fill = PatternFill(
-                            fill_type="solid",
-                            fgColor="0369A1"
-                        )
-
-                        header_font = Font(
-                            name="Arial",
-                            bold=True,
-                            color="FFFFFF",
-                            size=10
-                        )
-
-                        header_alignment = Alignment(
-                            horizontal="center",
-                            vertical="center",
-                            wrap_text=True
-                        )
-
-                        # =====================================================
-                        # 7. BORDURES ET ALIGNEMENT
-                        # =====================================================
-
-                        thin_border = Border(
-                            left=Side(style="thin", color="B0C4DE"),
-                            right=Side(style="thin", color="B0C4DE"),
-                            top=Side(style="thin", color="B0C4DE"),
-                            bottom=Side(style="thin", color="B0C4DE")
-                        )
-
-                        alignement_centre = Alignment(
-                            horizontal="center",
-                            vertical="center",
-                            wrap_text=True
-                        )
-
-                        for ligne in worksheet.iter_rows():
-                            for cellule in ligne:
-
-                                cellule.border = thin_border
-                                cellule.alignment = alignement_centre
-                                cellule.font = Font(
-                                    name="Arial",
-                                    size=10
-                                )
-
-                                if cellule.row == 1:
-                                    cellule.fill = header_fill
-                                    cellule.font = header_font
-                                    cellule.alignment = header_alignment
-
-                        worksheet.row_dimensions[1].height = 35
-
-                        # =====================================================
-                        # 8. FORMATS NUMÉRIQUES
-                        # =====================================================
-
-                        formats_numeriques = {
-                            "Poids total chargé": "0.000",
-                            "Volume total chargé": "0.000",
-                            "Taux occupation poids (%)": '0.000"%"',
-                            "Taux occupation volume (%)": '0.000"%"'
-                        }
-
-                        for col_idx, col_name in enumerate(
-                            df_export_valides.columns,
-                            start=1
-                        ):
-                            if col_name in formats_numeriques:
-
-                                for row_idx in range(
-                                    2,
-                                    worksheet.max_row + 1
-                                ):
-                                    worksheet.cell(
-                                        row=row_idx,
-                                        column=col_idx
-                                    ).number_format = formats_numeriques[
-                                        col_name
-                                    ]
-
-                        # =====================================================
-                        # 9. LARGEURS DES COLONNES
-                        # =====================================================
-
-                        largeurs_fixes = {
-                            "Zone": 12,
-                            "Véhicule N°": 15,
-                            "Poids total chargé": 20,
-                            "Volume total chargé": 21,
-                            "Client(s) inclus": 32,
-                            "Représentant(s) inclus": 30,
-                            "BL inclus": 35,
-                            "Taux occupation poids (%)": 23,
-                            "Taux occupation volume (%)": 25,
-                            "Location_camion": 20,
-                            "Location_proposee": 22,
-                            "Code Véhicule": 20
-                        }
-
-                        for col_idx, col_name in enumerate(
-                            df_export_valides.columns,
-                            start=1
-                        ):
-                            col_letter = get_column_letter(col_idx)
-
-                            worksheet.column_dimensions[
-                                col_letter
-                            ].width = largeurs_fixes.get(
-                                col_name,
-                                18
-                            )
-
-                        # =====================================================
-                        # 10. HAUTEUR DES LIGNES
-                        # =====================================================
-
-                        for row_idx in range(
-                            2,
-                            worksheet.max_row + 1
-                        ):
-                            max_lines = 1
-
-                            for col_idx, col_name in enumerate(
-                                df_export_valides.columns,
-                                start=1
-                            ):
-                                if col_name in colonnes_multilignes:
-
-                                    valeur = worksheet.cell(
-                                        row=row_idx,
-                                        column=col_idx
-                                    ).value
-
-                                    if valeur:
-                                        nb_lignes = (
-                                            str(valeur).count("\n") + 1
-                                        )
-
-                                        max_lines = max(
-                                            max_lines,
-                                            nb_lignes
-                                        )
-
-                            worksheet.row_dimensions[
-                                row_idx
-                            ].height = min(
-                                max(22, max_lines * 18),
-                                120
-                            )
-
-                        # =====================================================
-                        # 11. FILTRES ET EN-TÊTE FIGÉ
-                        # =====================================================
-
-                        worksheet.auto_filter.ref = worksheet.dimensions
-                        worksheet.freeze_panes = "A2"
-                        worksheet.sheet_view.showGridLines = False
-
-                        # =====================================================
-                        # 12. MISE EN PAGE POUR IMPRESSION
-                        # =====================================================
-
-                        worksheet.page_setup.orientation = "landscape"
-                        worksheet.page_setup.fitToWidth = 1
-                        worksheet.page_setup.fitToHeight = 0
-
-                        worksheet.sheet_properties.pageSetUpPr.fitToPage = True
-                        worksheet.print_title_rows = "1:1"
-
-                    # =====================================================
-                    # 13. BOUTON DE TÉLÉCHARGEMENT
-                    # =====================================================
-
-                    excel_buffer.seek(0)
-                    excel_data = excel_buffer.getvalue()
-
-                    st.download_button(
-                        label="💾 Télécharger les voyages validés (XLSX)",
-                        data=excel_data,
-                        file_name="Voyages_valides.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True
-                    )
-
-        else:
-            st.warning("⚠️ Vous devez d'abord exécuter la section 4 (Voyages par Estafette Optimisé).")
-
-
-   # --- Onglet 5: 🚛 Attribution des véhicules et chauffeurs ---
+    # --- Onglet : Validation & Attribution (cases à cocher) ---
     with tab5:
-        st.subheader("🚛 Attribution des véhicules et chauffeurs")
-        
-        if 'df_voyages_valides' in st.session_state and st.session_state.df_voyages_valides is not None and not st.session_state.df_voyages_valides.empty:
+        st.subheader("✅ Validation et attribution des voyages")
+        st.caption("Cochez les voyages à valider, puis choisissez le véhicule et le chauffeur de chaque voyage validé.")
 
-            df_attribution = st.session_state.df_voyages_valides.copy()
+        _df_src = st.session_state.get("df_voyages")
 
-            # Fonction pour formatter les colonnes avec retours à ligne POUR STREAMLIT
-            def formater_colonnes_listes_streamlit(df):
-                df_formate = df.copy()
-                colonnes_a_formater = ['Client(s) inclus', 'Représentant(s) inclus', 'BL inclus']
-                
-                for col in colonnes_a_formater:
-                    if col in df_formate.columns:
-                        df_formate[col] = df_formate[col].apply(
-                            lambda x: '\n'.join([elem.strip() for elem in str(x).replace(';', ',').split(',') if elem.strip()]) 
-                            if pd.notna(x) else ""
-                        )
-                return df_formate
+        if _df_src is not None and not _df_src.empty:
 
-            if "attributions" not in st.session_state:
-                st.session_state.attributions = {}
+            _colonnes_attendues = ["Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé"]
+            if not all(c in _df_src.columns for c in _colonnes_attendues):
+                st.error(f"❌ Colonnes manquantes : {', '.join(c for c in _colonnes_attendues if c not in _df_src.columns)}")
+                st.stop()
 
-            for idx, row in df_attribution.iterrows():
-                with st.expander(f"🚚 Voyage {row['Véhicule N°']} | Zone : {row['Zone']}"):
-                    st.write("**Informations du voyage :**")
-                    
-                    # Créer un affichage personnalisé avec retours à ligne
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        st.write(f"**Zone:** {row['Zone']}")
-                        st.write(f"**Véhicule N°:** {row['Véhicule N°']}")
-                        if "Poids total chargé" in row:
-                            st.write(f"**Poids total chargé:** {row['Poids total chargé']:.2f} kg")
-                        if "Volume total chargé" in row:
-                            st.write(f"**Volume total chargé:** {row['Volume total chargé']:.3f} m³")
-                        if "Taux d'occupation (%)" in row:
-                            st.write(f"**Taux d'occupation:** {row['Taux d\'occupation (%)']:.1f}%")
-                    
-                    with col2:
-                        # Afficher les clients avec retours à ligne
-                        if 'Client(s) inclus' in row and pd.notna(row['Client(s) inclus']):
-                            st.write("**Clients:**")
-                            clients = str(row['Client(s) inclus']).replace(';', ',').split(',')
-                            for client in clients:
-                                client_clean = client.strip()
-                                if client_clean:
-                                    st.write(f"- {client_clean}")
-                        
-                        # Afficher les représentants avec retours à ligne
-                        if 'Représentant(s) inclus' in row and pd.notna(row['Représentant(s) inclus']):
-                            st.write("**Représentants:**")
-                            representants = str(row['Représentant(s) inclus']).replace(';', ',').split(',')
-                            for rep in representants:
-                                rep_clean = rep.strip()
-                                if rep_clean:
-                                    st.write(f"- {rep_clean}")
-                    
-                    with col3:
-                        # Afficher les BL avec retours à ligne
-                        if 'BL inclus' in row and pd.notna(row['BL inclus']):
-                            st.write("**BL associés:**")
-                            bls = str(row['BL inclus']).replace(';', ',').split(',')
-                            for bl in bls:
-                                bl_clean = bl.strip()
-                                if bl_clean:
-                                    st.write(f"- {bl_clean}")
+            # Index propre (0..n-1) : sert de clé pour les attributions
+            base_voyages = _df_src.copy().reset_index(drop=True)
+            OPTIONS_CHAUFFEURS = [f"{m} - {n}" for m, n in CHAUFFEURS_DETAILS.items() if m != 'Matricule']
 
-                    col_veh, col_chauf = st.columns(2)
-                    
-                    with col_veh:
-                        vehicule_selectionne = st.selectbox(
-                            f"Véhicule pour le voyage {row['Véhicule N°']}",
-                            VEHICULES_DISPONIBLES,
-                            index=0 if st.session_state.attributions.get(idx, {}).get("Véhicule") else 0,
-                            key=f"vehicule_{idx}"
-                        )
-                    
-                    with col_chauf:
-                        options_chauffeurs = [f"{matricule} - {nom}" for matricule, nom in CHAUFFEURS_DETAILS.items() if matricule != 'Matricule']
-                        
-                        default_index = 0
-                        chauffeur_actuel = st.session_state.attributions.get(idx, {}).get("Chauffeur_complet")
-                        if chauffeur_actuel and chauffeur_actuel in options_chauffeurs:
-                            default_index = options_chauffeurs.index(chauffeur_actuel)
-                        
-                        chauffeur_selectionne_complet = st.selectbox(
-                            f"Chauffeur pour le voyage {row['Véhicule N°']}",
-                            options_chauffeurs,
-                            index=default_index,
-                            key=f"chauffeur_{idx}"
-                        )
-                        
-                        if chauffeur_selectionne_complet:
-                            matricule_chauffeur = chauffeur_selectionne_complet.split(" - ")[0]
-                            nom_chauffeur = chauffeur_selectionne_complet.split(" - ")[1]
-                        else:
-                            matricule_chauffeur = ""
-                            nom_chauffeur = ""
+            def _est_camion(r):
+                return "CAMION" in str(r.get("Code Véhicule", "")).upper()
 
-                    st.session_state.attributions[idx] = {
-                        "Véhicule": vehicule_selectionne,
-                        "Chauffeur_complet": chauffeur_selectionne_complet,
-                        "Matricule_chauffeur": matricule_chauffeur,
-                        "Nom_chauffeur": nom_chauffeur
+            def _taux_occupation_max(r):
+                camion = str(r.get("Code Véhicule", "")).strip() == "CAMION-LOUE"
+                cap_p, cap_v = (3000, 9.216) if camion else (1550, 4.608)
+                p = pd.to_numeric(r.get("Poids total chargé"), errors="coerce")
+                v = pd.to_numeric(r.get("Volume total chargé"), errors="coerce")
+                taux_p = p / cap_p * 100 if pd.notna(p) else 0
+                taux_v = v / cap_v * 100 if pd.notna(v) else 0
+                return max(taux_p, taux_v)
+
+            # Choix de l'utilisateur, conservés d'un rechargement à l'autre (clé = zone + voyage)
+            if "choix_attribution" not in st.session_state:
+                st.session_state.choix_attribution = {}
+            if "version_editeur_attr" not in st.session_state:
+                st.session_state.version_editeur_attr = 0
+            choix = st.session_state.choix_attribution
+
+            cles = [f"{r['Zone']}||{r['Véhicule N°']}" for _, r in base_voyages.iterrows()]
+            if st.session_state.get("cles_editeur_attr") != cles:
+                st.session_state.cles_editeur_attr = cles
+                st.session_state.version_editeur_attr += 1   # lignes différentes -> nouveau tableau
+
+            # Valeurs par défaut : les camions loués sont pré-remplis
+            for k, (_, r) in zip(cles, base_voyages.iterrows()):
+                if k not in choix:
+                    choix[k] = {
+                        "Valider": False,
+                        "Véhicule": "code-Camion" if _est_camion(r) else None,
+                        "Chauffeur": "99999 - Chauffeur Camion" if _est_camion(r) else None,
                     }
+
+            # --- Boutons d'action groupés ---
+            def _a_prefill():
+                for k, (_, r) in zip(cles, base_voyages.iterrows()):
+                    if _est_camion(r) and (not choix[k]["Véhicule"] or not choix[k]["Chauffeur"]):
+                        return True
+                return False
+
+            col_b1, col_b2, col_b3, _col_b_vide = st.columns([1, 1, 1.6, 1.4])
+            with col_b1:
+                clic_tout_valider = st.button("✔️ Tout valider", key="btn_tout_valider_attr", use_container_width=True)
+            with col_b2:
+                clic_tout_decocher = st.button("☐ Tout décocher", key="btn_tout_decocher_attr", use_container_width=True)
+            with col_b3:
+                clic_prefill = st.button("🪄 Pré-remplir véhicules et chauffeurs", key="btn_prefill_attr",
+                                         use_container_width=True, disabled=not _a_prefill())
+
+            if clic_tout_valider or clic_tout_decocher or clic_prefill:
+                for k, (_, r) in zip(cles, base_voyages.iterrows()):
+                    if clic_tout_valider:
+                        choix[k]["Valider"] = True
+                    elif clic_tout_decocher:
+                        choix[k]["Valider"] = False
+                    elif clic_prefill and _est_camion(r):
+                        choix[k]["Véhicule"] = choix[k]["Véhicule"] or "code-Camion"
+                        choix[k]["Chauffeur"] = choix[k]["Chauffeur"] or "99999 - Chauffeur Camion"
+                st.session_state.version_editeur_attr += 1   # réinitialise l'affichage du tableau
+
+            # --- Tableau éditable (cases à cocher + listes déroulantes) ---
+            if "Client(s) inclus" in base_voyages.columns:
+                clients_col = base_voyages["Client(s) inclus"].fillna("").astype(str)
+            else:
+                clients_col = [""] * len(base_voyages)
+
+            df_editeur = pd.DataFrame({
+                "Valider": [choix[k]["Valider"] for k in cles],
+                "Voyage": base_voyages["Véhicule N°"].astype(str),
+                "Zone": base_voyages["Zone"].astype(str),
+                "Véhicule attribué": [choix[k]["Véhicule"] for k in cles],
+                "Chauffeur": [choix[k]["Chauffeur"] for k in cles],
+                "Occupation (%)": base_voyages.apply(_taux_occupation_max, axis=1),
+                "Poids (kg)": pd.to_numeric(base_voyages["Poids total chargé"], errors="coerce").round(3),
+                "Volume (m³)": pd.to_numeric(base_voyages["Volume total chargé"], errors="coerce").round(3),
+                "Clients": clients_col,
+            })
+
+            df_edite = st.data_editor(
+                df_editeur,
+                key=f"editeur_attr_{st.session_state.version_editeur_attr}",
+                hide_index=True,
+                use_container_width=True,
+                num_rows="fixed",
+                disabled=["Voyage", "Zone", "Occupation (%)", "Poids (kg)", "Volume (m³)", "Clients"],
+                column_config={
+                    "Valider": st.column_config.CheckboxColumn("Valider", default=False),
+                    "Véhicule attribué": st.column_config.SelectboxColumn(
+                        "Véhicule attribué", options=VEHICULES_DISPONIBLES, required=False, width="medium"),
+                    "Chauffeur": st.column_config.SelectboxColumn(
+                        "Chauffeur", options=OPTIONS_CHAUFFEURS, required=False, width="medium"),
+                    "Occupation (%)": st.column_config.ProgressColumn(
+                        "Occupation (%)", min_value=0, max_value=100, format="%.1f %%"),
+                    "Poids (kg)": st.column_config.NumberColumn("Poids (kg)", format="%.3f"),
+                    "Volume (m³)": st.column_config.NumberColumn("Volume (m³)", format="%.3f"),
+                },
+            )
+
+            # Mémoriser les modifications
+            for k, (_, r) in zip(cles, df_edite.iterrows()):
+                choix[k] = {
+                    "Valider": bool(r["Valider"]),
+                    "Véhicule": r["Véhicule attribué"] if pd.notna(r["Véhicule attribué"]) else None,
+                    "Chauffeur": r["Chauffeur"] if pd.notna(r["Chauffeur"]) else None,
+                }
+
+            idx_valides = [i for i, k in enumerate(cles) if choix[k]["Valider"]]
+            st.caption(f"✅ {len(idx_valides)} voyage(s) validé(s) sur {len(cles)}")
+
+            # Voyages validés (sans la colonne technique) pour la suite du traitement
+            df_attribution = base_voyages.loc[idx_valides].copy()
+
+            # Export des voyages validés
+            if idx_valides:
+                from io import BytesIO as _BytesIO
+                _tampon_valides = _BytesIO()
+                with pd.ExcelWriter(_tampon_valides, engine="openpyxl") as _writer:
+                    df_attribution.to_excel(_writer, index=False, sheet_name="Voyages Validés")
+                st.download_button(
+                    label="💾 Télécharger les voyages validés (XLSX)",
+                    data=_tampon_valides.getvalue(),
+                    file_name="Voyages_valides.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="btn_download_voyages_valides",
+                    use_container_width=True
+                )
 
             col_gauche_attr, col_centre_attr, col_droite_attr = st.columns([1, 2, 1])
 
@@ -6001,6 +5479,29 @@ def page_optimisation():
                     key="btn_apply_attributions",
                     use_container_width=True
                 )
+
+            if appliquer:
+                incomplets = [
+                    str(base_voyages.loc[i, "Véhicule N°"]) for i in idx_valides
+                    if not choix[cles[i]]["Véhicule"] or not choix[cles[i]]["Chauffeur"]
+                ]
+                if not idx_valides:
+                    st.warning("⚠️ Cochez au moins un voyage à valider.")
+                    appliquer = False
+                elif incomplets:
+                    st.warning("⚠️ Choisissez un véhicule et un chauffeur pour : " + ", ".join(incomplets))
+                    appliquer = False
+                else:
+                    st.session_state.attributions = {}
+                    for i in idx_valides:
+                        ch = choix[cles[i]]
+                        matricule, nom = ch["Chauffeur"].split(" - ", 1)
+                        st.session_state.attributions[i] = {
+                            "Véhicule": ch["Véhicule"],
+                            "Chauffeur_complet": ch["Chauffeur"],
+                            "Matricule_chauffeur": matricule,
+                            "Nom_chauffeur": nom
+                        }
 
             if appliquer:
 
@@ -6451,7 +5952,7 @@ def page_optimisation():
                 st.success("✅ Attributions appliquées avec succès !")
                 
         else:
-            st.warning("⚠️ Vous devez d'abord valider les voyages dans la section 7.")
+            st.warning("⚠️ Aucun voyage disponible. Veuillez d'abord exécuter l'optimisation.")
         
         # =====================================================
         # SECTION: 📋Rapports et analyses avancés
