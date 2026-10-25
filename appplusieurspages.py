@@ -3269,7 +3269,7 @@ def page_optimisation():
     tab1, tab_voyages, tab5 = st.tabs([
         "📋 Propositions Location", 
         "🚐 Voyages par Estafette Optimisé", 
-        "✅ Validation & Attribution"
+        "📋 Rapports & Codes voyage"
     ])
     
     # --- Onglet 1: Propositions de Location ---
@@ -4735,6 +4735,8 @@ def page_optimisation():
             if st.button("📦 Ajout Objets", key="btn_ouvrir_ajout_objets", use_container_width=True):
                 dialog_ajout_objets()
 
+        table_attribution_prete = False
+
         try:
             # Récupération sécurisée du DataFrame
             if st.session_state.rental_processor:
@@ -4937,14 +4939,231 @@ def page_optimisation():
             </style>
             """, unsafe_allow_html=True)
             
-            # Afficher le tableau avec le style CSS professionnel
-            html_table = df_display.to_html(escape=False, index=False, classes="custom-table-voyages table-voyages-auto", border=0)
-            
-            st.markdown(f"""
-            <div class="table-container-voyages">
-                {html_table}
-            </div>
+            # =====================================================
+            # TABLEAU UNIQUE : VALIDATION + ATTRIBUTION VÉHICULE / CHAUFFEUR
+            # =====================================================
+            base_voyages = df_clean.copy().reset_index(drop=True)
+            OPTIONS_CHAUFFEURS = [f"{m} - {n}" for m, n in CHAUFFEURS_DETAILS.items() if m != 'Matricule']
+
+            # Valeurs génériques des camions loués : peuvent servir à plusieurs voyages
+            VEHICULE_GENERIQUE = "code-Camion"
+            CHAUFFEUR_GENERIQUE = "99999 - Chauffeur Camion"
+
+            def _est_camion(r):
+                return "CAMION" in str(r.get("Code Véhicule", "")).upper()
+
+            def _cw(type_, k):
+                return f"attr_{type_}_{k}"
+
+            def _html_multiligne(valeur):
+                if pd.isna(valeur) or str(valeur).strip().lower() in ("", "nan", "none"):
+                    return ""
+                elements = [e.strip() for e in str(valeur).replace(";", ",").split(",") if e.strip()]
+                return "<br>".join(elements)
+
+            # Choix de l'utilisateur, conservés d'un rechargement à l'autre (clé = zone + voyage)
+            if "choix_attribution" not in st.session_state:
+                st.session_state.choix_attribution = {}
+            choix = st.session_state.choix_attribution
+
+            cles = [f"{r['Zone']}||{r['Véhicule N°']}" for _, r in base_voyages.iterrows()]
+            if len(set(cles)) != len(cles):   # sécurité : clés uniques pour les widgets
+                cles = [f"{c}#{i}" for i, c in enumerate(cles)]
+
+            # Valeurs par défaut : les camions loués sont pré-remplis
+            for k, (_, r) in zip(cles, base_voyages.iterrows()):
+                if k not in choix:
+                    choix[k] = {
+                        "Valider": False,
+                        "Véhicule": VEHICULE_GENERIQUE if _est_camion(r) else None,
+                        "Chauffeur": CHAUFFEUR_GENERIQUE if _est_camion(r) else None,
+                    }
+
+            # L'état d'un widget est perdu quand il n'est pas affiché : on le restaure depuis les choix mémorisés
+            for k in cles:
+                for t, champ in (("valider", "Valider"), ("veh", "Véhicule"), ("chauf", "Chauffeur")):
+                    if _cw(t, k) not in st.session_state:
+                        st.session_state[_cw(t, k)] = choix[k][champ]
+
+            # --- Boutons d'action groupés ---
+            def _a_prefill():
+                for k, (_, r) in zip(cles, base_voyages.iterrows()):
+                    if _est_camion(r) and (not st.session_state.get(_cw("veh", k)) or not st.session_state.get(_cw("chauf", k))):
+                        return True
+                return False
+
+            col_b1, col_b2, col_b3, _col_b_vide = st.columns([1, 1, 1.6, 1.4])
+            with col_b1:
+                clic_tout_valider = st.button("✔️ Tout valider", key="btn_tout_valider_attr", use_container_width=True)
+            with col_b2:
+                clic_tout_decocher = st.button("☐ Tout décocher", key="btn_tout_decocher_attr", use_container_width=True)
+            with col_b3:
+                clic_prefill = st.button("🪄 Pré-remplir véhicules et chauffeurs", key="btn_prefill_attr",
+                                         use_container_width=True, disabled=not _a_prefill())
+
+            if clic_tout_valider or clic_tout_decocher or clic_prefill:
+                for k, (_, r) in zip(cles, base_voyages.iterrows()):
+                    if clic_tout_valider:
+                        st.session_state[_cw("valider", k)] = True
+                    elif clic_tout_decocher:
+                        st.session_state[_cw("valider", k)] = False
+                    elif clic_prefill and _est_camion(r):
+                        if not st.session_state.get(_cw("veh", k)):
+                            st.session_state[_cw("veh", k)] = VEHICULE_GENERIQUE
+                        if not st.session_state.get(_cw("chauf", k)):
+                            st.session_state[_cw("chauf", k)] = CHAUFFEUR_GENERIQUE
+
+            # Sécurité : un véhicule / un chauffeur ne peut servir qu'à un seul voyage
+            _vus_veh, _vus_chauf = set(), set()
+            for k in cles:
+                v = st.session_state.get(_cw("veh", k))
+                if v and v != VEHICULE_GENERIQUE:
+                    if v in _vus_veh:
+                        st.session_state[_cw("veh", k)] = None
+                    else:
+                        _vus_veh.add(v)
+                c_ = st.session_state.get(_cw("chauf", k))
+                if c_ and c_ != CHAUFFEUR_GENERIQUE:
+                    if c_ in _vus_chauf:
+                        st.session_state[_cw("chauf", k)] = None
+                    else:
+                        _vus_chauf.add(c_)
+
+            # --- Style du tableau (en-tête bleu, défilement horizontal si l'écran est étroit) ---
+            st.markdown("""
+            <style>
+            .hdr-voy {
+                background: #0369A1; color: white; font-weight: 700; font-size: 13px;
+                text-align: center; padding: 8px 4px; border-radius: 4px; min-height: 48px;
+                display: flex; align-items: center; justify-content: center;
+            }
+            .cell-voy {
+                font-size: 13px; text-align: center; line-height: 1.4;
+                white-space: nowrap; padding-top: 8px;
+            }
+            .st-key-table_voyages_attr { overflow-x: auto; padding-bottom: 6px; }
+            .st-key-table_voyages_attr [data-testid="stHorizontalBlock"] { min-width: 1650px; }
+            .st-key-table_voyages_attr hr { min-width: 1650px; margin: 4px 0; border-color: #B0C4DE; }
+            </style>
             """, unsafe_allow_html=True)
+
+            largeurs = [0.7, 1.5, 0.9, 1.1, 1.1, 1.5, 1.0, 1.7, 1.0, 1.0, 1.7, 2.3]
+            entetes = ["Valider", "Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé",
+                       "Client(s) inclus", "Représentant(s) inclus", "BL inclus",
+                       "Taux occupation poids (%)", "Taux occupation volume (%)",
+                       "Véhicule attribué", "Chauffeur"]
+
+            try:
+                zone_tableau = st.container(key="table_voyages_attr")
+            except TypeError:
+                zone_tableau = st.container()
+
+            with zone_tableau:
+                for col_h, titre in zip(st.columns(largeurs), entetes):
+                    col_h.markdown(f"<div class='hdr-voy'>{titre}</div>", unsafe_allow_html=True)
+
+                for k, (_, r) in zip(cles, base_voyages.iterrows()):
+
+                    # Véhicules / chauffeurs déjà pris par les AUTRES voyages (ils n'apparaissent plus dans la liste)
+                    pris_veh = {st.session_state.get(_cw("veh", o)) for o in cles if o != k} - {None, VEHICULE_GENERIQUE}
+                    pris_chauf = {st.session_state.get(_cw("chauf", o)) for o in cles if o != k} - {None, CHAUFFEUR_GENERIQUE}
+                    options_veh = [v for v in VEHICULES_DISPONIBLES if v not in pris_veh]
+                    options_chauf = [c for c in OPTIONS_CHAUFFEURS if c not in pris_chauf]
+
+                    # Valeur courante absente de la liste -> on la vide pour éviter une erreur
+                    if st.session_state.get(_cw("veh", k)) not in options_veh + [None]:
+                        st.session_state[_cw("veh", k)] = None
+                    if st.session_state.get(_cw("chauf", k)) not in options_chauf + [None]:
+                        st.session_state[_cw("chauf", k)] = None
+
+                    poids_aff = pd.to_numeric(r.get("Poids total chargé"), errors="coerce")
+                    volume_aff = pd.to_numeric(r.get("Volume total chargé"), errors="coerce")
+                    taux_p_aff = pd.to_numeric(r.get("Taux occupation poids (%)"), errors="coerce")
+                    taux_v_aff = pd.to_numeric(r.get("Taux occupation volume (%)"), errors="coerce")
+
+                    cc = st.columns(largeurs)
+                    with cc[0]:
+                        valide = st.checkbox("Valider", key=_cw("valider", k), label_visibility="collapsed")
+                    cc[1].markdown(f"<div class='cell-voy'>{r['Zone']}</div>", unsafe_allow_html=True)
+                    cc[2].markdown(f"<div class='cell-voy'>{r['Véhicule N°']}</div>", unsafe_allow_html=True)
+                    cc[3].markdown(f"<div class='cell-voy'>{poids_aff:.3f} kg</div>", unsafe_allow_html=True)
+                    cc[4].markdown(f"<div class='cell-voy'>{volume_aff:.3f} m³</div>", unsafe_allow_html=True)
+                    cc[5].markdown(f"<div class='cell-voy'>{_html_multiligne(r.get('Client(s) inclus'))}</div>", unsafe_allow_html=True)
+                    cc[6].markdown(f"<div class='cell-voy'>{_html_multiligne(r.get('Représentant(s) inclus'))}</div>", unsafe_allow_html=True)
+                    cc[7].markdown(f"<div class='cell-voy'>{_html_multiligne(r.get('BL inclus'))}</div>", unsafe_allow_html=True)
+                    cc[8].markdown(f"<div class='cell-voy'>{taux_p_aff:.3f}%</div>", unsafe_allow_html=True)
+                    cc[9].markdown(f"<div class='cell-voy'>{taux_v_aff:.3f}%</div>", unsafe_allow_html=True)
+                    with cc[10]:
+                        veh_choisi = st.selectbox("Véhicule attribué", options_veh, index=None,
+                                                  placeholder="Choisir...", key=_cw("veh", k),
+                                                  label_visibility="collapsed")
+                    with cc[11]:
+                        chauf_choisi = st.selectbox("Chauffeur", options_chauf, index=None,
+                                                    placeholder="Choisir...", key=_cw("chauf", k),
+                                                    label_visibility="collapsed")
+                    st.markdown("<hr>", unsafe_allow_html=True)
+
+                    # Mémoriser les choix
+                    choix[k] = {
+                        "Valider": bool(valide),
+                        "Véhicule": veh_choisi,
+                        "Chauffeur": chauf_choisi,
+                    }
+
+            idx_valides = [i for i, k in enumerate(cles) if choix[k]["Valider"]]
+            st.caption(f"✅ {len(idx_valides)} voyage(s) validé(s) sur {len(cles)}")
+
+            # Voyages validés pour la suite du traitement
+            df_attribution = base_voyages.loc[idx_valides].copy()
+
+            # Export des voyages validés
+            if idx_valides:
+                from io import BytesIO as _BytesIO
+                _tampon_valides = _BytesIO()
+                with pd.ExcelWriter(_tampon_valides, engine="openpyxl") as _writer:
+                    df_attribution.to_excel(_writer, index=False, sheet_name="Voyages Validés")
+                st.download_button(
+                    label="💾 Télécharger les voyages validés (XLSX)",
+                    data=_tampon_valides.getvalue(),
+                    file_name="Voyages_valides.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="btn_download_voyages_valides",
+                    use_container_width=True
+                )
+
+            col_gauche_attr, col_centre_attr, col_droite_attr = st.columns([1, 2, 1])
+
+            with col_centre_attr:
+                appliquer = st.button(
+                    "✅ Appliquer les attributions",
+                    key="btn_apply_attributions",
+                    use_container_width=True
+                )
+
+            if appliquer:
+                incomplets = [
+                    str(base_voyages.loc[i, "Véhicule N°"]) for i in idx_valides
+                    if not choix[cles[i]]["Véhicule"] or not choix[cles[i]]["Chauffeur"]
+                ]
+                if not idx_valides:
+                    st.warning("⚠️ Cochez au moins un voyage à valider.")
+                    appliquer = False
+                elif incomplets:
+                    st.warning("⚠️ Choisissez un véhicule et un chauffeur pour : " + ", ".join(incomplets))
+                    appliquer = False
+                else:
+                    st.session_state.attributions = {}
+                    for i in idx_valides:
+                        ch = choix[cles[i]]
+                        matricule, nom = ch["Chauffeur"].split(" - ", 1)
+                        st.session_state.attributions[i] = {
+                            "Véhicule": ch["Véhicule"],
+                            "Chauffeur_complet": ch["Chauffeur"],
+                            "Matricule_chauffeur": matricule,
+                            "Nom_chauffeur": nom
+                        }
+
+            table_attribution_prete = True
             
             # MÉTRIQUES RÉSUMÉES
             st.markdown("---")
@@ -5326,211 +5545,10 @@ def page_optimisation():
             st.write("Données brutes pour debug:")
             if st.session_state.rental_processor:
                 st.write("Colonnes du df_base:", list(st.session_state.rental_processor.df_base.columns))
-    # --- Onglet : Validation & Attribution (cases à cocher) ---
-    with tab5:
-        st.subheader("✅ Validation et attribution des voyages")
-        st.caption("Cochez les voyages à valider, puis choisissez le véhicule et le chauffeur de chaque voyage validé.")
-
-        _df_src = st.session_state.get("df_voyages")
-
-        if _df_src is not None and not _df_src.empty:
-
-            _colonnes_attendues = ["Zone", "Véhicule N°", "Poids total chargé", "Volume total chargé"]
-            if not all(c in _df_src.columns for c in _colonnes_attendues):
-                st.error(f"❌ Colonnes manquantes : {', '.join(c for c in _colonnes_attendues if c not in _df_src.columns)}")
-                st.stop()
-
-            # Index propre (0..n-1) : sert de clé pour les attributions
-            base_voyages = _df_src.copy().reset_index(drop=True)
-            OPTIONS_CHAUFFEURS = [f"{m} - {n}" for m, n in CHAUFFEURS_DETAILS.items() if m != 'Matricule']
-
-            def _est_camion(r):
-                return "CAMION" in str(r.get("Code Véhicule", "")).upper()
-
-            def _taux_occupation_max(r):
-                camion = str(r.get("Code Véhicule", "")).strip() == "CAMION-LOUE"
-                cap_p, cap_v = (3000, 9.216) if camion else (1550, 4.608)
-                p = pd.to_numeric(r.get("Poids total chargé"), errors="coerce")
-                v = pd.to_numeric(r.get("Volume total chargé"), errors="coerce")
-                taux_p = p / cap_p * 100 if pd.notna(p) else 0
-                taux_v = v / cap_v * 100 if pd.notna(v) else 0
-                return max(taux_p, taux_v)
-
-            # Valeurs génériques des camions loués : peuvent servir à plusieurs voyages
-            VEHICULE_GENERIQUE = "code-Camion"
-            CHAUFFEUR_GENERIQUE = "99999 - Chauffeur Camion"
-
-            # Choix de l'utilisateur, conservés d'un rechargement à l'autre (clé = zone + voyage)
-            if "choix_attribution" not in st.session_state:
-                st.session_state.choix_attribution = {}
-            choix = st.session_state.choix_attribution
-
-            cles = [f"{r['Zone']}||{r['Véhicule N°']}" for _, r in base_voyages.iterrows()]
-
-            # Valeurs par défaut : les camions loués sont pré-remplis
-            for k, (_, r) in zip(cles, base_voyages.iterrows()):
-                if k not in choix:
-                    choix[k] = {
-                        "Valider": False,
-                        "Véhicule": VEHICULE_GENERIQUE if _est_camion(r) else None,
-                        "Chauffeur": CHAUFFEUR_GENERIQUE if _est_camion(r) else None,
-                    }
-
-            def _cw(type_, k):
-                return f"attr_{type_}_{k}"
-
-            # L'état d'un widget est perdu quand il n'est pas affiché : on le restaure depuis les choix mémorisés
-            for k in cles:
-                for t, champ in (("valider", "Valider"), ("veh", "Véhicule"), ("chauf", "Chauffeur")):
-                    if _cw(t, k) not in st.session_state:
-                        st.session_state[_cw(t, k)] = choix[k][champ]
-
-            # --- Boutons d'action groupés ---
-            def _a_prefill():
-                for k, (_, r) in zip(cles, base_voyages.iterrows()):
-                    if _est_camion(r) and (not st.session_state.get(_cw("veh", k)) or not st.session_state.get(_cw("chauf", k))):
-                        return True
-                return False
-
-            col_b1, col_b2, col_b3, _col_b_vide = st.columns([1, 1, 1.6, 1.4])
-            with col_b1:
-                clic_tout_valider = st.button("✔️ Tout valider", key="btn_tout_valider_attr", use_container_width=True)
-            with col_b2:
-                clic_tout_decocher = st.button("☐ Tout décocher", key="btn_tout_decocher_attr", use_container_width=True)
-            with col_b3:
-                clic_prefill = st.button("🪄 Pré-remplir véhicules et chauffeurs", key="btn_prefill_attr",
-                                         use_container_width=True, disabled=not _a_prefill())
-
-            if clic_tout_valider or clic_tout_decocher or clic_prefill:
-                for k, (_, r) in zip(cles, base_voyages.iterrows()):
-                    if clic_tout_valider:
-                        st.session_state[_cw("valider", k)] = True
-                    elif clic_tout_decocher:
-                        st.session_state[_cw("valider", k)] = False
-                    elif clic_prefill and _est_camion(r):
-                        if not st.session_state.get(_cw("veh", k)):
-                            st.session_state[_cw("veh", k)] = VEHICULE_GENERIQUE
-                        if not st.session_state.get(_cw("chauf", k)):
-                            st.session_state[_cw("chauf", k)] = CHAUFFEUR_GENERIQUE
-
-            # Sécurité : un véhicule / un chauffeur ne peut servir qu'à un seul voyage
-            _vus_veh, _vus_chauf = set(), set()
-            for k in cles:
-                v = st.session_state.get(_cw("veh", k))
-                if v and v != VEHICULE_GENERIQUE:
-                    if v in _vus_veh:
-                        st.session_state[_cw("veh", k)] = None
-                    else:
-                        _vus_veh.add(v)
-                c_ = st.session_state.get(_cw("chauf", k))
-                if c_ and c_ != CHAUFFEUR_GENERIQUE:
-                    if c_ in _vus_chauf:
-                        st.session_state[_cw("chauf", k)] = None
-                    else:
-                        _vus_chauf.add(c_)
-
-            # --- Tableau : une ligne par voyage ---
-            largeurs = [0.8, 0.8, 1.8, 1.8, 2.6, 1.6, 1.1, 1.0, 2.2]
-            entetes = ["Valider", "Voyage", "Zone", "Véhicule attribué", "Chauffeur",
-                       "Occupation (%)", "Poids (kg)", "Volume (m³)", "Clients"]
-            for col_h, titre in zip(st.columns(largeurs), entetes):
-                col_h.markdown(f"**{titre}**")
-
-            for k, (_, r) in zip(cles, base_voyages.iterrows()):
-
-                # Véhicules / chauffeurs déjà pris par les AUTRES voyages (ils n'apparaissent plus dans la liste)
-                pris_veh = {st.session_state.get(_cw("veh", o)) for o in cles if o != k} - {None, VEHICULE_GENERIQUE}
-                pris_chauf = {st.session_state.get(_cw("chauf", o)) for o in cles if o != k} - {None, CHAUFFEUR_GENERIQUE}
-                options_veh = [v for v in VEHICULES_DISPONIBLES if v not in pris_veh]
-                options_chauf = [c for c in OPTIONS_CHAUFFEURS if c not in pris_chauf]
-
-                # Valeur courante absente de la liste -> on la vide pour éviter une erreur
-                if st.session_state.get(_cw("veh", k)) not in options_veh + [None]:
-                    st.session_state[_cw("veh", k)] = None
-                if st.session_state.get(_cw("chauf", k)) not in options_chauf + [None]:
-                    st.session_state[_cw("chauf", k)] = None
-
-                cc = st.columns(largeurs)
-                with cc[0]:
-                    valide = st.checkbox("Valider", key=_cw("valider", k), label_visibility="collapsed")
-                cc[1].write(str(r["Véhicule N°"]))
-                cc[2].write(str(r["Zone"]))
-                with cc[3]:
-                    veh_choisi = st.selectbox("Véhicule attribué", options_veh, index=None,
-                                              placeholder="Choisir...", key=_cw("veh", k),
-                                              label_visibility="collapsed")
-                with cc[4]:
-                    chauf_choisi = st.selectbox("Chauffeur", options_chauf, index=None,
-                                                placeholder="Choisir...", key=_cw("chauf", k),
-                                                label_visibility="collapsed")
-                taux_occ = _taux_occupation_max(r)
-                with cc[5]:
-                    st.progress(min(max(taux_occ, 0), 100) / 100, text=f"{taux_occ:.1f} %")
-                poids_aff = pd.to_numeric(r["Poids total chargé"], errors="coerce")
-                volume_aff = pd.to_numeric(r["Volume total chargé"], errors="coerce")
-                cc[6].write(f"{poids_aff:.3f}")
-                cc[7].write(f"{volume_aff:.3f}")
-                cc[8].caption(str(r["Client(s) inclus"]) if "Client(s) inclus" in base_voyages.columns and pd.notna(r["Client(s) inclus"]) else "")
-
-                # Mémoriser les choix
-                choix[k] = {
-                    "Valider": bool(valide),
-                    "Véhicule": veh_choisi,
-                    "Chauffeur": chauf_choisi,
-                }
-
-            idx_valides = [i for i, k in enumerate(cles) if choix[k]["Valider"]]
-            st.caption(f"✅ {len(idx_valides)} voyage(s) validé(s) sur {len(cles)}")
-
-            # Voyages validés (sans la colonne technique) pour la suite du traitement
-            df_attribution = base_voyages.loc[idx_valides].copy()
-
-            # Export des voyages validés
-            if idx_valides:
-                from io import BytesIO as _BytesIO
-                _tampon_valides = _BytesIO()
-                with pd.ExcelWriter(_tampon_valides, engine="openpyxl") as _writer:
-                    df_attribution.to_excel(_writer, index=False, sheet_name="Voyages Validés")
-                st.download_button(
-                    label="💾 Télécharger les voyages validés (XLSX)",
-                    data=_tampon_valides.getvalue(),
-                    file_name="Voyages_valides.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="btn_download_voyages_valides",
-                    use_container_width=True
-                )
-
-            col_gauche_attr, col_centre_attr, col_droite_attr = st.columns([1, 2, 1])
-
-            with col_centre_attr:
-                appliquer = st.button(
-                    "✅ Appliquer les attributions",
-                    key="btn_apply_attributions",
-                    use_container_width=True
-                )
-
-            if appliquer:
-                incomplets = [
-                    str(base_voyages.loc[i, "Véhicule N°"]) for i in idx_valides
-                    if not choix[cles[i]]["Véhicule"] or not choix[cles[i]]["Chauffeur"]
-                ]
-                if not idx_valides:
-                    st.warning("⚠️ Cochez au moins un voyage à valider.")
-                    appliquer = False
-                elif incomplets:
-                    st.warning("⚠️ Choisissez un véhicule et un chauffeur pour : " + ", ".join(incomplets))
-                    appliquer = False
-                else:
-                    st.session_state.attributions = {}
-                    for i in idx_valides:
-                        ch = choix[cles[i]]
-                        matricule, nom = ch["Chauffeur"].split(" - ", 1)
-                        st.session_state.attributions[i] = {
-                            "Véhicule": ch["Véhicule"],
-                            "Chauffeur_complet": ch["Chauffeur"],
-                            "Matricule_chauffeur": matricule,
-                            "Nom_chauffeur": nom
-                        }
+        # =====================================================
+        # RÉSULTAT DE L'ATTRIBUTION (après clic sur "Appliquer les attributions")
+        # =====================================================
+        if table_attribution_prete:
 
             if appliquer:
 
@@ -5980,8 +5998,9 @@ def page_optimisation():
                 st.session_state.df_voyages_valides = df_attribution
                 st.success("✅ Attributions appliquées avec succès !")
                 
-        else:
-            st.warning("⚠️ Aucun voyage disponible. Veuillez d'abord exécuter l'optimisation.")
+
+    # --- Onglet : Rapports & Codes voyage ---
+    with tab5:
         
         # =====================================================
         # SECTION: 📋Rapports et analyses avancés
