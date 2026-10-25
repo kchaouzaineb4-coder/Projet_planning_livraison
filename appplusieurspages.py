@@ -3305,6 +3305,15 @@ def page_optimisation():
         .leg-voy { font-size: 12.5px; color: #44546A; margin: 2px 0 8px 0; }
         .leg-voy .pt { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin: 0 4px 0 12px; vertical-align: middle; }
         
+        /* Carte : taux d'occupation du camion sélectionné */
+        .occ-card { background: #FFFFFF; border: 1px solid #C5D8E8; border-left: 6px solid #0369A1;
+                    border-radius: 10px; padding: 10px 14px; margin: 8px 0; }
+        .occ-card-title { font-weight: 700; font-size: 14px; color: #123B5D; margin-bottom: 8px; }
+        .occ-line { margin-bottom: 8px; }
+        .occ-line-head { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px; }
+        .occ-bar-lg { width: 100%; height: 12px; background: #E3EAF1; border-radius: 7px; overflow: hidden; }
+        .occ-detail { font-size: 11.5px; color: #64748B; margin-top: 2px; }
+        
         /* Boutons de décision : Accepter = vert, Refuser = rouge */
         div.st-key-btn_accepter_location button:not(:disabled) {
             background-color: #2E7D32 !important;
@@ -3477,6 +3486,55 @@ def page_optimisation():
                                     if volume_match:
                                         volume_reel = float(volume_match.group(1))
                                         volume_ok = volume_reel <= volume_max
+                                
+                                # --- Management visuel : taux d'occupation du camion sélectionné ---
+                                try:
+                                    volume_aff_match = re.search(r'Volume total RÉEL : ([\d.]+) m³', resume)
+                                    volume_aff = float(volume_aff_match.group(1)) if volume_aff_match else None
+                                    taux_poids_camion = poids_reel / poids_max * 100
+                                    taux_volume_camion = (volume_aff / volume_max * 100) if volume_aff is not None else None
+                                    
+                                    def _couleur_taux_camion(t):
+                                        if t > 100:
+                                            return "#C62828", "surcharge"
+                                        if t >= 80:
+                                            return "#2E7D32", "bon remplissage"
+                                        if t >= 50:
+                                            return "#EF8F00", "moyen"
+                                        return "#78909C", "faible"
+                                    
+                                    def _ligne_occupation_camion(titre, taux, detail):
+                                        couleur, etiquette = _couleur_taux_camion(taux)
+                                        largeur = min(max(taux, 0), 100)
+                                        return (
+                                            f"<div class='occ-line'>"
+                                            f"<div class='occ-line-head'><span>{titre}</span>"
+                                            f"<span style='color:{couleur};font-weight:700'>{taux:.1f}% · {etiquette}</span></div>"
+                                            f"<div class='occ-bar-lg'><div class='occ-fill' style='width:{largeur}%;background:{couleur}'></div></div>"
+                                            f"<div class='occ-detail'>{detail}</div></div>"
+                                        )
+                                    
+                                    taux_global_camion = max(taux_poids_camion, taux_volume_camion or 0)
+                                    couleur_globale, _ = _couleur_taux_camion(taux_global_camion)
+                                    
+                                    carte_html = f"<div class='occ-card' style='border-left-color:{couleur_globale}'>"
+                                    carte_html += f"<div class='occ-card-title'>📊 Taux d'occupation du camion {st.session_state.truck_type}</div>"
+                                    carte_html += _ligne_occupation_camion(
+                                        "⚖️ Poids", taux_poids_camion, f"{poids_reel:.1f} kg / {poids_max:,} kg".replace(",", " ")
+                                    )
+                                    if taux_volume_camion is not None:
+                                        carte_html += _ligne_occupation_camion(
+                                            "📦 Volume", taux_volume_camion, f"{volume_aff:.3f} m³ / {volume_max} m³"
+                                        )
+                                    carte_html += "</div>"
+                                    st.markdown(carte_html, unsafe_allow_html=True)
+                                    
+                                    # Conseil : camion 10 tonnes peu rempli alors qu'un 5 tonnes suffirait
+                                    if (st.session_state.truck_type == "10 tonnes" and taux_global_camion < 50
+                                            and poids_reel <= 5000 and (volume_aff is None or volume_aff <= 20)):
+                                        st.caption("💡 Un camion **5 tonnes** suffirait pour ce client (le 10 tonnes serait peu rempli).")
+                                except Exception:
+                                    pass
                                 
                                 # Afficher le statut de compatibilité
                                 if poids_ok and volume_ok:
