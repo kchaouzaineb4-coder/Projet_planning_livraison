@@ -3293,6 +3293,17 @@ def page_optimisation():
             padding: 8px !important;
             font-weight: normal;
         }
+        
+        /* Taux d'occupation : barre colorée + pourcentage */
+        .occ-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .occ-bar  { width: 88%; height: 10px; background: #E3EAF1; border-radius: 6px; overflow: hidden; }
+        .occ-fill { height: 100%; border-radius: 6px; }
+        .occ-txt  { font-size: 13px; font-weight: 700; }
+        .occ-tag  { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+        
+        /* Légende */
+        .leg-voy { font-size: 12.5px; color: #44546A; margin: 2px 0 8px 0; }
+        .leg-voy .pt { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin: 0 4px 0 12px; vertical-align: middle; }
     </style>
     """, unsafe_allow_html=True)
     
@@ -3581,13 +3592,48 @@ def page_optimisation():
                                 details_display["Volume total"] = format_numeric_column(details_display["Volume total"], 3, " m³")
                             
                             if "Taux d'occupation (%)" in details_display.columns:
-                                details_display["Taux d'occupation (%)"] = format_numeric_column(details_display["Taux d'occupation (%)"], 2, "%")
+                                def _html_taux_location(valeur):
+                                    """Taux d'occupation : pourcentage coloré + barre de progression"""
+                                    try:
+                                        t = float(str(valeur).replace('%', '').strip())
+                                    except (ValueError, TypeError):
+                                        return ""
+                                    if pd.isna(t):
+                                        return ""
+                                    if t > 100:
+                                        couleur, etiquette = "#C62828", "surcharge"
+                                    elif t >= 80:
+                                        couleur, etiquette = "#2E7D32", ""
+                                    elif t >= 50:
+                                        couleur, etiquette = "#EF8F00", ""
+                                    else:
+                                        couleur, etiquette = "#78909C", "faible"
+                                    largeur = min(max(t, 0), 100)
+                                    tag = f"<span class='occ-tag' style='color:{couleur}'>{etiquette}</span>" if etiquette else ""
+                                    return (
+                                        f"<div class='occ-wrap'>"
+                                        f"<span class='occ-txt' style='color:{couleur}'>{t:.2f}%</span>"
+                                        f"<div class='occ-bar'><div class='occ-fill' style='width:{largeur}%;background:{couleur}'></div></div>"
+                                        f"{tag}</div>"
+                                    )
+                                
+                                details_display["Taux d'occupation (%)"] = details_display["Taux d'occupation (%)"].apply(_html_taux_location)
                             
                             # Gestion spéciale pour "BL inclus" - format multiligne
                             if "BL inclus" in details_display.columns:
                                 details_display["BL inclus"] = details_display["BL inclus"].astype(str).apply(
                                     lambda x: "<br>".join(bl.strip() for bl in x.split(";")) if ";" in x else x
                                 )
+                            
+                            # Légende des couleurs du taux d'occupation
+                            st.markdown(
+                                "<div class='leg-voy'><b>Taux d'occupation :</b>"
+                                "<span class='pt' style='background:#C62828'></span>supérieur à 100 % (surcharge)"
+                                "<span class='pt' style='background:#2E7D32'></span>80 – 100 % (bon remplissage)"
+                                "<span class='pt' style='background:#EF8F00'></span>50 – 80 % (moyen)"
+                                "<span class='pt' style='background:#78909C'></span>moins de 50 % (faible)</div>",
+                                unsafe_allow_html=True
+                            )
                             
                             # Afficher le tableau avec le style CSS
                             html_table_details = details_display.to_html(
