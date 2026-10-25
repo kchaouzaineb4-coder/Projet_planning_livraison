@@ -5356,31 +5356,39 @@ def page_optimisation():
                 taux_v = v / cap_v * 100 if pd.notna(v) else 0
                 return max(taux_p, taux_v)
 
+            # Valeurs génériques des camions loués : peuvent servir à plusieurs voyages
+            VEHICULE_GENERIQUE = "code-Camion"
+            CHAUFFEUR_GENERIQUE = "99999 - Chauffeur Camion"
+
             # Choix de l'utilisateur, conservés d'un rechargement à l'autre (clé = zone + voyage)
             if "choix_attribution" not in st.session_state:
                 st.session_state.choix_attribution = {}
-            if "version_editeur_attr" not in st.session_state:
-                st.session_state.version_editeur_attr = 0
             choix = st.session_state.choix_attribution
 
             cles = [f"{r['Zone']}||{r['Véhicule N°']}" for _, r in base_voyages.iterrows()]
-            if st.session_state.get("cles_editeur_attr") != cles:
-                st.session_state.cles_editeur_attr = cles
-                st.session_state.version_editeur_attr += 1   # lignes différentes -> nouveau tableau
 
             # Valeurs par défaut : les camions loués sont pré-remplis
             for k, (_, r) in zip(cles, base_voyages.iterrows()):
                 if k not in choix:
                     choix[k] = {
                         "Valider": False,
-                        "Véhicule": "code-Camion" if _est_camion(r) else None,
-                        "Chauffeur": "99999 - Chauffeur Camion" if _est_camion(r) else None,
+                        "Véhicule": VEHICULE_GENERIQUE if _est_camion(r) else None,
+                        "Chauffeur": CHAUFFEUR_GENERIQUE if _est_camion(r) else None,
                     }
+
+            def _cw(type_, k):
+                return f"attr_{type_}_{k}"
+
+            # L'état d'un widget est perdu quand il n'est pas affiché : on le restaure depuis les choix mémorisés
+            for k in cles:
+                for t, champ in (("valider", "Valider"), ("veh", "Véhicule"), ("chauf", "Chauffeur")):
+                    if _cw(t, k) not in st.session_state:
+                        st.session_state[_cw(t, k)] = choix[k][champ]
 
             # --- Boutons d'action groupés ---
             def _a_prefill():
                 for k, (_, r) in zip(cles, base_voyages.iterrows()):
-                    if _est_camion(r) and (not choix[k]["Véhicule"] or not choix[k]["Chauffeur"]):
+                    if _est_camion(r) and (not st.session_state.get(_cw("veh", k)) or not st.session_state.get(_cw("chauf", k))):
                         return True
                 return False
 
@@ -5396,58 +5404,79 @@ def page_optimisation():
             if clic_tout_valider or clic_tout_decocher or clic_prefill:
                 for k, (_, r) in zip(cles, base_voyages.iterrows()):
                     if clic_tout_valider:
-                        choix[k]["Valider"] = True
+                        st.session_state[_cw("valider", k)] = True
                     elif clic_tout_decocher:
-                        choix[k]["Valider"] = False
+                        st.session_state[_cw("valider", k)] = False
                     elif clic_prefill and _est_camion(r):
-                        choix[k]["Véhicule"] = choix[k]["Véhicule"] or "code-Camion"
-                        choix[k]["Chauffeur"] = choix[k]["Chauffeur"] or "99999 - Chauffeur Camion"
-                st.session_state.version_editeur_attr += 1   # réinitialise l'affichage du tableau
+                        if not st.session_state.get(_cw("veh", k)):
+                            st.session_state[_cw("veh", k)] = VEHICULE_GENERIQUE
+                        if not st.session_state.get(_cw("chauf", k)):
+                            st.session_state[_cw("chauf", k)] = CHAUFFEUR_GENERIQUE
 
-            # --- Tableau éditable (cases à cocher + listes déroulantes) ---
-            if "Client(s) inclus" in base_voyages.columns:
-                clients_col = base_voyages["Client(s) inclus"].fillna("").astype(str)
-            else:
-                clients_col = [""] * len(base_voyages)
+            # Sécurité : un véhicule / un chauffeur ne peut servir qu'à un seul voyage
+            _vus_veh, _vus_chauf = set(), set()
+            for k in cles:
+                v = st.session_state.get(_cw("veh", k))
+                if v and v != VEHICULE_GENERIQUE:
+                    if v in _vus_veh:
+                        st.session_state[_cw("veh", k)] = None
+                    else:
+                        _vus_veh.add(v)
+                c_ = st.session_state.get(_cw("chauf", k))
+                if c_ and c_ != CHAUFFEUR_GENERIQUE:
+                    if c_ in _vus_chauf:
+                        st.session_state[_cw("chauf", k)] = None
+                    else:
+                        _vus_chauf.add(c_)
 
-            df_editeur = pd.DataFrame({
-                "Valider": [choix[k]["Valider"] for k in cles],
-                "Voyage": base_voyages["Véhicule N°"].astype(str),
-                "Zone": base_voyages["Zone"].astype(str),
-                "Véhicule attribué": [choix[k]["Véhicule"] for k in cles],
-                "Chauffeur": [choix[k]["Chauffeur"] for k in cles],
-                "Occupation (%)": base_voyages.apply(_taux_occupation_max, axis=1),
-                "Poids (kg)": pd.to_numeric(base_voyages["Poids total chargé"], errors="coerce").round(3),
-                "Volume (m³)": pd.to_numeric(base_voyages["Volume total chargé"], errors="coerce").round(3),
-                "Clients": clients_col,
-            })
+            # --- Tableau : une ligne par voyage ---
+            largeurs = [0.8, 0.8, 1.8, 1.8, 2.6, 1.6, 1.1, 1.0, 2.2]
+            entetes = ["Valider", "Voyage", "Zone", "Véhicule attribué", "Chauffeur",
+                       "Occupation (%)", "Poids (kg)", "Volume (m³)", "Clients"]
+            for col_h, titre in zip(st.columns(largeurs), entetes):
+                col_h.markdown(f"**{titre}**")
 
-            df_edite = st.data_editor(
-                df_editeur,
-                key=f"editeur_attr_{st.session_state.version_editeur_attr}",
-                hide_index=True,
-                use_container_width=True,
-                num_rows="fixed",
-                disabled=["Voyage", "Zone", "Occupation (%)", "Poids (kg)", "Volume (m³)", "Clients"],
-                column_config={
-                    "Valider": st.column_config.CheckboxColumn("Valider", default=False),
-                    "Véhicule attribué": st.column_config.SelectboxColumn(
-                        "Véhicule attribué", options=VEHICULES_DISPONIBLES, required=False, width="medium"),
-                    "Chauffeur": st.column_config.SelectboxColumn(
-                        "Chauffeur", options=OPTIONS_CHAUFFEURS, required=False, width="medium"),
-                    "Occupation (%)": st.column_config.ProgressColumn(
-                        "Occupation (%)", min_value=0, max_value=100, format="%.1f %%"),
-                    "Poids (kg)": st.column_config.NumberColumn("Poids (kg)", format="%.3f"),
-                    "Volume (m³)": st.column_config.NumberColumn("Volume (m³)", format="%.3f"),
-                },
-            )
+            for k, (_, r) in zip(cles, base_voyages.iterrows()):
 
-            # Mémoriser les modifications
-            for k, (_, r) in zip(cles, df_edite.iterrows()):
+                # Véhicules / chauffeurs déjà pris par les AUTRES voyages (ils n'apparaissent plus dans la liste)
+                pris_veh = {st.session_state.get(_cw("veh", o)) for o in cles if o != k} - {None, VEHICULE_GENERIQUE}
+                pris_chauf = {st.session_state.get(_cw("chauf", o)) for o in cles if o != k} - {None, CHAUFFEUR_GENERIQUE}
+                options_veh = [v for v in VEHICULES_DISPONIBLES if v not in pris_veh]
+                options_chauf = [c for c in OPTIONS_CHAUFFEURS if c not in pris_chauf]
+
+                # Valeur courante absente de la liste -> on la vide pour éviter une erreur
+                if st.session_state.get(_cw("veh", k)) not in options_veh + [None]:
+                    st.session_state[_cw("veh", k)] = None
+                if st.session_state.get(_cw("chauf", k)) not in options_chauf + [None]:
+                    st.session_state[_cw("chauf", k)] = None
+
+                cc = st.columns(largeurs)
+                with cc[0]:
+                    valide = st.checkbox("Valider", key=_cw("valider", k), label_visibility="collapsed")
+                cc[1].write(str(r["Véhicule N°"]))
+                cc[2].write(str(r["Zone"]))
+                with cc[3]:
+                    veh_choisi = st.selectbox("Véhicule attribué", options_veh, index=None,
+                                              placeholder="Choisir...", key=_cw("veh", k),
+                                              label_visibility="collapsed")
+                with cc[4]:
+                    chauf_choisi = st.selectbox("Chauffeur", options_chauf, index=None,
+                                                placeholder="Choisir...", key=_cw("chauf", k),
+                                                label_visibility="collapsed")
+                taux_occ = _taux_occupation_max(r)
+                with cc[5]:
+                    st.progress(min(max(taux_occ, 0), 100) / 100, text=f"{taux_occ:.1f} %")
+                poids_aff = pd.to_numeric(r["Poids total chargé"], errors="coerce")
+                volume_aff = pd.to_numeric(r["Volume total chargé"], errors="coerce")
+                cc[6].write(f"{poids_aff:.3f}")
+                cc[7].write(f"{volume_aff:.3f}")
+                cc[8].caption(str(r["Client(s) inclus"]) if "Client(s) inclus" in base_voyages.columns and pd.notna(r["Client(s) inclus"]) else "")
+
+                # Mémoriser les choix
                 choix[k] = {
-                    "Valider": bool(r["Valider"]),
-                    "Véhicule": r["Véhicule attribué"] if pd.notna(r["Véhicule attribué"]) else None,
-                    "Chauffeur": r["Chauffeur"] if pd.notna(r["Chauffeur"]) else None,
+                    "Valider": bool(valide),
+                    "Véhicule": veh_choisi,
+                    "Chauffeur": chauf_choisi,
                 }
 
             idx_valides = [i for i, k in enumerate(cles) if choix[k]["Valider"]]
