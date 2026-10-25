@@ -4950,7 +4950,8 @@ def page_optimisation():
             CHAUFFEUR_GENERIQUE = "99999 - Chauffeur Camion"
 
             def _est_camion(r):
-                return "CAMION" in str(r.get("Code Véhicule", "")).upper()
+                # Voyage en camion si le numéro commence par "C" (C1, C2...), estafette si "E" (E1, E2...)
+                return str(r.get("Véhicule N°", "")).strip().upper().startswith("C")
 
             def _cw(type_, k):
                 return f"attr_{type_}_{k}"
@@ -5171,8 +5172,16 @@ def page_optimisation():
                     # Véhicules / chauffeurs déjà pris par les AUTRES voyages (ils n'apparaissent plus dans la liste)
                     pris_veh = {st.session_state.get(_cw("veh", o)) for o in cles if o != k} - {None, VEHICULE_GENERIQUE}
                     pris_chauf = {st.session_state.get(_cw("chauf", o)) for o in cles if o != k} - {None, CHAUFFEUR_GENERIQUE}
-                    options_veh = [v for v in VEHICULES_DISPONIBLES if v not in pris_veh]
-                    options_chauf = [c for c in OPTIONS_CHAUFFEURS if c not in pris_chauf]
+                    if _est_camion(r):
+                        # Voyage en camion : uniquement le véhicule et le chauffeur génériques du camion
+                        options_veh = [VEHICULE_GENERIQUE]
+                        options_chauf = [CHAUFFEUR_GENERIQUE]
+                    else:
+                        # Voyage en estafette : jamais le code camion ni le chauffeur camion
+                        options_veh = [v for v in VEHICULES_DISPONIBLES
+                                       if v not in pris_veh and v != VEHICULE_GENERIQUE]
+                        options_chauf = [c for c in OPTIONS_CHAUFFEURS
+                                         if c not in pris_chauf and c != CHAUFFEUR_GENERIQUE]
 
                     # Valeur courante absente de la liste -> on la vide pour éviter une erreur
                     if st.session_state.get(_cw("veh", k)) not in options_veh + [None]:
