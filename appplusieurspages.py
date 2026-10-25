@@ -2211,7 +2211,7 @@ def page_analyse():
         )
         
         st.markdown(f"""
-        <div class="table-container">
+        <div class="table-container table-container-scroll-ville">
             {html_table_zone_group}
         </div>
         """, unsafe_allow_html=True)
