@@ -3735,8 +3735,6 @@ def page_optimisation():
                 "BL inclus",
                 "Taux occupation poids (%)",
                 "Taux occupation volume (%)",
-                "Location_camion",
-                "Location_proposee",
                 "Code Véhicule"
             ]
 
@@ -3851,11 +3849,20 @@ def page_optimisation():
             .custom-table-voyages td {
                 line-height: 1.4;
             }
+            
+            /* Largeur des colonnes adaptée au contenu (tableau Voyages uniquement) */
+            .table-voyages-auto {
+                width: auto !important;
+                min-width: 100%;
+            }
+            .table-voyages-auto td {
+                white-space: nowrap;
+            }
             </style>
             """, unsafe_allow_html=True)
             
             # Afficher le tableau avec le style CSS professionnel
-            html_table = df_display.to_html(escape=False, index=False, classes="custom-table-voyages", border=0)
+            html_table = df_display.to_html(escape=False, index=False, classes="custom-table-voyages table-voyages-auto", border=0)
             
             st.markdown(f"""
             <div class="table-container-voyages">
@@ -3876,7 +3883,7 @@ def page_optimisation():
                 st.metric("🌍 Zones couvertes", total_zones)
             
             with col3:
-                camions_loues = df_display["Location_camion"].sum() if "Location_camion" in df_display.columns else 0
+                camions_loues = df_clean["Location_camion"].sum() if "Location_camion" in df_clean.columns else 0
                 st.metric("🚚 Camions loués", int(camions_loues))
             
             with col4:
