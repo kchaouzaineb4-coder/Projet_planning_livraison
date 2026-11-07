@@ -3803,18 +3803,28 @@ def page_optimisation():
             
             # =====================================================
             # BOUTON CENTRÉ - VÉRIFIER LES PROPOSITIONS
+            # (masqué dès qu'une location de camion a été acceptée : il devient inutile)
             # =====================================================
+            location_acceptee = False
+            try:
+                if st.session_state.rental_processor is not None:
+                    _df_base_loc = st.session_state.rental_processor.df_base
+                    if _df_base_loc is not None and "Location_camion" in _df_base_loc.columns:
+                        location_acceptee = bool(_df_base_loc["Location_camion"].fillna(False).astype(bool).any())
+            except Exception:
+                location_acceptee = False
 
-            col_gauche_verif, col_centre_verif, col_droite_verif = st.columns([1, 2, 1])
+            if not location_acceptee:
+                col_gauche_verif, col_centre_verif, col_droite_verif = st.columns([1, 2, 1])
 
-            with col_centre_verif:
-                if st.button(
-                    "🔍 Vérifier à nouveau les propositions",
-                    use_container_width=True
-                ):
-                    if st.session_state.rental_processor:
-                        update_propositions_view()
-                    st.rerun()
+                with col_centre_verif:
+                    if st.button(
+                        "🔍 Vérifier à nouveau les propositions",
+                        use_container_width=True
+                    ):
+                        if st.session_state.rental_processor:
+                            update_propositions_view()
+                        st.rerun()
 
     # --- Fenêtre pop-up : Transfert BLs ---
     try:
