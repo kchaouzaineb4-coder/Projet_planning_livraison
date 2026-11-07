@@ -6149,7 +6149,7 @@ def page_optimisation():
                 from fpdf import FPDF
 
                 def to_pdf_better_centered(df, title="Voyages Attribués"):
-                    """PDF des voyages attribués : même présentation que « LISTE DES VOYAGES AVEC CODES »."""
+                    """PDF des voyages attribués : même présentation que « PLANNING LIVRAISONS AVEC CODES »."""
                     pdf = FPDF(orientation="L", unit="mm", format="A4")
                     pdf.set_margins(10, 10, 10)
                     pdf.set_auto_page_break(auto=True, margin=10)
@@ -6414,7 +6414,7 @@ def page_optimisation():
                 
                 # =====================================================
                 # BOUTONS EXCEL ET PDF - VOYAGES ATTRIBUÉS
-                # Même disposition que Voyages_avec_Codes
+                # Même disposition que Planning_livraisons_avec_codes
                 # =====================================================
 
                 col_vide_gauche_attr, col_excel_attr, col_pdf_attr, col_vide_droite_attr = st.columns(
@@ -6765,10 +6765,10 @@ def page_optimisation():
                             df_export.to_excel(
                                 writer,
                                 index=False,
-                                sheet_name="Voyages_avec_Codes"
+                                sheet_name="Planning livraisons avec codes"
                             )
 
-                            worksheet = writer.sheets["Voyages_avec_Codes"]
+                            worksheet = writer.sheets["Planning livraisons avec codes"]
 
                             # Définir les bordures
                             bordure_fine = Side(
@@ -6909,7 +6909,7 @@ def page_optimisation():
                     st.download_button(
                         label="📥 Télécharger Excel avec codes",
                         data=excel_data,
-                        file_name="voyages_avec_codes.xlsx",
+                        file_name="Planning_livraisons_avec_codes.xlsx",
                         mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                         use_container_width=True,
                         key="btn_download_excel_codes"
@@ -6947,7 +6947,7 @@ def page_optimisation():
                         pdf.set_font("Arial", "B", 15)
                         pdf.cell(
                             0, 9,
-                            "LISTE DES VOYAGES AVEC CODES",
+                            "PLANNING LIVRAISONS AVEC CODES",
                             ln=True,
                             align="C"
                         )
@@ -7211,7 +7211,7 @@ def page_optimisation():
                         st.download_button(
                             label="📄 Télécharger PDF avec codes",
                             data=pdf_data,
-                            file_name="voyages_avec_codes.pdf",
+                            file_name="Planning_livraisons_avec_codes.pdf",
                             mime='application/pdf',
                             use_container_width=True,
                             key="btn_download_pdf_codes"
