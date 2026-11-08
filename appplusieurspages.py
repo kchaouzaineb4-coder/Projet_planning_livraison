@@ -3462,7 +3462,7 @@ def construire_arrets(clients, df_clients, selection, bls_par_client):
             a = adresses[0]
             arrets.append({
                 "client": client, "raison": a["raison"], "adresse": libelle_adresse(a), "ville": ville,
-                "lat": pt[0], "lon": pt[1], "approx": True, "bls": bls_par_client.get(client, []),
+                "lat": pt[0], "lon": pt[1], "approx": True, "sans_gps": True, "bls": bls_par_client.get(client, []),
             })
         else:
             non_places.append((client, "pas de GPS et ville non reconnue" + (f" ({ville})" if ville else "")))
@@ -5445,6 +5445,7 @@ def page_optimisation():
         arrets, non_places = construire_arrets(clients, df_cli, selection, bls_par_client)
 
         # Objets livrés à une adresse cible : un arrêt supplémentaire
+        objets_non_places = []
         for o in objets_voyage:
             if o.get("client"):
                 continue
@@ -5458,20 +5459,32 @@ def page_optimisation():
                     "approx": not o.get("gps"), "bls": [f"OBJ-{o['objet']}"],
                 })
             else:
-                non_places.append((nom_arret, f"adresse non localisable ({libelle}) : ville non reconnue et pas de GPS"))
-
-        for cl, motif in non_places:
-            st.warning(f"⚠️ **{cl}** ne peut pas être placé sur la carte : {motif}.")
+                objets_non_places.append((nom_arret, f"adresse non localisable ({libelle}) : ville non reconnue et pas de GPS"))
 
         if not arrets:
+            for cl, motif in non_places + objets_non_places:
+                st.warning(f"⚠️ **{cl}** ne peut pas être placé sur la carte : {motif}.")
             st.error("Aucun client de ce voyage n'a de position exploitable : itinéraire impossible.")
             return
 
         ordre = ordonner_arrets(depot, [(a["lat"], a["lon"]) for a in arrets], retour)
         arrets = [arrets[i] for i in ordre]
 
-        if any(a["approx"] for a in arrets):
-            st.caption("🟠 Les clients sans GPS dans le fichier sont placés au centre de leur ville (position approximative).")
+        # Clients sans « Donnée GPS » dans le fichier clients (placés au centre de leur ville)
+        clients_sans_gps = [a for a in arrets if a.get("sans_gps")]
+        if clients_sans_gps or non_places:
+            lignes_sans_gps = []
+            for a in clients_sans_gps:
+                lignes_sans_gps.append(f"- **{a['client']}**" + (f" ({a['raison']})" if a["raison"] else "") +
+                                       f" : placé au centre de {a['ville'] or 'sa ville'} (position approximative)")
+            for cl, motif in non_places:
+                lignes_sans_gps.append(f"- **{cl}** : non placé sur la carte ({motif})")
+            st.warning(
+                "🛰️ **Clients sans « Donnée GPS » dans le fichier clients :**\n" + "\n".join(lignes_sans_gps) +
+                "\n\nComplétez la colonne « Donnée GPS » de ces clients pour obtenir un itinéraire précis."
+            )
+        for nom_obj, motif in objets_non_places:
+            st.warning(f"⚠️ **{nom_obj}** ne peut pas être placé sur la carte : {motif}.")
 
         # Étapes situées (quasiment) au même endroit : leurs marqueurs se superposent sur la carte
         groupes_memes_lieux = []
