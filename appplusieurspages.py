@@ -7227,7 +7227,11 @@ def page_optimisation():
                     st.markdown("### 📋 Aperçu des codes voyage générés")
                     
                     # Afficher un aperçu des codes générés
-                    df_apercu = df_final[['Véhicule N°', 'Zone', 'Code voyage']].copy()
+                    # Véhicule N°, Zone, puis le véhicule et le chauffeur attribués, puis le code voyage
+                    colonnes_apercu = (['Véhicule N°', 'Zone']
+                    + [c for c in ('Véhicule attribué', 'Chauffeur attribué') if c in df_final.columns]
+                    + ['Code voyage'])
+                    df_apercu = df_final[colonnes_apercu].copy()
                     
                     # Appliquer le style spécial pour la colonne Code voyage
                     df_apercu_display = df_apercu.copy()
@@ -7260,7 +7264,11 @@ def page_optimisation():
                 # AFFICHAGE DES CODES EXISTANTS
                 st.markdown("### 📋 Codes voyage générés")
                 
-                df_apercu = df_final[['Véhicule N°', 'Zone', 'Code voyage']].copy()
+                # Véhicule N°, Zone, puis le véhicule et le chauffeur attribués, puis le code voyage
+                colonnes_apercu = (['Véhicule N°', 'Zone']
+                + [c for c in ('Véhicule attribué', 'Chauffeur attribué') if c in df_final.columns]
+                + ['Code voyage'])
+                df_apercu = df_final[colonnes_apercu].copy()
                 
                 # Appliquer le style spécial pour la colonne Code voyage
                 df_apercu_display = df_apercu.copy()
