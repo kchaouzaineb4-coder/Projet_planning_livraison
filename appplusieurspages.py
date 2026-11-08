@@ -907,6 +907,13 @@ def page_import():
                         df_optimized_estafettes, df_livraisons_original
                     )
                     st.session_state.data_processed = True
+                    
+                    # Fichier clients complet (adresses GPS) conservé pour les itinéraires des voyages
+                    try:
+                        wcliegps_file.seek(0)
+                        st.session_state.df_clients_gps = pd.read_excel(wcliegps_file)
+                    except Exception:
+                        st.session_state.df_clients_gps = None
                      # --- Contrôle des poids suspects (0 ou 1000) ---
                     liv_file.seek(0)
                     ydlogist_file.seek(0)
@@ -3194,6 +3201,354 @@ def refuse_location_callback():
 # =====================================================
 # PAGE 3: Optimisation & location
 # =====================================================
+# =====================================================
+# ITINÉRAIRES DES VOYAGES : OUTILS GPS, ARRÊTS, CARTE
+# =====================================================
+import math
+import re
+
+ALPHABET_PLUS_CODE = "23456789CFGHJMPQRVWX"
+
+
+def decoder_plus_code_complet(code):
+    """Décode un Plus Code complet (ex. '8CJ5MM8W+6CV') -> (lat, lon) du centre de la zone."""
+    code = code.replace("+", "").upper()
+    lat, lon = -90.0, -180.0
+    res_lat, res_lon = 20.0, 20.0
+    for i in range(0, min(len(code), 10), 2):          # 5 paires de chiffres
+        lat += ALPHABET_PLUS_CODE.index(code[i]) * res_lat
+        lon += ALPHABET_PLUS_CODE.index(code[i + 1]) * res_lon
+        if i < 8:
+            res_lat /= 20.0
+            res_lon /= 20.0
+    for ch in code[10:]:                               # chiffres de grille (4 x 5)
+        res_lat /= 5.0
+        res_lon /= 4.0
+        val = ALPHABET_PLUS_CODE.index(ch)
+        lat += (val // 4) * res_lat
+        lon += (val % 4) * res_lon
+    return lat + res_lat / 2.0, lon + res_lon / 2.0
+
+
+def prefixe_plus_code(lat, lon, nb_chiffres):
+    """Les `nb_chiffres` premiers chiffres du Plus Code d'un point."""
+    lat = min(max(lat, -90.0), 90.0 - 1e-9) + 90.0
+    lon = (lon + 180.0) % 360.0
+    sortie, res = "", 20.0
+    for _ in range(nb_chiffres // 2):
+        d_lat = int(lat // res)
+        lat -= d_lat * res
+        d_lon = int(lon // res)
+        lon -= d_lon * res
+        sortie += ALPHABET_PLUS_CODE[d_lat] + ALPHABET_PLUS_CODE[d_lon]
+        res /= 20.0
+    return sortie
+
+
+def decoder_plus_code_court(code_court, ref_lat, ref_lon):
+    """Plus Code court (ex. 'MM8W+6CV') + point de référence proche -> (lat, lon)."""
+    code = code_court.strip().upper().replace(" ", "")
+    manquants = 8 - code.index("+")
+    complet = prefixe_plus_code(ref_lat, ref_lon, manquants) + code
+    lat, lon = decoder_plus_code_complet(complet)
+    taille = 20.0 / (20.0 ** (manquants // 2))         # taille (en degrés) de la zone retirée du code
+    while lat - ref_lat > taille / 2:
+        lat -= taille
+    while ref_lat - lat > taille / 2:
+        lat += taille
+    while lon - ref_lon > taille / 2:
+        lon -= taille
+    while ref_lon - lon > taille / 2:
+        lon += taille
+    return lat, lon
+
+
+_RE_GPS_DECIMAL = re.compile(r"^\s*(-?\d{1,3}(?:\.\d+)?)\s*[,;]\s*(-?\d{1,3}(?:\.\d+)?)\s*$")
+_RE_GPS_DMS = re.compile(
+    r"^\s*(\d{1,3})\s*[°d]\s*(\d{1,2})\s*['’′]\s*(\d{1,2}(?:\.\d+)?)\s*[\"”″]?\s*([NSns])\s*[,;]?\s*"
+    r"(\d{1,3})\s*[°d]\s*(\d{1,2})\s*['’′]\s*(\d{1,2}(?:\.\d+)?)\s*[\"”″]?\s*([EWOewo])\s*[\"”″]?\s*$"
+)
+
+
+def analyser_gps(valeur):
+    """Texte GPS d'un client -> (lat, lon) ou None. Accepte 'lat, lon' (décimal) et le format DMS."""
+    if valeur is None:
+        return None
+    texte = str(valeur).strip()
+    if not texte or texte.lower() == "nan":
+        return None
+    lat = lon = None
+    m = _RE_GPS_DECIMAL.match(texte)
+    if m:
+        lat, lon = float(m.group(1)), float(m.group(2))
+    else:
+        m = _RE_GPS_DMS.match(texte)
+        if m:
+            lat = int(m.group(1)) + int(m.group(2)) / 60 + float(m.group(3)) / 3600
+            if m.group(4).upper() == "S":
+                lat = -lat
+            lon = int(m.group(5)) + int(m.group(6)) / 60 + float(m.group(7)) / 3600
+            if m.group(8).upper() in ("W", "O"):
+                lon = -lon
+    if lat is None or not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return None
+    # Latitude et longitude inversées (ex. '10.78, 35.61' pour la Tunisie) : on remet dans l'ordre
+    if not (30 <= lat <= 38) and (30 <= lon <= 38) and (7 <= lat <= 12):
+        lat, lon = lon, lat
+    return lat, lon
+
+
+def distance_km(a, b):
+    """Distance à vol d'oiseau (haversine) entre deux points (lat, lon)."""
+    r = 6371.0088
+    p1, p2 = math.radians(a[0]), math.radians(b[0])
+    dp = p2 - p1
+    dl = math.radians(b[1] - a[1])
+    h = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(h))
+
+
+def ordonner_arrets(depart, points, retour=True):
+    """Ordre de visite (plus proche voisin puis amélioration 2-opt). points = liste de (lat, lon).
+    Retourne les indices de `points` dans l'ordre de passage."""
+    n = len(points)
+    if n <= 1:
+        return list(range(n))
+    restants, ordre, courant = list(range(n)), [], depart
+    while restants:
+        suivant = min(restants, key=lambda i: distance_km(courant, points[i]))
+        ordre.append(suivant)
+        restants.remove(suivant)
+        courant = points[suivant]
+
+    def longueur(o):
+        chemin = [depart] + [points[i] for i in o] + ([depart] if retour else [])
+        return sum(distance_km(chemin[k], chemin[k + 1]) for k in range(len(chemin) - 1))
+
+    meilleur, ameliore = longueur(ordre), True
+    while ameliore:
+        ameliore = False
+        for i in range(n - 1):
+            for j in range(i + 1, n):
+                candidat = ordre[:i] + ordre[i:j + 1][::-1] + ordre[j + 1:]
+                l = longueur(candidat)
+                if l + 1e-9 < meilleur:
+                    ordre, meilleur, ameliore = candidat, l, True
+    return ordre
+
+
+# Point de départ de tous les voyages : SOPAL Thyna (Plus Code court + référence proche pour le décoder)
+DEPOT_NOM = "SOPAL Thyna"
+DEPOT_PLUS_CODE = "MM8W+6CV"
+DEPOT_REFERENCE = (34.74, 10.76)   # centre de Sfax : sert uniquement à compléter le Plus Code court
+
+
+def coordonnees_depot():
+    """Coordonnées (lat, lon) du dépôt SOPAL Thyna, décodées depuis son Plus Code."""
+    return decoder_plus_code_court(DEPOT_PLUS_CODE, DEPOT_REFERENCE[0], DEPOT_REFERENCE[1])
+
+
+# Centres de villes tunisiennes : positions APPROXIMATIVES, utilisées seulement si le client n'a pas de GPS
+CENTRES_VILLES_TN = {
+    "SAKIET EZZIT": (34.8000, 10.7400), "SFAX SUD": (34.7000, 10.7000), "SFAX": (34.7406, 10.7603),
+    "EL BOUHAIRA": (36.8333, 10.1333), "EL MENZAH": (36.8333, 10.1667), "BAB BHAR": (36.7990, 10.1810),
+    "ARIANA": (36.8665, 10.1647), "BEN AROUS": (36.7531, 10.2189), "MEGRINE": (36.7708, 10.2331),
+    "MANOUBA": (36.8089, 10.0863), "TUNIS": (36.8065, 10.1815),
+    "HAMMAMET": (36.4000, 10.6167), "NABEUL": (36.4561, 10.7376),
+    "MSAKEN": (35.7300, 10.5800), "SOUSSE": (35.8256, 10.6084),
+    "KSAR HELLAL": (35.6417, 10.8913), "BEMBLA": (35.6903, 10.8008), "MOKNINE": (35.6333, 10.9000),
+    "MONASTIR": (35.7643, 10.8113), "MAHDIA": (35.5047, 11.0622), "KAIROUAN": (35.6781, 10.0963),
+    "GABES": (33.8815, 10.0982), "MEDENINE": (33.3549, 10.5055), "MEDNINE": (33.3549, 10.5055),
+    "DJERBA": (33.8076, 10.8451), "MIDOUN": (33.8076, 10.8451), "ZARZIS": (33.5050, 11.1122),
+    "TATAOUINE": (32.9297, 10.4518), "GAFSA": (34.4250, 8.7842), "TOZEUR": (33.9197, 8.1335),
+    "KEBILI": (33.7044, 8.9690), "SIDI BOUZID": (35.0382, 9.4849), "KASSERINE": (35.1676, 8.8365),
+    "SILIANA": (36.0849, 9.3708), "ZAGHOUAN": (36.4029, 10.1429), "BIZERTE": (37.2744, 9.8739),
+    "BEJA": (36.7256, 9.1817), "JENDOUBA": (36.5011, 8.7802), "LE KEF": (36.1742, 8.7049), "KEF": (36.1742, 8.7049),
+}
+
+
+def normaliser_cle(texte):
+    """Majuscules sans accents ni espaces superflus (comparaison des codes clients et des villes)."""
+    import unicodedata
+    texte = unicodedata.normalize("NFKD", str(texte))
+    return "".join(c for c in texte if not unicodedata.combining(c)).strip().upper()
+
+
+def centre_ville(ville):
+    """Position approximative d'une ville tunisienne (ou None si elle n'est pas reconnue)."""
+    v = normaliser_cle(ville)
+    if not v or v == "NAN":
+        return None
+    for nom in sorted(CENTRES_VILLES_TN, key=len, reverse=True):
+        if nom in v:
+            return CENTRES_VILLES_TN[nom]
+    return None
+
+
+def adresses_du_client(df_clients, client):
+    """Toutes les adresses d'un client dans le fichier clients, avec leur position GPS si elle est lisible."""
+    adresses = []
+    if df_clients is None or "Client" not in df_clients.columns:
+        return adresses
+
+    def propre(valeur):
+        texte = str(valeur).strip()
+        return "" if texte.lower() == "nan" else texte
+
+    cles = df_clients["Client"].astype(str).map(normaliser_cle)
+    for _, r in df_clients[cles == normaliser_cle(client)].iterrows():
+        lignes = " ".join(
+            propre(r[c]) for c in ("Ligne adresse", "Ligne adresse.1", "Ligne adresse.2")
+            if c in df_clients.columns and propre(r[c])
+        )
+        adresses.append({
+            "code": propre(r["Adresse"]) if "Adresse" in df_clients.columns else "",
+            "lignes": lignes,
+            "ville": propre(r["Ville"]) if "Ville" in df_clients.columns else "",
+            "raison": propre(r["Raison sociale"]) if "Raison sociale" in df_clients.columns else "",
+            "pt": analyser_gps(r["Donnée GPS"]) if "Donnée GPS" in df_clients.columns else None,
+            "defaut": propre(r["Par défaut"]).lower() == "oui" if "Par défaut" in df_clients.columns else False,
+        })
+    return adresses
+
+
+def adresses_avec_gps(adresses):
+    """Adresses qui ont une position GPS lisible (les positions identiques ne sont gardées qu'une fois)."""
+    vues, resultat = set(), []
+    for a in adresses:
+        if a["pt"] is None:
+            continue
+        cle = (round(a["pt"][0], 5), round(a["pt"][1], 5))
+        if cle not in vues:
+            vues.add(cle)
+            resultat.append(a)
+    return resultat
+
+
+def index_adresse_par_defaut(candidats):
+    for i, a in enumerate(candidats):
+        if a["defaut"]:
+            return i
+    return 0
+
+
+def libelle_adresse(a):
+    return " · ".join(m for m in (a["code"] or "adresse", a["ville"], a["lignes"]) if m)
+
+
+def construire_arrets(clients, df_clients, selection, bls_par_client):
+    """Un arrêt par client. selection = {client: indice de l'adresse choisie parmi celles qui ont un GPS}.
+    Retourne (arrets, non_places)."""
+    arrets, non_places = [], []
+    for client in clients:
+        adresses = adresses_du_client(df_clients, client)
+        if not adresses:
+            non_places.append((client, "client introuvable dans le fichier clients"))
+            continue
+        candidats = adresses_avec_gps(adresses)
+        if candidats:
+            a = candidats[min(selection.get(client, index_adresse_par_defaut(candidats)), len(candidats) - 1)]
+            arrets.append({
+                "client": client, "raison": a["raison"], "adresse": libelle_adresse(a), "ville": a["ville"],
+                "lat": a["pt"][0], "lon": a["pt"][1], "approx": False, "bls": bls_par_client.get(client, []),
+            })
+            continue
+        ville = next((a["ville"] for a in adresses if a["ville"]), "")
+        pt = centre_ville(ville)
+        if pt is not None:
+            a = adresses[0]
+            arrets.append({
+                "client": client, "raison": a["raison"], "adresse": libelle_adresse(a), "ville": ville,
+                "lat": pt[0], "lon": pt[1], "approx": True, "bls": bls_par_client.get(client, []),
+            })
+        else:
+            non_places.append((client, "pas de GPS et ville non reconnue" + (f" ({ville})" if ville else "")))
+    return arrets, non_places
+
+
+def url_google_maps(depot, arrets, retour=True):
+    """Lien Google Maps : départ au dépôt, passage par chaque arrêt (9 étapes intermédiaires au maximum)."""
+    pts = [(a["lat"], a["lon"]) for a in arrets]
+    if not pts:
+        return ""
+    destination, etapes = (depot, pts) if retour else (pts[-1], pts[:-1])
+    url = (
+        "https://www.google.com/maps/dir/?api=1"
+        f"&origin={depot[0]:.6f},{depot[1]:.6f}"
+        f"&destination={destination[0]:.6f},{destination[1]:.6f}&travelmode=driving"
+    )
+    if etapes:
+        url += "&waypoints=" + "%7C".join(f"{la:.6f},{lo:.6f}" for la, lo in etapes[:9])
+    return url
+
+
+def html_carte_itineraire(depot, arrets, retour=True, hauteur=480):
+    """Carte Leaflet (OpenStreetMap) : dépôt, arrêts numérotés, tracé routier (OSRM) ou, à défaut, à vol d'oiseau."""
+    import json
+    donnees = {
+        "depot": {"nom": DEPOT_NOM, "lat": depot[0], "lon": depot[1]},
+        "arrets": [
+            {"n": i + 1, "client": a["client"], "adresse": a["adresse"], "lat": a["lat"], "lon": a["lon"], "approx": a["approx"]}
+            for i, a in enumerate(arrets)
+        ],
+        "retour": bool(retour),
+    }
+    donnees_json = json.dumps(donnees, ensure_ascii=False).replace("</", "<\\/")
+    modele = """<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<style>
+  html, body { margin:0; font-family: Arial, sans-serif; }
+  #map { height: __H__px; width:100%; border:1.5px solid #0369A1; border-radius:10px; box-sizing:border-box; }
+  .pin { width:28px; height:28px; border-radius:50%; color:#fff; font-weight:700; font-size:13px;
+         display:flex; align-items:center; justify-content:center; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.5); }
+  .pin-depot { background:#C62828; width:32px; height:32px; font-size:18px; }
+  .pin-ok { background:#0369A1; } .pin-approx { background:#EF8F00; }
+  #info { margin-top:6px; font-size:13px; color:#1F2D3D; }
+</style></head><body>
+<div id="map"></div><div id="info"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const D = __DATA__;
+const info = document.getElementById('info');
+if (typeof L === 'undefined') {
+  document.getElementById('map').innerHTML = '<p style="padding:20px">La carte n’a pas pu être chargée (connexion Internet requise).</p>';
+} else {
+  const map = L.map('map');
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; OpenStreetMap'}).addTo(map);
+  const icone = (cls, txt) => L.divIcon({className: '', html: '<div class="pin ' + cls + '">' + txt + '</div>', iconSize: [30, 30], iconAnchor: [15, 15]});
+  const pts = [[D.depot.lat, D.depot.lon]];
+  L.marker([D.depot.lat, D.depot.lon], {icon: icone('pin-depot', '⌂')}).addTo(map).bindPopup('<b>Départ : ' + D.depot.nom + '</b>');
+  D.arrets.forEach(a => {
+    pts.push([a.lat, a.lon]);
+    L.marker([a.lat, a.lon], {icon: icone(a.approx ? 'pin-approx' : 'pin-ok', a.n)}).addTo(map)
+      .bindPopup('<b>' + a.n + '. ' + a.client + '</b><br>' + a.adresse + (a.approx ? '<br><i>Position approximative (centre de la ville)</i>' : ''));
+  });
+  const trace = D.retour ? pts.concat([pts[0]]) : pts;
+  const droite = L.polyline(trace, {color: '#6B7C93', weight: 3, dashArray: '6 8'}).addTo(map);
+  map.fitBounds(L.latLngBounds(pts), {padding: [40, 40]});
+  info.textContent = 'Tracé à vol d’oiseau (calcul de l’itinéraire routier en cours…)';
+  const coords = trace.map(p => p[1] + ',' + p[0]).join(';');
+  fetch('https://router.project-osrm.org/route/v1/driving/' + coords + '?overview=full&geometries=geojson')
+    .then(r => r.json())
+    .then(d => {
+      if (d.code === 'Ok' && d.routes && d.routes.length) {
+        const r = d.routes[0];
+        map.removeLayer(droite);
+        const ligne = L.polyline(r.geometry.coordinates.map(c => [c[1], c[0]]), {color: '#0369A1', weight: 5, opacity: 0.85}).addTo(map);
+        map.fitBounds(ligne.getBounds(), {padding: [40, 40]});
+        const h = Math.floor(r.duration / 3600), m = Math.round((r.duration % 3600) / 60);
+        info.innerHTML = '<b>Itinéraire routier :</b> ' + (r.distance / 1000).toFixed(1) + ' km, environ ' + (h > 0 ? h + ' h ' : '') + m + ' min (hors arrêts de livraison)';
+      } else {
+        info.textContent = 'Tracé à vol d’oiseau (itinéraire routier indisponible).';
+      }
+    })
+    .catch(() => { info.textContent = 'Tracé à vol d’oiseau (itinéraire routier indisponible).'; });
+}
+</script></body></html>"""
+    return modele.replace("__DATA__", donnees_json).replace("__H__", str(int(hauteur)))
+
+
 def page_optimisation():
     st.markdown("<h1 class='main-header'>3. 🚚 Optimisation & location</h1>", unsafe_allow_html=True)
     
@@ -4895,6 +5250,119 @@ def page_optimisation():
                 with st.expander("🔍 Voir les objets déjà présents dans les véhicules"):
                     st.dataframe(pd.DataFrame(objets_dans_bls), use_container_width=True)
 
+    # --- Fenêtre pop-up : Itinéraire d'un voyage ---
+    try:
+        _deco_dialog_itin = st.dialog("🗺️ Itinéraire du voyage", width="large")
+    except AttributeError:
+        _deco_dialog_itin = st.experimental_dialog("🗺️ Itinéraire du voyage", width="large")
+
+    @_deco_dialog_itin
+    def dialog_itineraire(numero, zone, clients_txt, bl_txt, vehicule, chauffeur):
+        import streamlit.components.v1 as components
+
+        st.markdown(f"**Voyage {numero}** · {zone}")
+        st.caption(f"🚚 Véhicule : {vehicule or 'non attribué'}   ·   👤 Chauffeur : {chauffeur or 'non attribué'}")
+
+        # --- Fichier clients (adresses GPS) ---
+        df_cli = st.session_state.get("df_clients_gps")
+        if df_cli is None:
+            st.info("Le fichier clients (adresses GPS) n'est pas en mémoire. Relancez le traitement depuis la page "
+                    "d'import, ou chargez-le ici.")
+            fichier_clients = st.file_uploader("Fichier Clients/Zones (WCLIEGPS)", type=["xlsx"], key="itin_upload_clients")
+            if fichier_clients is None:
+                return
+            try:
+                df_cli = pd.read_excel(fichier_clients)
+                st.session_state.df_clients_gps = df_cli
+            except Exception as e:
+                st.error(f"❌ Lecture du fichier impossible : {str(e)}")
+                return
+
+        # --- Clients et BL du voyage ---
+        clients = [c.strip() for c in str(clients_txt).replace(";", ",").split(",")
+                   if c.strip() and c.strip().lower() != "nan"]
+        bls_voyage = {b.strip() for b in str(bl_txt).replace(";", ",").split(",") if b.strip()}
+
+        bls_par_client = {}
+        df_lo = st.session_state.get("df_livraisons_original")
+        if df_lo is not None and "No livraison" in df_lo.columns and "Client de l'estafette" in df_lo.columns:
+            cles_lo = df_lo["Client de l'estafette"].astype(str).map(normaliser_cle)
+            for cl in clients:
+                sous = df_lo[cles_lo == normaliser_cle(cl)]
+                bls_par_client[cl] = sorted(set(sous["No livraison"].astype(str)) & bls_voyage)
+
+        # --- Clients ayant plusieurs adresses GPS : choix de l'adresse ---
+        selection = {}
+        for cl in clients:
+            candidats = adresses_avec_gps(adresses_du_client(df_cli, cl))
+            if len(candidats) > 1:
+                st.warning(f"📍 **{cl}** a {len(candidats)} adresses avec position GPS. Les BL ne précisent pas "
+                           f"l'adresse de livraison : choisissez celle de ce voyage.")
+                selection[cl] = st.selectbox(
+                    f"Adresse de livraison de {cl}",
+                    list(range(len(candidats))),
+                    index=index_adresse_par_defaut(candidats),
+                    format_func=lambda i, c=candidats: libelle_adresse(c[i]),
+                    key=f"itin_adr_{numero}_{cl}"
+                )
+
+        retour = st.checkbox("Inclure le retour au dépôt", value=True, key=f"itin_retour_{numero}")
+
+        # --- Arrêts et ordre de passage ---
+        depot = coordonnees_depot()
+        arrets, non_places = construire_arrets(clients, df_cli, selection, bls_par_client)
+
+        for cl, motif in non_places:
+            st.warning(f"⚠️ **{cl}** ne peut pas être placé sur la carte : {motif}.")
+
+        if not arrets:
+            st.error("Aucun client de ce voyage n'a de position exploitable : itinéraire impossible.")
+            return
+
+        ordre = ordonner_arrets(depot, [(a["lat"], a["lon"]) for a in arrets], retour)
+        arrets = [arrets[i] for i in ordre]
+
+        if any(a["approx"] for a in arrets):
+            st.caption("🟠 Les clients sans GPS dans le fichier sont placés au centre de leur ville (position approximative).")
+
+        # --- Distances (à vol d'oiseau, avec une estimation routière) ---
+        chemin = [depot] + [(a["lat"], a["lon"]) for a in arrets] + ([depot] if retour else [])
+        etapes_km = [distance_km(chemin[i], chemin[i + 1]) for i in range(len(chemin) - 1)]
+        total_km = sum(etapes_km)
+
+        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1.metric("Arrêts", len(arrets))
+        col_m2.metric("Distance à vol d'oiseau", f"{total_km:.1f} km")
+        col_m3.metric("Estimation par la route", f"≈ {total_km * 1.3:.0f} km")
+
+        # --- Carte ---
+        components.html(html_carte_itineraire(depot, arrets, retour, hauteur=470), height=530)
+
+        url_maps = url_google_maps(depot, arrets, retour)
+        st.markdown(f"[🧭 Ouvrir l'itinéraire dans Google Maps]({url_maps})")
+        if len(arrets) > (9 if retour else 10):
+            st.caption("Google Maps accepte 9 étapes intermédiaires : les suivantes ne sont pas dans le lien.")
+
+        # --- Détail des arrêts ---
+        lignes = []
+        for i, a in enumerate(arrets):
+            lignes.append({
+                "Étape": i + 1,
+                "Client": a["client"],
+                "Raison sociale": a["raison"],
+                "Adresse": a["adresse"],
+                "Position": "≈ centre de la ville" if a["approx"] else "GPS",
+                "BL du voyage": ", ".join(a["bls"]),
+                "Depuis l'étape précédente (km)": round(etapes_km[i], 1),
+            })
+        if retour:
+            lignes.append({
+                "Étape": len(arrets) + 1, "Client": f"Retour {DEPOT_NOM}", "Raison sociale": "", "Adresse": "",
+                "Position": "", "BL du voyage": "", "Depuis l'étape précédente (km)": round(etapes_km[-1], 1),
+            })
+        st.dataframe(pd.DataFrame(lignes), hide_index=True, use_container_width=True)
+        st.caption(f"Départ : {DEPOT_NOM} ({DEPOT_PLUS_CODE}, Thyna) · coordonnées {depot[0]:.5f}, {depot[1]:.5f}")
+
     # --- Onglet : Voyages par Estafette Optimisé ---
     with tab_voyages:
         # =====================================================
@@ -5219,11 +5687,11 @@ def page_optimisation():
                 box-shadow: 0 2px 8px rgba(3, 105, 161, 0.15);
             }
             .st-key-table_voyages_attr [data-testid="stHorizontalBlock"] {
-                min-width: 1800px;
+                min-width: 2000px;
                 gap: 0 !important;
                 align-items: stretch;
             }
-            .st-key-hdr_voy_row, [class*="st-key-row_voy_"] { min-width: 1800px; }
+            .st-key-hdr_voy_row, [class*="st-key-row_voy_"] { min-width: 2000px; }
 
             /* Séparateurs verticaux entre colonnes */
             .st-key-table_voyages_attr [data-testid="stColumn"],
@@ -5323,10 +5791,10 @@ def page_optimisation():
                 unsafe_allow_html=True
             )
 
-            largeurs = [0.7, 1.5, 1.1, 1.2, 1.2, 1.8, 2.4, 1.1, 1.1, 1.5, 1.0, 1.7]
+            largeurs = [0.7, 1.5, 1.1, 1.2, 1.2, 1.8, 2.4, 1.1, 1.1, 1.5, 1.0, 1.7, 1.2]
             entetes = ["Valider", "Zone", "Véhicule N°", "Taux occupation poids (%)", "Taux occupation volume (%)",
                        "Véhicule attribué", "Chauffeur", "Poids total chargé", "Volume total chargé",
-                       "Client(s) inclus", "Représentant(s) inclus", "BL inclus"]
+                       "Client(s) inclus", "Représentant(s) inclus", "BL inclus", "Itinéraire"]
 
             def _conteneur(cle):
                 try:
@@ -5402,6 +5870,19 @@ def page_optimisation():
                         cc[9].markdown(f"<div class='cell-voy'>{_html_multiligne(r.get('Client(s) inclus'))}</div>", unsafe_allow_html=True)
                         cc[10].markdown(f"<div class='cell-voy'>{_html_multiligne(r.get('Représentant(s) inclus'))}</div>", unsafe_allow_html=True)
                         cc[11].markdown(f"<div class='cell-voy'>{_html_multiligne(r.get('BL inclus'))}</div>", unsafe_allow_html=True)
+                        with cc[12]:
+                            if st.button(
+                                "🗺️ Itinéraire",
+                                key=f"btn_itin_{k}",
+                                disabled=not valide,
+                                use_container_width=True,
+                                help="Afficher l'itinéraire de ce voyage" if valide else "Cochez « Valider » pour afficher l'itinéraire de ce voyage"
+                            ):
+                                dialog_itineraire(
+                                    str(r["Véhicule N°"]), str(r["Zone"]),
+                                    str(r.get("Client(s) inclus", "")), str(r.get("BL inclus", "")),
+                                    veh_choisi or "", chauf_choisi or ""
+                                )
 
                     # Mémoriser les choix
                     choix[k] = {
