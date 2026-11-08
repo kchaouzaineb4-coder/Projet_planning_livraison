@@ -908,6 +908,9 @@ def page_import():
                     )
                     st.session_state.data_processed = True
                     
+                    # Nouvel import : les objets livrés à une adresse cible sont réinitialisés
+                    st.session_state.objets_livraison = {}
+                    
                     # Fichier clients complet (adresses GPS) conservé pour les itinéraires des voyages
                     try:
                         wcliegps_file.seek(0)
@@ -4424,6 +4427,27 @@ def page_optimisation():
                                 if (poids_cible + poids_bls) > MAX_POIDS or (volume_cible + volume_bls) > MAX_VOLUME:
                                     st.warning("⚠️ Le transfert dépasse les limites de poids ou volume du véhicule cible.")
                                 else:
+                                    def recalculer_clients_representants(row, liste_bls):
+                                        """Met à jour les clients et représentants d'un voyage d'après ses BL."""
+                                        bls_reels = [str(b).strip() for b in liste_bls
+                                                     if str(b).strip() and not str(b).strip().startswith("OBJ-")]
+                                        if not bls_reels:
+                                            row["Client(s) inclus"] = ""
+                                            row["Représentant(s) inclus"] = ""
+                                            return row
+                                        sous = df_livraisons[df_livraisons["No livraison"].astype(str).str.strip().isin(bls_reels)]
+                                        if sous.empty:
+                                            return row   # BL introuvables : on conserve les valeurs existantes
+                                        
+                                        def valeurs_uniques(serie):
+                                            return sorted({str(v).strip() for v in serie
+                                                           if str(v).strip() and str(v).strip().lower() != "nan"})
+                                        
+                                        row["Client(s) inclus"] = ", ".join(valeurs_uniques(sous["Client de l'estafette"]))
+                                        if "Représentant" in sous.columns:
+                                            row["Représentant(s) inclus"] = ", ".join(valeurs_uniques(sous["Représentant"]))
+                                        return row
+                                    
                                     def transfer_bl(row):
                                         bls = row["BL inclus"].split(";") if pd.notna(row["BL inclus"]) else []
                                         
@@ -4433,6 +4457,7 @@ def page_optimisation():
                                             row["BL inclus"] = ";".join(new_bls) if new_bls else ""
                                             row["Poids total chargé"] = max(0, row["Poids total chargé"] - poids_bls)
                                             row["Volume total chargé"] = max(0, row["Volume total chargé"] - volume_bls)
+                                            row = recalculer_clients_representants(row, new_bls)
                                         
                                         elif row["Véhicule N°"] == cible:
                                             # AJOUTER les BLs transférés à la cible
@@ -4443,6 +4468,7 @@ def page_optimisation():
                                             row["BL inclus"] = ";".join(all_bls) if all_bls else ""
                                             row["Poids total chargé"] = row["Poids total chargé"] + poids_bls
                                             row["Volume total chargé"] = row["Volume total chargé"] + volume_bls
+                                            row = recalculer_clients_representants(row, all_bls)
                                         
                                         return row
                                     
@@ -5129,6 +5155,57 @@ def page_optimisation():
                                         step=0.01, 
                                         key="input_volume_objet")
 
+        # --- Destinataire de l'objet : un client de ce véhicule, sinon une adresse cible obligatoire ---
+        st.markdown("### 📍 Destinataire de l'objet")
+
+        clients_vehicule = []
+        if zone_objet and vehicule_objet:
+            try:
+                ligne_vehicule = df_voyages[
+                    (df_voyages["Zone"] == zone_objet) & (df_voyages["Véhicule N°"] == vehicule_objet)
+                ].iloc[0]
+                clients_vehicule = [
+                    c.strip() for c in str(ligne_vehicule.get("Client(s) inclus", "")).replace(";", ",").split(",")
+                    if c.strip() and c.strip().lower() != "nan"
+                ]
+            except Exception:
+                clients_vehicule = []
+
+        OPTION_CLIENT = "À un client de ce véhicule"
+        OPTION_ADRESSE = "À une autre adresse"
+
+        if clients_vehicule:
+            mode_destinataire = st.radio(
+                "L'objet est livré :", [OPTION_CLIENT, OPTION_ADRESSE],
+                horizontal=True, key="radio_dest_objet"
+            )
+        else:
+            st.info("Ce véhicule n'a aucun client : indiquez l'adresse cible de l'objet.")
+            mode_destinataire = OPTION_ADRESSE
+
+        client_objet = ""
+        adresse_objet = ""
+        ville_objet = ""
+        gps_objet_txt = ""
+        nom_destinataire = ""
+
+        if mode_destinataire == OPTION_CLIENT:
+            client_objet = st.selectbox(
+                "👤 Client destinataire", clients_vehicule,
+                key=f"select_client_objet_{zone_objet}_{vehicule_objet}"
+            )
+        else:
+            col_a1, col_a2 = st.columns(2)
+            with col_a1:
+                adresse_objet = st.text_input("🏠 Adresse cible (obligatoire)", key="input_adresse_objet",
+                                              placeholder="Ex: 12 rue de la République, Zone industrielle")
+                nom_destinataire = st.text_input("👤 Nom du destinataire (facultatif)", key="input_dest_nom_objet")
+            with col_a2:
+                ville_objet = st.text_input("🏙️ Ville", key="input_ville_objet", placeholder="Ex: Sfax")
+                gps_objet_txt = st.text_input("🛰️ Coordonnées GPS (facultatif)", key="input_gps_objet",
+                                              placeholder="Ex: 34.7406, 10.7603")
+            st.caption("Pour placer l'adresse sur la carte de l'itinéraire, indiquez la ville ou les coordonnées GPS.")
+
         # Bouton d'ajout
         if st.button("➕ Ajouter l'objet au véhicule", type="primary", key="btn_ajouter_objet"):
             
@@ -5138,6 +5215,14 @@ def page_optimisation():
                 st.error("❌ Veuillez sélectionner une zone et un véhicule.")
             elif poids_objet <= 0 or volume_objet <= 0:
                 st.error("❌ Le poids et le volume doivent être supérieurs à 0.")
+            elif mode_destinataire == OPTION_CLIENT and not client_objet:
+                st.error("❌ Veuillez sélectionner le client destinataire de l'objet.")
+            elif mode_destinataire == OPTION_ADRESSE and not adresse_objet.strip():
+                st.error("❌ L'adresse cible de l'objet est obligatoire (ou choisissez un client de ce véhicule).")
+            elif mode_destinataire == OPTION_ADRESSE and not (ville_objet.strip() or gps_objet_txt.strip()):
+                st.error("❌ Indiquez la ville ou les coordonnées GPS de l'adresse cible.")
+            elif mode_destinataire == OPTION_ADRESSE and gps_objet_txt.strip() and analyser_gps(gps_objet_txt) is None:
+                st.error("❌ Coordonnées GPS illisibles. Format attendu : latitude, longitude (ex. 34.7406, 10.7603).")
             else:
                 try:
                     # Appel de la méthode add_manual_object
@@ -5162,10 +5247,28 @@ def page_optimisation():
                         from datetime import datetime
                         from zoneinfo import ZoneInfo
 
+                        # Mémoriser le destinataire de l'objet (utilisé par l'itinéraire du voyage)
+                        if "objets_livraison" not in st.session_state or st.session_state.objets_livraison is None:
+                            st.session_state.objets_livraison = {}
+                        st.session_state.objets_livraison.setdefault(f"{zone_objet}||{vehicule_objet}", []).append({
+                            "objet": nom_objet.strip(),
+                            "client": client_objet if mode_destinataire == OPTION_CLIENT else "",
+                            "destinataire": nom_destinataire.strip(),
+                            "adresse": adresse_objet.strip(),
+                            "ville": ville_objet.strip(),
+                            "gps": analyser_gps(gps_objet_txt) if gps_objet_txt.strip() else None,
+                        })
+                        
+                        destinataire_txt = (
+                            f"Client {client_objet}" if mode_destinataire == OPTION_CLIENT
+                            else "Adresse : " + ", ".join(x for x in (adresse_objet.strip(), ville_objet.strip()) if x)
+                        )
+                        
                         historique_entry = {
                             "Zone": zone_objet,
                             "Véhicule": vehicule_objet,
                             "Objet": nom_objet.strip(),
+                            "Destinataire": destinataire_txt,
                             "Poids (kg)": poids_objet,
                             "Volume (m³)": volume_objet,
                             "Date": datetime.now(ZoneInfo("Africa/Tunis")).strftime("%Y-%m-%d %H:%M:%S")
@@ -5283,6 +5386,12 @@ def page_optimisation():
                    if c.strip() and c.strip().lower() != "nan"]
         bls_voyage = {b.strip() for b in str(bl_txt).replace(";", ",").split(",") if b.strip()}
 
+        # Objets ajoutés manuellement à ce véhicule : livrés à un client du voyage ou à une adresse cible
+        objets_voyage = (st.session_state.get("objets_livraison") or {}).get(f"{zone}||{numero}", [])
+        for o in objets_voyage:
+            if o.get("client") and normaliser_cle(o["client"]) not in {normaliser_cle(c) for c in clients}:
+                clients.append(o["client"])
+
         bls_par_client = {}
         df_lo = st.session_state.get("df_livraisons_original")
         if df_lo is not None and "No livraison" in df_lo.columns and "Client de l'estafette" in df_lo.columns:
@@ -5290,6 +5399,10 @@ def page_optimisation():
             for cl in clients:
                 sous = df_lo[cles_lo == normaliser_cle(cl)]
                 bls_par_client[cl] = sorted(set(sous["No livraison"].astype(str)) & bls_voyage)
+
+        for o in objets_voyage:
+            if o.get("client"):
+                bls_par_client.setdefault(o["client"], []).append(f"OBJ-{o['objet']}")
 
         # --- Clients ayant plusieurs adresses GPS : choix de l'adresse ---
         selection = {}
@@ -5311,6 +5424,22 @@ def page_optimisation():
         # --- Arrêts et ordre de passage ---
         depot = coordonnees_depot()
         arrets, non_places = construire_arrets(clients, df_cli, selection, bls_par_client)
+
+        # Objets livrés à une adresse cible : un arrêt supplémentaire
+        for o in objets_voyage:
+            if o.get("client"):
+                continue
+            position = o.get("gps") or centre_ville(o.get("ville", ""))
+            libelle = ", ".join(x for x in (o.get("adresse", ""), o.get("ville", "")) if x)
+            nom_arret = o.get("destinataire") or f"Objet {o['objet']}"
+            if position is not None:
+                arrets.append({
+                    "client": nom_arret, "raison": f"Objet « {o['objet']} »", "adresse": libelle,
+                    "ville": o.get("ville", ""), "lat": position[0], "lon": position[1],
+                    "approx": not o.get("gps"), "bls": [f"OBJ-{o['objet']}"],
+                })
+            else:
+                non_places.append((nom_arret, f"adresse non localisable ({libelle}) : ville non reconnue et pas de GPS"))
 
         for cl, motif in non_places:
             st.warning(f"⚠️ **{cl}** ne peut pas être placé sur la carte : {motif}.")
