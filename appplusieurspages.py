@@ -3503,9 +3503,11 @@ def html_carte_itineraire(depot, arrets, retour=True, hauteur=480):
 <style>
   html, body { margin:0; font-family: Arial, sans-serif; }
   #map { height: __H__px; width:100%; border:1.5px solid #0369A1; border-radius:10px; box-sizing:border-box; }
-  .pin { width:28px; height:28px; border-radius:50%; color:#fff; font-weight:700; font-size:13px;
+  .pin-wrap { position:relative; width:0; height:0; }
+  .pin { position:absolute; left:0; top:0; transform:translate(-50%,-50%); min-width:28px; height:28px; padding:0 5px;
+         box-sizing:border-box; border-radius:14px; color:#fff; font-weight:700; font-size:13px; white-space:nowrap;
          display:flex; align-items:center; justify-content:center; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.5); }
-  .pin-depot { background:#C62828; width:32px; height:32px; font-size:18px; }
+  .pin-depot { background:#C62828; min-width:32px; height:32px; border-radius:16px; font-size:18px; }
   .pin-ok { background:#0369A1; } .pin-approx { background:#EF8F00; }
   #info { margin-top:6px; font-size:13px; color:#1F2D3D; }
 </style></head><body>
@@ -3519,17 +3521,34 @@ if (typeof L === 'undefined') {
 } else {
   const map = L.map('map');
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; OpenStreetMap'}).addTo(map);
-  const icone = (cls, txt) => L.divIcon({className: '', html: '<div class="pin ' + cls + '">' + txt + '</div>', iconSize: [30, 30], iconAnchor: [15, 15]});
+  const icone = (cls, txt) => L.divIcon({className: '', html: '<div class="pin-wrap"><div class="pin ' + cls + '">' + txt + '</div></div>', iconSize: [0, 0], iconAnchor: [0, 0], popupAnchor: [0, -16]});
   const pts = [[D.depot.lat, D.depot.lon]];
   L.marker([D.depot.lat, D.depot.lon], {icon: icone('pin-depot', '⌂')}).addTo(map).bindPopup('<b>Départ : ' + D.depot.nom + '</b>');
-  D.arrets.forEach(a => {
-    pts.push([a.lat, a.lon]);
-    L.marker([a.lat, a.lon], {icon: icone(a.approx ? 'pin-approx' : 'pin-ok', a.n)}).addTo(map)
-      .bindPopup('<b>' + a.n + '. ' + a.client + '</b><br>' + a.adresse + (a.approx ? '<br><i>Position approximative (centre de la ville)</i>' : ''));
-  });
+  D.arrets.forEach(a => pts.push([a.lat, a.lon]));
+
+  // Arrêts : les marqueurs qui se superposent à l'écran sont regroupés (ex. « 5·6·7 »), puis se séparent en zoomant
+  const couche = L.layerGroup().addTo(map);
+  function dessinerArrets() {
+    couche.clearLayers();
+    const groupes = [];
+    D.arrets.forEach(a => {
+      const p = map.latLngToContainerPoint([a.lat, a.lon]);
+      const g = groupes.find(g => Math.hypot(g.x - p.x, g.y - p.y) < 24);
+      if (g) { g.items.push(a); } else { groupes.push({x: p.x, y: p.y, lat: a.lat, lon: a.lon, items: [a]}); }
+    });
+    groupes.forEach(g => {
+      const texte = g.items.map(a => a.n).join('·');
+      const approx = g.items.every(a => a.approx);
+      const detail = g.items.map(a => '<b>' + a.n + '. ' + a.client + '</b><br>' + a.adresse +
+        (a.approx ? '<br><i>Position approximative (centre de la ville)</i>' : '')).join('<hr style="margin:6px 0">');
+      L.marker([g.lat, g.lon], {icon: icone(approx ? 'pin-approx' : 'pin-ok', texte)}).addTo(couche).bindPopup(detail);
+    });
+  }
   const trace = D.retour ? pts.concat([pts[0]]) : pts;
   const droite = L.polyline(trace, {color: '#6B7C93', weight: 3, dashArray: '6 8'}).addTo(map);
   map.fitBounds(L.latLngBounds(pts), {padding: [40, 40]});
+  dessinerArrets();
+  map.on('zoomend', dessinerArrets);
   info.textContent = 'Tracé à vol d’oiseau (calcul de l’itinéraire routier en cours…)';
   const coords = trace.map(p => p[1] + ',' + p[0]).join(';');
   fetch('https://router.project-osrm.org/route/v1/driving/' + coords + '?overview=full&geometries=geojson')
@@ -5453,6 +5472,23 @@ def page_optimisation():
 
         if any(a["approx"] for a in arrets):
             st.caption("🟠 Les clients sans GPS dans le fichier sont placés au centre de leur ville (position approximative).")
+
+        # Étapes situées (quasiment) au même endroit : leurs marqueurs se superposent sur la carte
+        groupes_memes_lieux = []
+        for i, a in enumerate(arrets):
+            for g in groupes_memes_lieux:
+                ref = arrets[g[0]]
+                if distance_km((a["lat"], a["lon"]), (ref["lat"], ref["lon"])) < 0.05:
+                    g.append(i)
+                    break
+            else:
+                groupes_memes_lieux.append([i])
+        groupes_memes_lieux = [g for g in groupes_memes_lieux if len(g) > 1]
+        if groupes_memes_lieux:
+            details_lieux = " ; ".join(
+                " + ".join(f"{i + 1} ({arrets[i]['client']})" for i in g) for g in groupes_memes_lieux
+            )
+            st.caption(f"ℹ️ Étapes situées au même endroit (marqueurs regroupés sur la carte) : {details_lieux}.")
 
         # --- Distances (à vol d'oiseau, avec une estimation routière) ---
         chemin = [depot] + [(a["lat"], a["lon"]) for a in arrets] + ([depot] if retour else [])
