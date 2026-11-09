@@ -837,107 +837,149 @@ def refuse_location_callback():
 def page_import():
     st.markdown("<h1 class='main-header'>1. 📥 Importation des données</h1>", unsafe_allow_html=True)
     
-    st.markdown("""
-    <div style='background: #0369A1;
-                padding: 2rem;
-                border-radius: 10px;
-                color: white;
-                margin-bottom: 2rem;
-                text-align: center;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);'>
-        <h3 style='color: white; margin-bottom: 1rem;'>📋 Instructions d'importation</h3>
-        <p style='margin-bottom: 0; font-size: 16px;'>Téléchargez les 3 fichiers requis pour commencer l'analyse des livraisons.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.markdown("""
-        <div class='metric-card'>
-            <h4 style='color: #0369A1; margin-bottom: 10px;'>📄 Fichier Livraisons</h4>
-            <p style='font-size: 14px; color: #666;'>Format Excel (.xlsx)</p>
-        </div>
-        """, unsafe_allow_html=True)
-        liv_file = st.file_uploader("BL", type=["xlsx"], key="file1")
-        
-    with col2:
-        st.markdown("""
-        <div class='metric-card'>
-            <h4 style='color: #0369A1; margin-bottom: 10px;'>📦 Fichier Volumes</h4>
-            <p style='font-size: 14px; color: #666;'>Format Excel (.xlsx)</p>
-        </div>
-        """, unsafe_allow_html=True)
-        ydlogist_file = st.file_uploader("Articles", type=["xlsx"], key="file2")
-        
-    with col3:
-        st.markdown("""
-        <div class='metric-card'>
-            <h4 style='color: #0369A1; margin-bottom: 10px;'>🏢 Fichier Clients</h4>
-            <p style='font-size: 14px; color: #666;'>Format Excel (.xlsx)</p>
-        </div>
-        """, unsafe_allow_html=True)
-        wcliegps_file = st.file_uploader("Clients/Zones", type=["xlsx"], key="file3")
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    # Bouton de traitement
-    col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
-    with col_btn2:
-        if st.button("🚀 Exécuter le traitement complet", type="primary", use_container_width=True):
-            if liv_file and ydlogist_file and wcliegps_file:
-                processor = DeliveryProcessor()
-                try:
-                    with st.spinner("🔍 Traitement des données en cours..."):
-                        df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes, df_livraisons_original = processor.process_delivery_data(
-                            liv_file, ydlogist_file, wcliegps_file
-                        )
-                    
-                    # Stockage dans session_state
-                    st.session_state.df_grouped = df_grouped
-                    st.session_state.df_city = df_city
-                    st.session_state.df_grouped_zone = df_grouped_zone
-                    st.session_state.df_zone = df_zone
-                    st.session_state.df_optimized_estafettes = df_optimized_estafettes
-                    st.session_state.df_livraisons_original = df_livraisons_original
-                    st.session_state.df_livraisons = df_grouped_zone
-                    
-                    # Initialisation des processeurs
-                    st.session_state.rental_processor = TruckRentalProcessor(
-                        df_optimized_estafettes, df_livraisons_original
-                    )
-                    st.session_state.data_processed = True
-                    
-                    # Nouvel import : les objets livrés à une adresse cible sont réinitialisés
-                    st.session_state.objets_livraison = {}
-                    
-                    # Fichier clients complet (adresses GPS) conservé pour les itinéraires des voyages
-                    try:
-                        wcliegps_file.seek(0)
-                        st.session_state.df_clients_gps = pd.read_excel(wcliegps_file)
-                    except Exception:
-                        st.session_state.df_clients_gps = None
-                     # --- Contrôle des poids suspects (0 ou 1000) ---
-                    liv_file.seek(0)
-                    ydlogist_file.seek(0)
-                    df_liv_raw = pd.read_excel(liv_file)
-                    df_art_raw = pd.read_excel(ydlogist_file)
-                    st.session_state.df_poids_suspects = detecter_poids_suspects(df_liv_raw, df_art_raw)
-                    st.session_state.popup_poids_vu = False   # réarmer la pop-up
-                    st.session_state.df_volumes_nuls = detecter_volumes_nuls(df_liv_raw, df_art_raw)
-                    st.session_state.popup_volume_vu = False
+    tab_fichiers, tab_session = st.tabs(["📂 Importer les 3 fichiers", "💾 Ouvrir une session sauvegardée"])
 
-                    st.markdown("""
-                <div style="text-align: center; padding: 10px; margin-top: 20px;">
-                    <p style="color: green; font-size: 16px; font-weight: bold;">✅ Données importées et traitées avec succès !</p>
-                </div>
-                """, unsafe_allow_html=True)
+    with tab_fichiers:
+        st.markdown("""
+        <div style='background: #0369A1;
+                    padding: 2rem;
+                    border-radius: 10px;
+                    color: white;
+                    margin-bottom: 2rem;
+                    text-align: center;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);'>
+            <h3 style='color: white; margin-bottom: 1rem;'>📋 Instructions d'importation</h3>
+            <p style='margin-bottom: 0; font-size: 16px;'>Téléchargez les 3 fichiers requis pour commencer l'analyse des livraisons.</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+        col1, col2, col3 = st.columns(3)
+    
+        with col1:
+            st.markdown("""
+            <div class='metric-card'>
+                <h4 style='color: #0369A1; margin-bottom: 10px;'>📄 Fichier Livraisons</h4>
+                <p style='font-size: 14px; color: #666;'>Format Excel (.xlsx)</p>
+            </div>
+            """, unsafe_allow_html=True)
+            liv_file = st.file_uploader("BL", type=["xlsx"], key="file1")
+        
+        with col2:
+            st.markdown("""
+            <div class='metric-card'>
+                <h4 style='color: #0369A1; margin-bottom: 10px;'>📦 Fichier Volumes</h4>
+                <p style='font-size: 14px; color: #666;'>Format Excel (.xlsx)</p>
+            </div>
+            """, unsafe_allow_html=True)
+            ydlogist_file = st.file_uploader("Articles", type=["xlsx"], key="file2")
+        
+        with col3:
+            st.markdown("""
+            <div class='metric-card'>
+                <h4 style='color: #0369A1; margin-bottom: 10px;'>🏢 Fichier Clients</h4>
+                <p style='font-size: 14px; color: #666;'>Format Excel (.xlsx)</p>
+            </div>
+            """, unsafe_allow_html=True)
+            wcliegps_file = st.file_uploader("Clients/Zones", type=["xlsx"], key="file3")
+    
+        st.markdown("<br>", unsafe_allow_html=True)
+    
+        # Bouton de traitement
+        col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+        with col_btn2:
+            if st.button("🚀 Exécuter le traitement complet", type="primary", use_container_width=True):
+                if liv_file and ydlogist_file and wcliegps_file:
+                    processor = DeliveryProcessor()
+                    try:
+                        with st.spinner("🔍 Traitement des données en cours..."):
+                            df_grouped, df_city, df_grouped_zone, df_zone, df_optimized_estafettes, df_livraisons_original = processor.process_delivery_data(
+                                liv_file, ydlogist_file, wcliegps_file
+                            )
+                    
+                        # Stockage dans session_state
+                        st.session_state.df_grouped = df_grouped
+                        st.session_state.df_city = df_city
+                        st.session_state.df_grouped_zone = df_grouped_zone
+                        st.session_state.df_zone = df_zone
+                        st.session_state.df_optimized_estafettes = df_optimized_estafettes
+                        st.session_state.df_livraisons_original = df_livraisons_original
+                        st.session_state.df_livraisons = df_grouped_zone
+                    
+                        # Initialisation des processeurs
+                        st.session_state.rental_processor = TruckRentalProcessor(
+                            df_optimized_estafettes, df_livraisons_original
+                        )
+                        st.session_state.data_processed = True
+                    
+                        # Nouvel import : les objets livrés à une adresse cible et les choix d'attribution sont réinitialisés
+                        st.session_state.objets_livraison = {}
+                        st.session_state.choix_attribution = {}
+                        st.session_state.session_zip = None
+                        for _cle_widget in list(st.session_state.keys()):
+                            if str(_cle_widget).startswith(("attr_", "itin_")):
+                                del st.session_state[_cle_widget]
+                    
+                        # Fichier clients complet (adresses GPS) conservé pour les itinéraires des voyages
+                        try:
+                            wcliegps_file.seek(0)
+                            st.session_state.df_clients_gps = pd.read_excel(wcliegps_file)
+                        except Exception:
+                            st.session_state.df_clients_gps = None
+                         # --- Contrôle des poids suspects (0 ou 1000) ---
+                        liv_file.seek(0)
+                        ydlogist_file.seek(0)
+                        df_liv_raw = pd.read_excel(liv_file)
+                        df_art_raw = pd.read_excel(ydlogist_file)
+                        st.session_state.df_poids_suspects = detecter_poids_suspects(df_liv_raw, df_art_raw)
+                        st.session_state.popup_poids_vu = False   # réarmer la pop-up
+                        st.session_state.df_volumes_nuls = detecter_volumes_nuls(df_liv_raw, df_art_raw)
+                        st.session_state.popup_volume_vu = False
+
+                        st.markdown("""
+                    <div style="text-align: center; padding: 10px; margin-top: 20px;">
+                        <p style="color: green; font-size: 16px; font-weight: bold;">✅ Données importées et traitées avec succès !</p>
+                    </div>
+                    """, unsafe_allow_html=True)
                 
                     
-                except Exception as e:
-                    st.error(f"❌ Erreur lors du traitement : {str(e)}")
-            else:
-                st.warning("⚠️ Veuillez télécharger les 3 fichiers requis.")
+                    except Exception as e:
+                        st.error(f"❌ Erreur lors du traitement : {str(e)}")
+                else:
+                    st.warning("⚠️ Veuillez télécharger les 3 fichiers requis.")
+
+    with tab_session:
+        st.markdown("""
+        <div style='background: #0369A1;
+                    padding: 2rem;
+                    border-radius: 10px;
+                    color: white;
+                    margin-bottom: 2rem;
+                    text-align: center;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);'>
+            <h3 style='color: white; margin-bottom: 1rem;'>💾 Ouvrir une session sauvegardée</h3>
+            <p style='margin-bottom: 0; font-size: 16px;'>Reprenez votre travail là où vous l'avez laissé : données importées,
+            validations, attributions, objets ajoutés et codes voyage.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        fichier_session = st.file_uploader(
+            "Fichier de session (.zip) créé avec « 💾 Sauvegarder la session »",
+            type=["zip"], key="file_session"
+        )
+
+        col_ses1, col_ses2, col_ses3 = st.columns([1, 2, 1])
+        with col_ses2:
+            if st.button("📂 Charger la session", type="primary", use_container_width=True, key="btn_charger_session"):
+                if fichier_session is None:
+                    st.warning("⚠️ Veuillez d'abord choisir un fichier de session (.zip).")
+                else:
+                    with st.spinner("🔄 Restauration de la session en cours..."):
+                        succes_session, message_session = restaurer_session_zip(fichier_session.getvalue())
+                    if succes_session:
+                        st.success(f"✅ {message_session}")
+                    else:
+                        st.error(f"❌ {message_session}")
+
     
     # Afficher les résultats si disponibles
     if st.session_state.data_processed:
@@ -3569,6 +3611,214 @@ if (typeof L === 'undefined') {
 }
 </script></body></html>"""
     return modele.replace("__DATA__", donnees_json).replace("__H__", str(int(hauteur)))
+
+
+# =====================================================
+# SAUVEGARDE ET RESTAURATION DE LA SESSION
+# =====================================================
+import io
+import json
+import zipfile
+from datetime import datetime
+
+FORMAT_SESSION = "planning-livraisons-session"
+VERSION_SESSION = 1
+
+# Tableaux conservés dans la session (clé de session_state)
+DATAFRAMES_SESSION = [
+    "df_grouped", "df_city", "df_grouped_zone", "df_zone", "df_optimized_estafettes",
+    "df_livraisons_original", "df_livraisons", "df_voyages", "df_voyages_valides",
+    "df_clients_gps", "df_poids_suspects", "df_volumes_nuls",
+]
+
+
+def maintenant_tunis():
+    """Date et heure actuelles en Tunisie (heure locale du serveur si le fuseau est indisponible)."""
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("Africa/Tunis"))
+    except Exception:
+        return datetime.now()
+
+
+def _json_defaut(o):
+    """Conversion JSON des types numpy / pandas / ensembles."""
+    import numpy as np
+    if isinstance(o, np.integer):
+        return int(o)
+    if isinstance(o, np.floating):
+        return None if np.isnan(o) else float(o)
+    if isinstance(o, np.bool_):
+        return bool(o)
+    if isinstance(o, (set, tuple)):
+        return list(o)
+    if isinstance(o, (pd.Timestamp, datetime)):
+        return o.isoformat()
+    return str(o)
+
+
+def _df_vers_texte(df):
+    return df.to_json(orient="split", double_precision=15, force_ascii=False, date_format="iso")
+
+
+def _texte_vers_df(texte, meta):
+    df = pd.read_json(io.StringIO(texte), orient="split", dtype=False, convert_dates=False, convert_axes=False)
+    for col, type_col in meta.get("dtypes", {}).items():
+        if col not in df.columns:
+            continue
+        try:
+            if type_col.startswith("int"):
+                numerique = pd.to_numeric(df[col], errors="coerce")
+                df[col] = numerique.astype("Int64") if numerique.isna().any() else numerique.astype("int64")
+            elif type_col.startswith("float"):
+                df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
+            elif type_col == "bool":
+                df[col] = df[col].astype(bool)
+            elif type_col.startswith("datetime"):
+                df[col] = pd.to_datetime(df[col], errors="coerce")
+        except Exception:
+            pass   # colonne laissée telle que lue
+    plage = meta.get("range")
+    if plage and len(range(*plage)) == len(df):
+        df.index = pd.RangeIndex(*plage)
+    return df
+
+
+def sauvegarder_session_zip():
+    """Fichier ZIP (JSON, sans pickle) contenant tout l'état de travail : données, choix, objets, attributions."""
+    ss = st.session_state
+    tampon = io.BytesIO()
+    meta_dfs = {}
+
+    with zipfile.ZipFile(tampon, "w", zipfile.ZIP_DEFLATED) as z:
+
+        def ajouter_df(nom, df):
+            if df is None or not isinstance(df, pd.DataFrame):
+                return
+            z.writestr(f"dataframes/{nom}.json", _df_vers_texte(df))
+            meta_dfs[nom] = {
+                "dtypes": {str(c): str(t) for c, t in df.dtypes.items()},
+                "range": [df.index.start, df.index.stop, df.index.step] if isinstance(df.index, pd.RangeIndex) else None,
+            }
+
+        for cle in DATAFRAMES_SESSION:
+            ajouter_df(cle, ss.get(cle))
+
+        etat = {
+            "truck_type": ss.get("truck_type", "5 tonnes"),
+            "objets_historique": ss.get("objets_historique") or [],
+            "objets_livraison": ss.get("objets_livraison") or {},
+            "choix_attribution": ss.get("choix_attribution") or {},
+            "attributions": {str(k): v for k, v in (ss.get("attributions") or {}).items()},
+            "rental_processor": None,
+            "transfer_manager": False,
+        }
+
+        rp = ss.get("rental_processor")
+        if rp is not None:
+            ajouter_df("rental_df_base", rp.df_base)
+            etat["rental_processor"] = {
+                "next_camion_num": int(getattr(rp, "_next_camion_num", 1)),
+                "truck_type": str(getattr(rp, "truck_type", "5 tonnes")),
+            }
+
+        tm = ss.get("transfer_manager")
+        if tm is not None:
+            ajouter_df("transfer_df_voyages", tm.df_voyages)
+            etat["transfer_manager"] = True
+
+        manifest = {
+            "format": FORMAT_SESSION,
+            "version": VERSION_SESSION,
+            "saved_at": maintenant_tunis().isoformat(timespec="seconds"),
+            "dataframes": meta_dfs,
+            "etat": etat,
+        }
+        z.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, default=_json_defaut, indent=1))
+
+    return tampon.getvalue()
+
+
+def restaurer_session_zip(contenu):
+    """Recharge une session sauvegardée. Retourne (succès, message)."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(contenu)) as z:
+            manifest = json.loads(z.read("manifest.json").decode("utf-8"))
+            if manifest.get("format") != FORMAT_SESSION:
+                return False, "Ce fichier n'est pas une session sauvegardée de cette application."
+            if int(manifest.get("version", 0)) > VERSION_SESSION:
+                return False, "Cette session a été créée par une version plus récente de l'application."
+            dfs = {
+                nom: _texte_vers_df(z.read(f"dataframes/{nom}.json").decode("utf-8"), meta)
+                for nom, meta in manifest.get("dataframes", {}).items()
+            }
+    except (zipfile.BadZipFile, KeyError, ValueError) as e:
+        return False, f"Fichier de session invalide ({type(e).__name__} : {e})."
+
+    if dfs.get("df_grouped") is None or dfs.get("df_livraisons_original") is None:
+        return False, "La session ne contient pas les données de livraison : impossible de la restaurer."
+
+    ss = st.session_state
+    etat = manifest.get("etat", {})
+
+    # --- Tableaux ---
+    for cle in DATAFRAMES_SESSION:
+        ss[cle] = dfs.get(cle)
+
+    # --- Processeur de location de camions (reconstruit sans le relancer) ---
+    meta_rp = etat.get("rental_processor")
+    if meta_rp and dfs.get("rental_df_base") is not None:
+        rp = object.__new__(TruckRentalProcessor)
+        rp.df_base = dfs["rental_df_base"]
+        rp.df_livraisons_original = dfs["df_livraisons_original"].copy()
+        rp._next_camion_num = int(meta_rp.get("next_camion_num", 1))
+        rp.truck_type = meta_rp.get("truck_type", "5 tonnes")
+        ss["rental_processor"] = rp
+        try:
+            ss["propositions"] = rp.detecter_propositions()
+        except Exception:
+            ss["propositions"] = None
+    else:
+        ss["rental_processor"] = None
+        ss["propositions"] = None
+
+    # --- Gestionnaire de transferts ---
+    if etat.get("transfer_manager") and dfs.get("transfer_df_voyages") is not None and dfs.get("df_livraisons") is not None:
+        ss["transfer_manager"] = TruckTransferManager(dfs["transfer_df_voyages"], dfs["df_livraisons"])
+    else:
+        ss["transfer_manager"] = None
+
+    # --- Choix et objets ---
+    objets_livraison = etat.get("objets_livraison") or {}
+    for liste in objets_livraison.values():
+        for o in liste:
+            if o.get("gps"):
+                o["gps"] = tuple(o["gps"])
+    ss["objets_livraison"] = objets_livraison
+    ss["objets_historique"] = etat.get("objets_historique") or []
+    ss["choix_attribution"] = etat.get("choix_attribution") or {}
+    ss["attributions"] = {int(k): v for k, v in (etat.get("attributions") or {}).items()}
+    ss["validations"] = {}
+    ss["truck_type"] = etat.get("truck_type", "5 tonnes")
+    ss["selected_client"] = None
+    ss["message"] = ""
+    ss["transfert_bl_effectue"] = False
+    ss["popup_poids_vu"] = True
+    ss["popup_volume_vu"] = True
+    ss["data_processed"] = True
+
+    ss["session_zip"] = None
+
+    # État des widgets liés aux données : ils sont reconstruits depuis les choix restaurés
+    for cle in list(ss.keys()):
+        if str(cle).startswith(("attr_", "itin_")):
+            del ss[cle]
+
+    try:
+        date_txt = datetime.fromisoformat(str(manifest.get("saved_at", ""))).strftime("%d/%m/%Y à %H:%M")
+    except ValueError:
+        date_txt = str(manifest.get("saved_at", "date inconnue"))
+    return True, f"Session restaurée (sauvegardée le {date_txt})."
 
 
 def page_optimisation():
@@ -8610,6 +8860,39 @@ def main():
                 st.success("✅ Planning validé")
         else:
             st.warning("⏳ Données requises")
+        
+        # Sauvegarde de la session (disponible dès que des données sont chargées)
+        if st.session_state.data_processed:
+            st.markdown("---")
+            st.markdown("### 💾 Session")
+            if st.session_state.df_voyages_valides is None:
+                st.caption("Le planning n'est pas encore validé : la sauvegarde conserve l'état actuel du travail.")
+            
+            if st.button("💾 Sauvegarder la session", key="btn_sauvegarder_session", use_container_width=True):
+                try:
+                    with st.spinner("Préparation de la sauvegarde..."):
+                        horodatage = maintenant_tunis()
+                        st.session_state.session_zip = {
+                            "nom": f"Session_planning_{horodatage:%Y-%m-%d_%H%M}.zip",
+                            "data": sauvegarder_session_zip(),
+                            "heure": f"{horodatage:%H:%M}",
+                        }
+                except Exception as e:
+                    st.session_state.session_zip = None
+                    st.error(f"❌ Sauvegarde impossible : {str(e)}")
+            
+            sauvegarde_session = st.session_state.get("session_zip")
+            if sauvegarde_session:
+                st.download_button(
+                    "⬇️ Télécharger la session",
+                    data=sauvegarde_session["data"],
+                    file_name=sauvegarde_session["nom"],
+                    mime="application/zip",
+                    key="btn_telecharger_session",
+                    use_container_width=True,
+                )
+                st.caption(f"Sauvegarde préparée à {sauvegarde_session['heure']}. "
+                           "Cliquez de nouveau sur « Sauvegarder » après toute modification.")
         
         # Pied de page sidebar
         st.markdown("---")
